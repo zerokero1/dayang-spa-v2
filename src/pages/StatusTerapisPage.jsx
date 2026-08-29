@@ -369,6 +369,14 @@ export default function StatusTerapisPage() {
     onTandaiLunas: handleTandaiLunas
   };
 
+  // Ringkasan per outlet: jumlah terapis sedang ambil tamu vs total terapis di outlet itu
+  const outletSummary = OUTLETS.map((o) => {
+    const inOutlet = therapists.filter((t) => t.homeOutletId === o.id);
+    const busyHere = inOutlet.filter((t) => (t.status || 'free') === 'ambil_tamu').length;
+    const freeHere = inOutlet.filter((t) => (t.status || 'free') === 'free').length;
+    return { outlet: o, total: inOutlet.length, busy: busyHere, free: freeHere };
+  });
+
   return (
     <div className="kasir-page">
       <h2>Status Terapis</h2>
@@ -384,6 +392,18 @@ export default function StatusTerapisPage() {
       </button>
 
       {message && <p style={{ fontSize: 13 }}>{message}</p>}
+
+      <div className="grid-2" style={{ marginBottom: 12 }}>
+        {outletSummary.map(({ outlet, total, busy, free }) => (
+          <div key={outlet.id} className="oil-card" style={{ textAlign: 'left', padding: '8px 12px', margin: 0, cursor: 'pointer' }}
+            onClick={() => setOutletFilter(outletFilter === outlet.id ? 'semua' : outlet.id)}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>{outlet.name} <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>({outlet.id})</span></div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+              {total} terapis · <span style={{ color: 'var(--primary)' }}>{busy} ambil tamu</span> · {free} free
+            </div>
+          </div>
+        ))}
+      </div>
 
       <div className="grid-2" style={{ marginBottom: 16 }}>
         <button className={outletFilter === 'semua' ? 'active' : ''} onClick={() => setOutletFilter('semua')}>
