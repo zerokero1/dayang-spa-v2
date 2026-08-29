@@ -17,11 +17,13 @@ export default function KelolaTerapisPage() {
   const [newRole, setNewRole] = useState(STAFF_ROLES.TERAPIS);
   const [newOutlet, setNewOutlet] = useState('');
   const [message, setMessage] = useState('');
+  const [outletFilter, setOutletFilter] = useState('');
 
   useEffect(() => listenAllTherapists(setTherapists), []);
 
   const filtered = therapists.filter((t) =>
-    t.name.toLowerCase().includes(search.toLowerCase())
+    t.name.toLowerCase().includes(search.toLowerCase()) &&
+    (!outletFilter || t.homeOutletId === outletFilter)
   );
 
   // Kelompokkan per outlet asal (urutan OUTLETS), sisanya ke "Belum ada outlet"
@@ -73,8 +75,29 @@ export default function KelolaTerapisPage() {
       </p>
 
       <div className="grid-2" style={{ marginBottom: 16 }}>
+        <div
+          className="oil-card"
+          style={{
+            textAlign: 'left', padding: '8px 12px', margin: 0, cursor: 'pointer',
+            border: outletFilter === '' ? '2px solid var(--primary)' : '1px solid var(--border)'
+          }}
+          onClick={() => setOutletFilter('')}
+        >
+          <button style={{ width: 'auto', padding: '2px 8px', fontSize: 11, boxShadow: 'none', marginRight: 6 }} onClick={(e) => { e.stopPropagation(); setOutletFilter(''); }}>
+            Semua
+          </button>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{therapists.length} terapis</span>
+        </div>
         {outletSummary.map(({ outlet, count }) => (
-          <div key={outlet.id} className="oil-card" style={{ textAlign: 'left', padding: '8px 12px', margin: 0 }}>
+          <div
+            key={outlet.id}
+            className="oil-card"
+            style={{
+              textAlign: 'left', padding: '8px 12px', margin: 0, cursor: 'pointer',
+              border: outletFilter === outlet.id ? '2px solid var(--primary)' : '1px solid var(--border)'
+            }}
+            onClick={() => setOutletFilter(outletFilter === outlet.id ? '' : outlet.id)}
+          >
             <div style={{ fontWeight: 700, fontSize: 13 }}>{outlet.name} <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>({outlet.id})</span></div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{count} terapis</div>
           </div>
