@@ -31,6 +31,12 @@ export default function KelolaTerapisPage() {
   }));
   const noOutlet = filtered.filter((t) => !t.homeOutletId);
 
+  // Ringkasan per outlet (dari SEMUA terapis, abaikan pencarian)
+  const outletSummary = OUTLETS.map((o) => ({
+    outlet: o,
+    count: therapists.filter((t) => t.homeOutletId === o.id).length
+  }));
+
   async function handleAdd() {
     if (!newName.trim()) return;
     await addTherapist({ name: newName.trim(), role: newRole, homeOutletId: newOutlet || null });
@@ -65,6 +71,15 @@ export default function KelolaTerapisPage() {
       <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: -8, marginBottom: 16 }}>
         Atur outlet asal (ditampilkan sebagai singkatan di nama, mis. "Gading (DR)") dan role tiap terapis
       </p>
+
+      <div className="grid-2" style={{ marginBottom: 16 }}>
+        {outletSummary.map(({ outlet, count }) => (
+          <div key={outlet.id} className="oil-card" style={{ textAlign: 'left', padding: '8px 12px', margin: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>{outlet.name} <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>({outlet.id})</span></div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{count} terapis</div>
+          </div>
+        ))}
+      </div>
 
       {message && <p style={{ fontSize: 13 }}>{message}</p>}
 
