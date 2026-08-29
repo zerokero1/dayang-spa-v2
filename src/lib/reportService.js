@@ -30,15 +30,25 @@ function mapBooking(row) {
   };
 }
 
+// Batas UTC untuk satu hari LOKAL (WIB = UTC+7) agar konsisten,
+// tidak bergantung zona waktu mesin/browser.
+function wibDayBoundsUtc(dateStr) {
+  // dateStr format "YYYY-MM-DD". 00:00 WIB = 17:00 UTC hari sebelumnya.
+  const startLocal = new Date(dateStr + 'T00:00:00Z'); // bailout parse
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const startUtc = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - 7 * 3600000); // 00:00 WIB
+  const endUtc = new Date(startUtc.getTime() + 24 * 3600000 - 1); // sampai 23:59:59 WIB
+  return { startUtc, endUtc };
+}
+
 export async function getDailyBookings(outletId, dateStr) {
-  const start = new Date(dateStr + 'T00:00:00');
-  const end = new Date(dateStr + 'T23:59:59');
+  const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
   const { data, error } = await supabase
     .from('bookings')
     .select('*')
     .eq('outlet_id', outletId)
-    .gte('created_at', start.toISOString())
-    .lte('created_at', end.toISOString());
+    .gte('created_at', startUtc.toISOString())
+    .lte('created_at', endUtc.toISOString());
   if (error) throw error;
   return (data || []).map(mapBooking);
 }

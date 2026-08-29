@@ -10,7 +10,9 @@ const STATUS_LABEL = { free: 'Free', libur: 'Libur', ambil_tamu: 'Ambil Tamu', b
 const OUTLET_NAME = Object.fromEntries(OUTLETS.map((o) => [o.id, o.name]));
 
 function todayId() {
-  return new Date().toISOString().slice(0, 10);
+  // Tanggal LOKAL WIB (UTC+7) — bukan UTC, agar konsisten dengan getDailyBookings
+  const now = new Date(Date.now() + 7 * 3600000); // geser ke WIB
+  return now.toISOString().slice(0, 10);
 }
 
 function formatCountdown(endAt) {
