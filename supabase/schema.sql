@@ -294,7 +294,15 @@ begin
       status = 'ambil_tamu',
       current_outlet_id = p_outlet_id,
       current_booking_ids = coalesce(current_booking_ids, '[]'::jsonb) || jsonb_build_array(v_booking_id::text),
-      current_treatment_names = coalesce(current_treatment_names, '[]'::jsonb) || jsonb_build_array(p_treatment_name)
+      current_treatment_names = coalesce(current_treatment_names, '[]'::jsonb) || jsonb_build_array(p_treatment_name),
+      current_booking_id = v_booking_id::text,
+      current_treatment_name = p_treatment_name,
+      current_paid = p_paid,
+      current_payment_method = p_payment_method,
+      current_price = p_treatment_price,
+      current_group_id = p_group_id,
+      start_at = (extract(epoch from now())::bigint * 1000),
+      end_at = v_end_at
     where id = p_therapist_id;
   end if;
 

@@ -52,10 +52,11 @@ function buildAndSendTherapistList({ therapists, dailyCommissions }) {
     text += `\n${o.name.toUpperCase()}\n`;
     list.forEach((t, i) => {
       const shiftCode = t.shift ? SHIFT_SHORT_CODE[t.shift] : '';
-      const commission = dailyCommissions[t.id] ? ` ${Math.round(dailyCommissions[t.id] / 1000)}` : '';
+      const commission = dailyCommissions[t.id] ? Math.round(dailyCommissions[t.id] / 1000) : '';
       const busy = (t.status || 'free') === 'ambil_tamu';
-      const busyMark = busy ? ` ❌${formatClock(t.endAt)}` : '';
-      text += `${i + 1}. ${t.name} ${shiftCode}${commission}${busyMark}\n`;
+      const busyMark = busy ? ` ❌${commission} • ${formatClock(t.endAt)}` : '';
+      const tail = busy ? busyMark : (commission !== '' ? ` ${commission}` : '');
+      text += `${i + 1}. ${t.name} ${shiftCode}${tail}\n`;
     });
   });
 
