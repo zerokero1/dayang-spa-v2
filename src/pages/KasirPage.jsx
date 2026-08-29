@@ -44,6 +44,21 @@ export default function KasirPage({ outletId }) {
 
   const cartTotal = cart.reduce((sum, l) => sum + (l.treatment.price || 0), 0);
 
+  // Perkiraan jam mulai & selesai tiap item berdasarkan banyaknya therapist
+  // dan akumulasi durasi treatment berurutan per therapist.
+  const now = new Date();
+  const therapistDurationAcc = {};
+  const cartWithTimes = cart.map((line) => {
+    const dur = Math.max(line.treatment.durationMinutes || 0, 0);
+    const startMin = Math.floor(now.getTime() / 60000) + (therapistDurationAcc[line.therapist.id] || 0);
+    therapistDurationAcc[line.therapist.id] = (therapistDurationAcc[line.therapist.id] || 0) + dur;
+    const start = new Date(startMin * 60000);
+    const end = new Date((startMin + dur) * 60000);
+    return { ...line, start, end };
+  });
+
+  const fmtTime = (d) => d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
   function usesOil(treatment) {
     return treatmentUsesOil(treatment);
   }
@@ -237,12 +252,15 @@ export default function KasirPage({ outletId }) {
               Klik treatment di tengah untuk mulai
             </p>
           )}
-          {cart.map((line, i) => (
+          {cartWithTimes.map((line, i) => (
             <div key={i} className="pos-cart-item">
               <div>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>{line.treatment.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                   {line.therapist.name}{line.oil ? ` · ${line.oil} (${line.size})` : ''}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--primary)', marginTop: 2 }}>
+                  {fmtTime(line.start)} – {fmtTime(line.end)} WIB ({line.treatment.durationMinutes || 0} mnt)
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
