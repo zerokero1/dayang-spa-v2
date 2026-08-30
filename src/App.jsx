@@ -80,8 +80,13 @@ export default function App() {
     function checkAndComplete() {
       const now = Date.now();
       latestTherapists.forEach((t) => {
+        // Hanya auto-selesaikan terapis yang waktu treatment-nya sudah habis
+        // DAN SUDAH LUNAS. Kalau masih belum bayar, biarkan tetap terlihat di
+        // Status Terapis supaya kasir bisa menagih (Lunas Cash/Cardless) —
+        // tidak boleh selesai otomatis tanpa dibayar.
         if (
           t.status === 'ambil_tamu' &&
+          t.currentPaid &&
           t.endAt && t.endAt <= now &&
           t.currentOutletId
         ) {
