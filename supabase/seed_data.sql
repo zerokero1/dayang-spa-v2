@@ -130,6 +130,7 @@ cross join (
          ('Herbal','Kecil'),('Herbal','Besar'),
          ('Hot Oil','Kecil'),('Hot Oil','Besar'),
          ('Cem-Ceman','Kecil'),('Cem-Ceman','Besar'),
-         ('Aromatic Oil','Kecil'),('Aromatic Oil','Besar')
+         ('Aromatic Oil','Kecil'),('Aromatic Oil','Besar'),
+         ('Aloevera Cream','Kecil'),('Aloevera Cream','Besar')
 ) oi(oil_type, size)
 on conflict (outlet_id, oil_type, size) do nothing;

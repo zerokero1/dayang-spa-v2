@@ -8,7 +8,7 @@ export const OUTLETS = [
 ];
 
 export const OIL_TYPES = [
-  'Relaxing', 'Refreshing', 'Herbal', 'Hot Oil', 'Cem-Ceman', 'Aromatic Oil'
+  'Relaxing', 'Refreshing', 'Herbal', 'Hot Oil', 'Cem-Ceman', 'Aromatic Oil', 'Aloevera Cream'
 ];
 export const OIL_SIZES = ['Kecil', 'Besar']; // Kecil = 10ml, Besar = 30ml
 
