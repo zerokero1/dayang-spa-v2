@@ -348,6 +348,19 @@ export default function StatusTerapisPage({ active }) {
     } catch (e) { setMessage('Gagal: ' + e.message); }
   }
 
+  // Kirim list lengkap ke WhatsApp: muat ulang komisi hari ini TERLEBIH DAHULU
+  // (segar) supaya angka komisi pasti tampil di daftar — tidak bergantung pada
+  // state dailyCommissions yang mungkin belum terisi / sudah kedaluwarsa.
+  async function handleSendList() {
+    try {
+      const { commissions } = await getTherapistDailyReport(todayId());
+      setDailyCommissions(commissions);
+      buildAndSendTherapistList({ therapists, dailyCommissions: commissions });
+    } catch (e) {
+      setMessage('Gagal memuat komisi: ' + e.message);
+    }
+  }
+
   const busy = therapists.filter((t) => (t.status || 'free') === 'ambil_tamu');
   const free = therapists.filter((t) => (t.status || 'free') === 'free');
   const breakList = therapists.filter((t) => t.status === 'break');
@@ -394,7 +407,7 @@ export default function StatusTerapisPage({ active }) {
 
       <button
         style={{ marginBottom: 16 }}
-        onClick={() => buildAndSendTherapistList({ therapists, dailyCommissions })}
+        onClick={handleSendList}
       >
         Kirim daftar lengkap ke WhatsApp
       </button>
