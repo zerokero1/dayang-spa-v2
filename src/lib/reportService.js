@@ -53,6 +53,19 @@ export async function getDailyBookings(outletId, dateStr) {
   return (data || []).map(mapBooking);
 }
 
+// Optimasi: ambil semua booking hari itu dalam SATU query (semua outlet),
+// hanya kolom yang dibutuhkan konsumen. Mengurangi request ke Supabase.
+async function getAllDailyBookings(dateStr) {
+  const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('outlet_id, therapist_id, therapist_name, treatment_price, commission_amount, status, paid, payment_method')
+    .gte('created_at', startUtc.toISOString())
+    .lte('created_at', endUtc.toISOString());
+  if (error) throw error;
+  return (data || []).map(mapBooking);
+}
+
 export function summarizeDailyBookings(bookings) {
   const counted = bookings.filter((b) => b.status !== 'batal');
 
@@ -97,25 +110,21 @@ export function summarizeDailyBookings(bookings) {
 
 export async function getTherapistDailyTotals(dateStr) {
   const totals = {};
-  for (const outlet of OUTLETS) {
-    const bookings = await getDailyBookings(outlet.id, dateStr);
-    bookings.forEach((b) => {
-      if (b.status === 'batal') return;
-      totals[b.therapistId] = (totals[b.therapistId] || 0) + (b.treatmentPrice || 0);
-    });
-  }
+  const bookings = await getAllDailyBookings(dateStr);
+  bookings.forEach((b) => {
+    if (b.status === 'batal') return;
+    totals[b.therapistId] = (totals[b.therapistId] || 0) + (b.treatmentPrice || 0);
+  });
   return totals;
 }
 
 export async function getTherapistDailyCommissions(dateStr) {
   const totals = {};
-  for (const outlet of OUTLETS) {
-    const bookings = await getDailyBookings(outlet.id, dateStr);
-    bookings.forEach((b) => {
-      if (b.status === 'batal') return;
-      totals[b.therapistId] = (totals[b.therapistId] || 0) + (b.commissionAmount || 0);
-    });
-  }
+  const bookings = await getAllDailyBookings(dateStr);
+  bookings.forEach((b) => {
+    if (b.status === 'batal') return;
+    totals[b.therapistId] = (totals[b.therapistId] || 0) + (b.commissionAmount || 0);
+  });
   return totals;
 }
 
@@ -125,8 +134,9 @@ export async function getCombinedDailyReport(dateStr) {
   let grandTotalCommission = 0;
   let grandTotalRevenue = 0;
 
+  const bookingsAll = await getAllDailyBookings(dateStr);
   for (const outlet of OUTLETS) {
-    const bookings = await getDailyBookings(outlet.id, dateStr);
+    const bookings = bookingsAll.filter((b) => b.outletId === outlet.id);
     const summary = summarizeDailyBookings(bookings);
     perOutlet[outlet.id] = { outletName: outlet.name, ...summary };
     grandTotalTreatment += summary.totalTreatment;
