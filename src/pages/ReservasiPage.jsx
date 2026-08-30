@@ -3,6 +3,7 @@ import { OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil } from '..
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createReservation, listenReservations, checkInReservation, cancelReservation } from '../lib/reservationService';
+import { openWhatsAppMessage } from '../lib/bookingService';
 
 function toWhatsAppReminder(r) {
   const d = new Date(r.scheduledAt);
@@ -14,7 +15,7 @@ function toWhatsAppReminder(r) {
     `Terapis: ${r.therapistName}\n` +
     `Treatment: ${r.treatmentName}\n` +
     `Jadwal: ${tanggal}, ${jam}`;
-  window.location.href = `https://wa.me/?text=${encodeURIComponent(message)}`;
+  openWhatsAppMessage(message);
 }
 
 function formatSchedule(ms) {
@@ -26,7 +27,7 @@ function formatSchedule(ms) {
   return `${tanggal}, ${jam}`;
 }
 
-export default function ReservasiPage({ outletId }) {
+export default function ReservasiPage({ outletId, active }) {
   const [therapists, setTherapists] = useState([]);
   const [treatments, setTreatments] = useState([]);
   const [reservations, setReservations] = useState([]);
@@ -45,11 +46,12 @@ export default function ReservasiPage({ outletId }) {
   const [treatmentSearch, setTreatmentSearch] = useState('');
 
   useEffect(() => {
+    if (!active) return;
     const unsub1 = listenAllTherapists(setTherapists);
     const unsub2 = listenTreatments(setTreatments);
     const unsub3 = listenReservations(outletId, setReservations);
     return () => { unsub1(); unsub2(); unsub3(); };
-  }, [outletId]);
+  }, [active, outletId]);
 
   const usesOil = (t) => treatmentUsesOil(t);
   const lineNeedsOil = usesOil(selTreatment);

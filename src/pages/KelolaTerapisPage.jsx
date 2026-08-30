@@ -10,7 +10,7 @@ const ROLE_LABEL = {
   [STAFF_ROLES.TRAINING_BARU]: 'Training Baru'
 };
 
-export default function KelolaTerapisPage() {
+export default function KelolaTerapisPage({ active }) {
   const [therapists, setTherapists] = useState([]);
   const [search, setSearch] = useState('');
   const [newName, setNewName] = useState('');
@@ -19,7 +19,10 @@ export default function KelolaTerapisPage() {
   const [message, setMessage] = useState('');
   const [outletFilter, setOutletFilter] = useState('');
 
-  useEffect(() => listenAllTherapists(setTherapists), []);
+  useEffect(() => {
+    if (!active) return;
+    return listenAllTherapists(setTherapists);
+  }, [active]);
 
   const filtered = therapists.filter((t) =>
     t.name.toLowerCase().includes(search.toLowerCase()) &&

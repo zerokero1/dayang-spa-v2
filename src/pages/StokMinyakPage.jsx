@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { listenOilInventory, setOilStock, adjustOilStock } from '../lib/oilInventoryService';
 
-export default function StokMinyakPage({ outletId }) {
+export default function StokMinyakPage({ outletId, active }) {
   const [oils, setOils] = useState([]);
   const [message, setMessage] = useState('');
   const [busyId, setBusyId] = useState(null);
 
-  useEffect(() => listenOilInventory(outletId, setOils), [outletId]);
+  useEffect(() => {
+    if (!active) return;
+    return listenOilInventory(outletId, setOils);
+  }, [active, outletId]);
 
   async function handleAdjust(oil, delta) {
     setBusyId(oil.id);

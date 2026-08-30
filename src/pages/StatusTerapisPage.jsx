@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { listenAllTherapists, setTherapistStatusManual } from '../lib/therapistService';
 import { THERAPIST_STATUS, OUTLETS, PAYMENT_METHOD_LABEL } from '../lib/constants';
-import { completeBooking, cancelBookingFull, cancelBookingPartial, markBookingPaid, completeBookingGroup, markGroupPaid } from '../lib/bookingService';
-import { getTherapistDailyTotals, getTherapistDailyCommissions } from '../lib/reportService';
+import { completeBooking, cancelBookingFull, cancelBookingPartial, markBookingPaid, completeBookingGroup, markGroupPaid, openWhatsAppMessage } from '../lib/bookingService';
+import { getTherapistDailyReport } from '../lib/reportService';
 import { getShiftWindowStatus, SHIFT_WINDOW_LABEL } from '../lib/shiftService';
 import { SHIFT_LABEL, SHIFT_SHORT_CODE } from '../lib/constants';
 
@@ -74,7 +74,7 @@ function buildAndSendTherapistList({ therapists, dailyCommissions }) {
     offList.forEach((t) => { text += `~${t.name}~\n`; });
   }
 
-  window.location.href = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  openWhatsAppMessage(text);
 }
 
 function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh, onBatalSebagian, onTandaiLunas }) {
@@ -267,7 +267,7 @@ function GroupCard({ members, onCompleteGroup, onPayGroup, cardProps }) {
   );
 }
 
-export default function StatusTerapisPage() {
+export default function StatusTerapisPage({ active }) {
   const [therapists, setTherapists] = useState([]);
   const [dailyTotals, setDailyTotals] = useState({});
   const [dailyCommissions, setDailyCommissions] = useState({});
@@ -275,7 +275,10 @@ export default function StatusTerapisPage() {
   const [message, setMessage] = useState('');
   const [outletFilter, setOutletFilter] = useState('semua');
 
-  useEffect(() => listenAllTherapists(setTherapists), []);
+  useEffect(() => {
+    if (!active) return;
+    return listenAllTherapists(setTherapists);
+  }, [active]);
 
   useEffect(() => {
     const interval = setInterval(() => setTick((t) => t + 1), 30000);
@@ -283,15 +286,20 @@ export default function StatusTerapisPage() {
   }, []);
 
   // Refresh total harga & komisi hari ini — di-DEBOUNCE (jeda 2.5 detik setelah
-  // perubahan terakhir) supaya tidak memicu 12 query Firestore per detik saat
-  // daftar terapis berubah cepat (pemboros kuota besar).
+  // perubahan terakhir) supaya tidak memicu banyak query saat daftar terapis
+  // berubah cepat (pemboros kuota). Hanya berjalan saat halaman terlihat (active).
   useEffect(() => {
+    if (!active) return;
     const timer = setTimeout(() => {
-      getTherapistDailyTotals(todayId()).then(setDailyTotals).catch(() => {});
-      getTherapistDailyCommissions(todayId()).then(setDailyCommissions).catch(() => {});
+      getTherapistDailyReport(todayId())
+        .then(({ totals, commissions }) => {
+          setDailyTotals(totals);
+          setDailyCommissions(commissions);
+        })
+        .catch(() => {});
     }, 2500);
     return () => clearTimeout(timer);
-  }, [therapists]);
+  }, [therapists, active]);
 
   async function handleManualStatus(therapistId, status) {
     await setTherapistStatusManual(therapistId, status);

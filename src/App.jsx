@@ -191,7 +191,7 @@ export default function App() {
         <main className="content">
           {visiblePageEntries.map(([key, p]) => (
             <div key={key} style={{ display: activePage === key ? 'block' : 'none' }}>
-              <p.Component outletId={activeOutlet} />
+              <p.Component outletId={activeOutlet} active={activePage === key} />
             </div>
           ))}
         </main>

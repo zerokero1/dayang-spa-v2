@@ -4,16 +4,17 @@ import { listenOilInventory } from '../lib/oilInventoryService';
 import { listenInventory } from '../lib/inventoryService';
 import { exportExcelReport } from '../lib/excelExport';
 
-export default function LaporanInventoryPage() {
+export default function LaporanInventoryPage({ active }) {
   const [outletFilter, setOutletFilter] = useState(OUTLETS[0].id);
   const [oils, setOils] = useState([]);
   const [items, setItems] = useState([]);
 
   useEffect(() => {
+    if (!active) return;
     const unsub1 = listenOilInventory(outletFilter, setOils);
     const unsub2 = listenInventory(outletFilter, setItems);
     return () => { unsub1(); unsub2(); };
-  }, [outletFilter]);
+  }, [active, outletFilter]);
 
   const lowStockOils = oils.filter((o) => (o.stock || 0) <= 1);
   const lowStockItems = items.filter((i) => (i.stock || 0) <= 2);

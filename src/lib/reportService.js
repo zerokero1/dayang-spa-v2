@@ -109,23 +109,27 @@ export function summarizeDailyBookings(bookings) {
 }
 
 export async function getTherapistDailyTotals(dateStr) {
-  const totals = {};
-  const bookings = await getAllDailyBookings(dateStr);
-  bookings.forEach((b) => {
-    if (b.status === 'batal') return;
-    totals[b.therapistId] = (totals[b.therapistId] || 0) + (b.treatmentPrice || 0);
-  });
+  const { totals } = await getTherapistDailyReport(dateStr);
   return totals;
 }
 
 export async function getTherapistDailyCommissions(dateStr) {
+  const { commissions } = await getTherapistDailyReport(dateStr);
+  return commissions;
+}
+
+// Total harga & komisi per terapis dihitung dari SATU query yang sama
+// (sebelumnya dipanggil 2x → 2 query identik untuk 2 fungsi).
+export async function getTherapistDailyReport(dateStr) {
   const totals = {};
+  const commissions = {};
   const bookings = await getAllDailyBookings(dateStr);
   bookings.forEach((b) => {
     if (b.status === 'batal') return;
-    totals[b.therapistId] = (totals[b.therapistId] || 0) + (b.commissionAmount || 0);
+    totals[b.therapistId] = (totals[b.therapistId] || 0) + (b.treatmentPrice || 0);
+    commissions[b.therapistId] = (commissions[b.therapistId] || 0) + (b.commissionAmount || 0);
   });
-  return totals;
+  return { totals, commissions };
 }
 
 export async function getCombinedDailyReport(dateStr) {

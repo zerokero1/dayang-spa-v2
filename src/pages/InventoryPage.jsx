@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { listenInventory, addInventoryItem, stockIn, stockOut } from '../lib/inventoryService';
 
-export default function InventoryPage({ outletId }) {
+export default function InventoryPage({ outletId, active }) {
   const [items, setItems] = useState([]);
   const [selItem, setSelItem] = useState(null);
   const [qty, setQty] = useState('');
@@ -11,7 +11,10 @@ export default function InventoryPage({ outletId }) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => listenInventory(outletId, setItems), [outletId]);
+  useEffect(() => {
+    if (!active) return;
+    return listenInventory(outletId, setItems);
+  }, [active, outletId]);
 
   async function handleAddItem() {
     if (!newName) return;

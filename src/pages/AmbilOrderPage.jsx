@@ -6,7 +6,7 @@ import { createBooking, createBookingsBatch } from '../lib/bookingService';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
-export default function AmbilOrderPage() {
+export default function AmbilOrderPage({ active }) {
   const [outletId, setOutletId] = useState(OUTLETS[0].id);
   const [therapists, setTherapists] = useState([]);
   const [treatments, setTreatments] = useState([]);
@@ -26,10 +26,11 @@ export default function AmbilOrderPage() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
+    if (!active) return;
     const unsub1 = listenAllTherapists(setTherapists);
     const unsub2 = listenTreatments(setTreatments);
     return () => { unsub1(); unsub2(); };
-  }, []);
+  }, [active]);
 
   const treatmentsInCategory = treatments
     .filter((t) => t.category === category)
@@ -88,10 +89,11 @@ export default function AmbilOrderPage() {
       } else {
         await createBookingsBatch(items);
       }
-      // Setelah ini browser otomatis pindah ke WhatsApp (lihat bookingService.js)
+      // WhatsApp terbuka di tab terpisah; form di tab ini langsung dibersihkan.
       setCart([]);
       resetLineSelection();
       setCustomerName('');
+      setSaving(false);
     } catch (e) {
       console.error('handleSaveAll error:', e, e && e.stack);
       setError((e && e.message) || String(e));

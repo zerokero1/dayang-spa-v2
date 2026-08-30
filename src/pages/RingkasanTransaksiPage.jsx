@@ -103,7 +103,7 @@ function EditRow({ booking, treatments, onSave, onCancel }) {
   );
 }
 
-export default function RingkasanTransaksiPage() {
+export default function RingkasanTransaksiPage({ active }) {
   const [outletId, setOutletId] = useState(OUTLETS[0].id);
   const [date, setDate] = useState(todayId());
   const [bookings, setBookings] = useState([]);
@@ -127,7 +127,10 @@ export default function RingkasanTransaksiPage() {
     }
   }
 
-  useEffect(() => { loadBookings(); }, [outletId, date]);
+  useEffect(() => {
+    if (!active) return;
+    loadBookings();
+  }, [active, outletId, date]);
 
   const totals = bookings.reduce((acc, b) => {
     const charge = b.paid && b.paymentMethod !== 'cardless' ? b.treatmentPrice : 0;

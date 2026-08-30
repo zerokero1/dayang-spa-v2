@@ -6,7 +6,7 @@ import { createBooking, createBookingsBatch } from '../lib/bookingService';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
-export default function KasirPage({ outletId }) {
+export default function KasirPage({ outletId, active }) {
   const [therapists, setTherapists] = useState([]);
   const [treatments, setTreatments] = useState([]);
   const [category, setCategory] = useState('Semua');
@@ -27,10 +27,11 @@ export default function KasirPage({ outletId }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (!active) return;
     const unsub1 = listenAllTherapists(setTherapists); // semua terapis, termasuk yang sibuk (untuk ditandai)
     const unsub2 = listenTreatments(setTreatments);
     return () => { unsub1(); unsub2(); };
-  }, []);
+  }, [active]);
 
   const cartTherapistIds = new Set(cart.map((c) => c.therapist.id));
   const cartCountByTherapist = {};
@@ -126,6 +127,13 @@ export default function KasirPage({ outletId }) {
       } else {
         await createBookingsBatch(items);
       }
+      // Sukses: bersihkan form & aktifkan ulang tombol (aplikasi tetap
+      // terbuka di tab ini; WhatsApp sudah terbuka di tab terpisah).
+      setCart([]);
+      setCustomerName('');
+      setPendingTreatment(null); setPendingOil(null); setPendingSize(null);
+      setStep(null);
+      setSaving(false);
     } catch (e) {
       console.error('handlePay error:', e, e && e.stack);
       setError((e && e.message) || String(e));

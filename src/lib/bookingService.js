@@ -205,6 +205,15 @@ function sendWhatsAppNotification({ lines, outletId, customerName }) {
     `Pelanggan: ${customerName || '-'}\n` +
     treatmentLines;
 
+  openWhatsAppMessage(message);
+}
+
+// Buka WhatsApp di TAB BARU supaya halaman aplikasi tidak ikut pindah —
+// form tetap ter-reset dan tidak "kecantol" (perlu refresh) seperti
+// sebelumnya yang memakai window.location.href.
+// Kalau popup diblokir browser, pakai navigasi langsung sebagai cadangan.
+export function openWhatsAppMessage(message) {
   const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
-  window.location.href = url;
+  const win = window.open(url, '_blank');
+  if (!win) window.location.href = url;
 }

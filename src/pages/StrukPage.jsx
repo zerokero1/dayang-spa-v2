@@ -51,7 +51,7 @@ function ReceiptContent({ booking, outletName }) {
   );
 }
 
-export default function StrukPage({ outletId }) {
+export default function StrukPage({ outletId, active }) {
   const [date, setDate] = useState(todayId());
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -67,7 +67,10 @@ export default function StrukPage({ outletId }) {
     }
   }
 
-  useEffect(() => { loadBookings(); }, [outletId, date]);
+  useEffect(() => {
+    if (!active) return;
+    loadBookings();
+  }, [active, outletId, date]);
 
   function handlePrint(booking) {
     setPrintingBooking(booking);

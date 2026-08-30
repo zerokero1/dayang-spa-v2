@@ -12,7 +12,7 @@ const STATUS_LABELS = {
   [ATTENDANCE_TYPES.LEMBUR]: 'Lembur'
 };
 
-export default function AbsensiPage({ outletId }) {
+export default function AbsensiPage({ outletId, active }) {
   const [employees, setEmployees] = useState([]);
   const [selEmployee, setSelEmployee] = useState(null);
   const [selStatus, setSelStatus] = useState(null);
@@ -21,10 +21,11 @@ export default function AbsensiPage({ outletId }) {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
+    if (!active) return;
     // Karyawan (semua terapis + staf) sekarang di koleksi global /therapists
     const unsub = listenAllTherapists(setEmployees);
     return () => unsub();
-  }, []);
+  }, [active]);
 
   async function handleSave() {
     if (!selEmployee || !selStatus) return;

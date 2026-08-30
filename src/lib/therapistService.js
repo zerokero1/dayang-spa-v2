@@ -57,10 +57,14 @@ async function _sync() {
 
 function _start() {
   _sync();
+  // Debounce (trailing 800ms) supaya meledakan update cepat dari batch booking /
+  // aksi grup tdk memicu beberapa fetch berturut-turut (penghemat kuota request).
+  let syncTimer = null;
   _unsub = supabase
     .channel('realtime-therapists')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'therapists' }, () => {
-      _sync();
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(() => _sync(), 800);
     })
     .subscribe();
 }
