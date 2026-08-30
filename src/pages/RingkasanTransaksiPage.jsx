@@ -7,7 +7,9 @@ import { editBookingDetails } from '../lib/bookingService';
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
 function todayId() {
-  return new Date().toISOString().slice(0, 10);
+  // Tanggal LOKAL WIB (UTC+7) — konsisten dengan reportService & Status Terapis
+  const now = new Date(Date.now() + 7 * 3600000);
+  return now.toISOString().slice(0, 10);
 }
 
 function EditRow({ booking, treatments, onSave, onCancel }) {

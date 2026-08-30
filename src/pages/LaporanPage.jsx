@@ -6,7 +6,9 @@ import {
 import { exportExcelReport } from '../lib/excelExport';
 
 function todayId() {
-  return new Date().toISOString().slice(0, 10);
+  // Tanggal LOKAL WIB (UTC+7) — konsisten dengan reportService
+  const now = new Date(Date.now() + 7 * 3600000);
+  return now.toISOString().slice(0, 10);
 }
 
 export default function LaporanPage({ outletId }) {
