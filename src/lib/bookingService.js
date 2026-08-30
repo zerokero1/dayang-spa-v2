@@ -113,6 +113,29 @@ export async function createBookingsBatch(items) {
   return bookingIds;
 }
 
+export async function continueTreatment({
+  therapistId, treatmentId, treatmentName, treatmentPrice,
+  commissionPercent, durationMinutes, oilType, oilSize, usesOil,
+  customerName, paid, paymentMethod
+}) {
+  const { data: bookingId, error } = await supabase.rpc('continue_booking', {
+    p_therapist_id: therapistId,
+    p_treatment_id: treatmentId,
+    p_treatment_name: treatmentName,
+    p_treatment_price: treatmentPrice,
+    p_commission_percent: commissionPercent,
+    p_duration_minutes: durationMinutes,
+    p_uses_oil: usesOil !== false,
+    p_oil_type: usesOil !== false ? oilType : null,
+    p_oil_size: usesOil !== false ? oilSize : null,
+    p_customer_name: customerName || '',
+    p_paid: !!paid,
+    p_payment_method: paymentMethod || 'cash'
+  });
+  if (error) throw error;
+  return bookingId;
+}
+
 export async function markBookingPaid(outletId, bookingId, therapistId, paymentMethod) {
   const { error } = await supabase.rpc('mark_booking_paid', {
     p_outlet_id: outletId,

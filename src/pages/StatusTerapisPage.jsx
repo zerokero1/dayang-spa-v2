@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { listenAllTherapists, setTherapistStatusManual } from '../lib/therapistService';
-import { THERAPIST_STATUS, OUTLETS, PAYMENT_METHOD_LABEL } from '../lib/constants';
-import { completeBooking, cancelBookingFull, cancelBookingPartial, markBookingPaid, completeBookingGroup, markGroupPaid, openWhatsAppMessage } from '../lib/bookingService';
+import { THERAPIST_STATUS, OUTLETS, OIL_TYPES, OIL_SIZES, PAYMENT_METHOD_LABEL, treatmentUsesOil } from '../lib/constants';
+import { completeBooking, cancelBookingFull, cancelBookingPartial, markBookingPaid, continueTreatment, completeBookingGroup, markGroupPaid, openWhatsAppMessage } from '../lib/bookingService';
+import { listenTreatments } from '../lib/treatmentService';
 import { getTherapistDailyReport } from '../lib/reportService';
 import { getShiftWindowStatus, SHIFT_WINDOW_LABEL } from '../lib/shiftService';
 import { SHIFT_LABEL, SHIFT_SHORT_CODE } from '../lib/constants';
@@ -77,7 +78,7 @@ function buildAndSendTherapistList({ therapists, dailyCommissions }) {
   openWhatsAppMessage(text);
 }
 
-function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh, onBatalSebagian, onTandaiLunas }) {
+function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh, onBatalSebagian, onTandaiLunas, onContinue }) {
   const status = t.status || 'free';
   const busy = status === 'ambil_tamu';
   const multi = busy && bookingIdsOf(t).length > 1;
@@ -182,6 +183,9 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
             <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none' }} onClick={() => onSelesai(t)}>
               Tandai selesai
+            </button>
+            <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--primary)' }} onClick={() => onContinue(t)}>
+              + Lanjutkan treatment
             </button>
             {multi ? (
               <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--busy)' }} onClick={() => setShowPartial((v) => !v)}>
@@ -314,9 +318,23 @@ export default function StatusTerapisPage({ active }) {
   const [message, setMessage] = useState('');
   const [outletFilter, setOutletFilter] = useState('semua');
 
+  const [treatments, setTreatments] = useState([]);
+  const [continueTarget, setContinueTarget] = useState(null);
+  const [cTreatment, setCTreatment] = useState(null);
+  const [cOil, setCOil] = useState(null);
+  const [cSize, setCSize] = useState(null);
+  const [cPaid, setCPaid] = useState(false);
+  const [cMethod, setCMethod] = useState('cash');
+  const [cSaving, setCSaving] = useState(false);
+
   useEffect(() => {
     if (!active) return;
     return listenAllTherapists(setTherapists);
+  }, [active]);
+
+  useEffect(() => {
+    if (!active) return;
+    return listenTreatments(setTreatments);
   }, [active]);
 
   useEffect(() => {
@@ -377,6 +395,45 @@ export default function StatusTerapisPage({ active }) {
       setMessage(`Booking ${t.name} ditandai lunas (${PAYMENT_METHOD_LABEL[method]}).`);
     } catch (e) { setMessage('Gagal: ' + e.message); }
   }
+
+  function openContinue(t) {
+    setContinueTarget(t);
+    setCTreatment(null);
+    setCOil(null);
+    setCSize(null);
+    setCPaid(false);
+    setCMethod('cash');
+  }
+
+  async function handleSubmitContinue() {
+    if (!continueTarget || !cTreatment) return;
+    setCSaving(true);
+    try {
+      const usesOilFlag = treatmentUsesOil(cTreatment);
+      await continueTreatment({
+        therapistId: continueTarget.id,
+        treatmentId: cTreatment.id,
+        treatmentName: cTreatment.name,
+        treatmentPrice: cTreatment.price,
+        commissionPercent: cTreatment.commissionPercent,
+        durationMinutes: cTreatment.durationMinutes,
+        oilType: usesOilFlag ? cOil : null,
+        oilSize: usesOilFlag ? cSize : null,
+        usesOil: usesOilFlag,
+        customerName: continueTarget.currentCustomerName || '',
+        paid: cPaid,
+        paymentMethod: cMethod
+      });
+      setMessage(`Treatment lanjutan untuk ${continueTarget.name} dicatat.`);
+      setContinueTarget(null);
+      setCTreatment(null); setCOil(null); setCSize(null);
+    } catch (e) {
+      setMessage('Gagal mencatat lanjutan: ' + e.message);
+    } finally {
+      setCSaving(false);
+    }
+  }
+
   async function handleCompleteGroup(members) {
     try {
       await completeBookingGroup(members);
@@ -429,7 +486,8 @@ export default function StatusTerapisPage({ active }) {
     onSelesai: handleSelesai,
     onBatalPenuh: handleBatalPenuh,
     onBatalSebagian: handleBatalSebagian,
-    onTandaiLunas: handleTandaiLunas
+    onTandaiLunas: handleTandaiLunas,
+    onContinue: openContinue
   };
 
   // Ringkasan per outlet: jumlah terapis sedang ambil tamu vs total terapis di outlet itu
@@ -548,6 +606,85 @@ export default function StatusTerapisPage({ active }) {
             <TherapistCard key={t.id} t={t} dailyTotal={dailyTotals[t.id]} {...cardProps} />
           ))}
         </section>
+      )}
+
+      {continueTarget && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.55)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center'
+        }} onClick={() => setContinueTarget(null)}>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--bg)', width: '100%', maxWidth: 560, maxHeight: '90dvh',
+              overflowY: 'auto', borderRadius: '16px 16px 0 0', padding: 18, paddingBottom: 24
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <strong style={{ fontSize: 15 }}>Lanjutkan treatment — {continueTarget.name}</strong>
+              <button style={{ width: 'auto', padding: '6px 12px', boxShadow: 'none', background: 'var(--danger)' }} onClick={() => setContinueTarget(null)}>✕</button>
+            </div>
+
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>Pilih treatment lanjutan untuk tamu ini</p>
+            <div className="grid-2" style={{ marginBottom: 14 }}>
+              {treatments.map((tr) => (
+                <button
+                  key={tr.id}
+                  className={cTreatment?.id === tr.id ? 'active' : ''}
+                  onClick={() => { setCTreatment(tr); setCOil(null); setCSize(null); }}
+                  style={{ fontSize: 12 }}
+                >
+                  {tr.name} - {rp(tr.price)}
+                </button>
+              ))}
+            </div>
+
+            {cTreatment && treatmentUsesOil(cTreatment) && (
+              <div style={{ marginBottom: 14 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Pilih minyak & ukuran (wajib)</p>
+                <div className="grid-2">
+                  {OIL_TYPES.map((oil) => (
+                    <button key={oil} className={cOil === oil ? 'active' : ''} onClick={() => setCOil(oil)} style={{ fontSize: 12 }}>{oil}</button>
+                  ))}
+                </div>
+                <div className="grid-3" style={{ marginTop: 8 }}>
+                  {OIL_SIZES.map((sz) => (
+                    <button key={sz} className={cSize === sz ? 'active' : ''} onClick={() => setCSize(sz)} style={{ fontSize: 12 }}>{sz}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                <input type="checkbox" checked={cPaid} onChange={(e) => setCPaid(e.target.checked)} />
+                Langsung lunas
+              </label>
+              {cPaid && (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {Object.entries(PAYMENT_METHOD_LABEL).map(([val, label]) => (
+                    <button
+                      key={val}
+                      className={cMethod === val ? 'pos-chip active' : 'pos-chip'}
+                      onClick={() => setCMethod(val)}
+                      style={{ fontSize: 12 }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              disabled={!cTreatment || (treatmentUsesOil(cTreatment) && (!cOil || !cSize)) || cSaving}
+              style={{ width: '100%', padding: '12px', fontSize: 15 }}
+              onClick={handleSubmitContinue}
+            >
+              {cSaving ? 'Menyimpan…' : 'Catat lanjutan'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
