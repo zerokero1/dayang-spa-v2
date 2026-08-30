@@ -43,7 +43,7 @@ export default function KasirPage({ outletId, active }) {
     .filter((t) => category === 'Semua' || t.category === category)
     .filter((t) => t.name.toLowerCase().includes(productSearch.toLowerCase()));
 
-  const cartTotal = cart.reduce((sum, l) => sum + (l.treatment.price || 0), 0);
+  const cartTotal = cart.reduce((sum, l) => sum + discountedPrice(l), 0);
 
   // Perkiraan jam mulai & selesai tiap item berdasarkan banyaknya therapist
   // dan akumulasi durasi treatment berurutan per therapist.
@@ -83,7 +83,7 @@ export default function KasirPage({ outletId, active }) {
     // beberapa treatment sekaligus (double treatment), baik Massage maupun bukan.
     if (busy) return;
 
-    setCart((c) => [...c, { therapist: t, treatment: pendingTreatment, oil: usesOil(pendingTreatment) ? pendingOil : null, size: usesOil(pendingTreatment) ? pendingSize : null }]);
+    setCart((c) => [...c, { therapist: t, treatment: pendingTreatment, oil: usesOil(pendingTreatment) ? pendingOil : null, size: usesOil(pendingTreatment) ? pendingSize : null, discountPct: 0 }]);
     setPendingTreatment(null); setPendingOil(null); setPendingSize(null);
     setStep(null);
     setError('');
@@ -91,6 +91,17 @@ export default function KasirPage({ outletId, active }) {
 
   function handleRemoveFromCart(index) {
     setCart((c) => c.filter((_, i) => i !== index));
+  }
+
+  // Harga efektif per item setelah diskon (kelipatan 5/10/15/20%).
+  function discountedPrice(line) {
+    const base = line.treatment.price || 0;
+    const pct = line.discountPct || 0;
+    return Math.round(base * (1 - pct / 100));
+  }
+
+  function handleDiscount(index, pct) {
+    setCart((c) => c.map((l, i) => (i === index ? { ...l, discountPct: pct } : l)));
   }
 
   function cancelPicking() {
@@ -103,22 +114,26 @@ export default function KasirPage({ outletId, active }) {
     setSaving(true);
     setError('');
     try {
-      const items = cart.map((line) => ({
-        outletId,
-        therapistId: line.therapist.id,
-        therapistName: line.therapist.name,
-        treatmentId: line.treatment.id,
-        treatmentName: line.treatment.name,
-        treatmentPrice: line.treatment.price,
-        commissionPercent: line.treatment.commissionPercent,
-        durationMinutes: line.treatment.durationMinutes,
-        usesOil: treatmentUsesOil(line.treatment),
-        oilType: line.oil,
-        oilSize: line.size,
-        customerName,
-        paid: markPaidNow,
-        paymentMethod
-      }));
+      const items = cart.map((line) => {
+        const discounted = discountedPrice(line);
+        return {
+          outletId,
+          therapistId: line.therapist.id,
+          therapistName: line.therapist.name,
+          treatmentId: line.treatment.id,
+          treatmentName: line.treatment.name,
+          treatmentPrice: discounted,
+          originalPrice: line.discountPct ? (line.treatment.price || 0) : null,
+          commissionPercent: line.treatment.commissionPercent,
+          durationMinutes: line.treatment.durationMinutes,
+          usesOil: treatmentUsesOil(line.treatment),
+          oilType: line.oil,
+          oilSize: line.size,
+          customerName,
+          paid: markPaidNow,
+          paymentMethod
+        };
+      });
       if (items.length === 1) {
         await createBooking(items[0]);
       } else {
@@ -265,9 +280,28 @@ export default function KasirPage({ outletId, active }) {
                 <div style={{ fontSize: 12, color: 'var(--primary)', marginTop: 2 }}>
                   {fmtTime(line.start)} – {fmtTime(line.end)} WIB ({line.treatment.durationMinutes || 0} mnt)
                 </div>
+                <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                  {[0, 5, 10, 15, 20].map((p) => (
+                    <button
+                      key={p}
+                      className={line.discountPct === p ? 'pos-chip active' : 'pos-chip'}
+                      onClick={() => handleDiscount(i, p)}
+                      style={{ fontSize: 11, padding: '2px 8px' }}
+                    >
+                      {p === 0 ? '-' : `${p}%`}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>{rp(line.treatment.price)}</span>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>
+                  {line.discountPct ? (
+                    <>
+                      <span style={{ textDecoration: 'line-through', color: 'var(--text-secondary)', marginRight: 4 }}>{rp(line.treatment.price)}</span>
+                      {rp(discountedPrice(line))}
+                    </>
+                  ) : rp(line.treatment.price)}
+                </span>
                 <button
                   style={{ width: 'auto', padding: '4px 8px', fontSize: 11, boxShadow: 'none', background: 'var(--danger)' }}
                   onClick={() => handleRemoveFromCart(i)}

@@ -44,7 +44,8 @@ export default function AmbilOrderPage({ active }) {
   const usesOil = (t) => treatmentUsesOil(t);
   const lineNeedsOil = usesOil(selTreatment);
   const canAddLine = selTreatment && selTherapist && (!lineNeedsOil || (selOil && selSize));
-  const cartTotal = cart.reduce((sum, l) => sum + (l.treatment.price || 0), 0);
+  const discountedPrice = (line) => Math.round((line.treatment.price || 0) * (1 - (line.discountPct || 0) / 100));
+  const cartTotal = cart.reduce((sum, l) => sum + discountedPrice(l), 0);
   const grandTotal = cartTotal + (canAddLine ? selTreatment.price : 0);
 
   function resetLineSelection() {
@@ -53,12 +54,16 @@ export default function AmbilOrderPage({ active }) {
 
   function handleAddToCart() {
     if (!canAddLine) return;
-    setCart((c) => [...c, { therapist: selTherapist, treatment: selTreatment, oil: usesOil(selTreatment) ? selOil : null, size: usesOil(selTreatment) ? selSize : null }]);
+    setCart((c) => [...c, { therapist: selTherapist, treatment: selTreatment, oil: usesOil(selTreatment) ? selOil : null, size: usesOil(selTreatment) ? selSize : null, discountPct: 0 }]);
     resetLineSelection();
   }
 
   function handleRemoveFromCart(index) {
     setCart((c) => c.filter((_, i) => i !== index));
+  }
+
+  function handleDiscount(index, pct) {
+    setCart((c) => c.map((l, i) => (i === index ? { ...l, discountPct: pct } : l)));
   }
 
   async function handleSaveAll() {
@@ -76,7 +81,8 @@ export default function AmbilOrderPage({ active }) {
         therapistName: line.therapist.name,
         treatmentId: line.treatment.id,
         treatmentName: line.treatment.name,
-        treatmentPrice: line.treatment.price,
+        treatmentPrice: discountedPrice(line),
+        originalPrice: line.discountPct ? (line.treatment.price || 0) : null,
         commissionPercent: line.treatment.commissionPercent,
         durationMinutes: line.treatment.durationMinutes,
         usesOil: treatmentUsesOil(line.treatment),
@@ -126,19 +132,37 @@ export default function AmbilOrderPage({ active }) {
         <section>
           <p>Treatment sudah ditambahkan ({cart.length})</p>
           {cart.map((line, i) => (
-            <div key={i} className="oil-card" style={{ marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 13 }}>
-                <strong>{line.therapist.name}</strong> — {line.treatment.name}
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 400 }}>
-                  {line.oil ? `Minyak ${line.oil} (${line.size}) · ` : ''}{rp(line.treatment.price)}
+            <div key={i} className="oil-card" style={{ marginBottom: 6, padding: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 13 }}>
+                  <strong>{line.therapist.name}</strong> — {line.treatment.name}
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 400 }}>
+                    {line.oil ? `Minyak ${line.oil} (${line.size}) · ` : ''}
+                    <strong>{rp(discountedPrice(line))}</strong>
+                    {line.discountPct ? (
+                      <span style={{ color: 'var(--danger)' }}> (diskon {line.discountPct}%)</span>
+                    ) : null}
+                  </div>
                 </div>
+                <button
+                  style={{ width: 'auto', padding: '6px 10px', fontSize: 12, boxShadow: 'none', background: 'var(--danger)' }}
+                  onClick={() => handleRemoveFromCart(i)}
+                >
+                  Hapus
+                </button>
               </div>
-              <button
-                style={{ width: 'auto', padding: '6px 10px', fontSize: 12, boxShadow: 'none', background: 'var(--danger)' }}
-                onClick={() => handleRemoveFromCart(i)}
-              >
-                Hapus
-              </button>
+              <div style={{ display: 'flex', gap: 4, marginTop: 8, flexWrap: 'wrap' }}>
+                {[0, 5, 10, 15, 20].map((p) => (
+                  <button
+                    key={p}
+                    className={line.discountPct === p ? 'pos-chip active' : 'pos-chip'}
+                    onClick={() => handleDiscount(i, p)}
+                    style={{ fontSize: 11, padding: '2px 8px' }}
+                  >
+                    {p === 0 ? '-' : `${p}%`}
+                  </button>
+                ))}
+              </div>
             </div>
           ))}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, padding: '8px 4px', borderTop: '1px solid var(--border)', marginTop: 4 }}>

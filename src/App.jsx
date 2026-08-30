@@ -17,12 +17,14 @@ import LaporanInventoryPage from './pages/LaporanInventoryPage';
 import AmbilOrderPage from './pages/AmbilOrderPage';
 import StrukPage from './pages/StrukPage';
 import RingkasanTransaksiPage from './pages/RingkasanTransaksiPage';
+import DashboardPage from './pages/DashboardPage';
 import './styles.css';
 
 const PAGES = {
   kasir: { label: 'Kasir', icon: '🧾', Component: KasirPage },
   ambilOrder: { label: 'Ambil Order', icon: '🛍️', Component: AmbilOrderPage, global: true, roles: ['order_taker'] },
   ringkasan: { label: 'Ringkasan Transaksi', icon: '📊', Component: RingkasanTransaksiPage, global: true },
+  dashboard: { label: 'Dashboard', icon: '📈', Component: DashboardPage, global: true },
   struk: { label: 'Struk', icon: '🧾', Component: StrukPage },
   reservasi: { label: 'Reservasi', icon: '🗓️', Component: ReservasiPage },
   status: { label: 'Status Terapis', icon: '💆', Component: StatusTerapisPage, global: true },

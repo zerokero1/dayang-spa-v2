@@ -33,6 +33,12 @@ function ReceiptContent({ booking, outletName }) {
           <span>Harga</span>
           <span>{rp(booking.treatmentPrice)}</span>
         </div>
+        {booking.originalPrice != null && Number(booking.originalPrice) > Number(booking.treatmentPrice) && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555' }}>
+            <span>Diskon</span>
+            <span>-{rp(Number(booking.originalPrice) - Number(booking.treatmentPrice))}</span>
+          </div>
+        )}
       </div>
       <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: 12 }}>

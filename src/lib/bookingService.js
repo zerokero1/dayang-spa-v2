@@ -4,7 +4,7 @@ import { THERAPIST_STATUS } from './constants';
 export async function createBookingCore({
   outletId, therapistId, therapistName, treatmentId, treatmentName,
   treatmentPrice, commissionPercent, durationMinutes, oilType, oilSize, customerName, paid, paymentMethod, groupId,
-  usesOil = true, therapist = 'set'
+  usesOil = true, therapist = 'set', originalPrice
 }) {
   const isPaid = !!paid;
   const method = paymentMethod || 'cash';
@@ -17,6 +17,7 @@ export async function createBookingCore({
     p_treatment_id: treatmentId,
     p_treatment_name: treatmentName,
     p_treatment_price: treatmentPrice,
+    p_original_price: originalPrice || null,
     p_commission_percent: commissionPercent,
     p_duration_minutes: durationMinutes,
     p_uses_oil: usesOil,
@@ -83,7 +84,8 @@ export async function createBookingsBatch(items) {
       oil_size: usesOil ? item.oilSize : null,
       customer_name: item.customerName || '',
       paid: !!item.paid,
-      payment_method: item.paymentMethod || 'cash'
+      payment_method: item.paymentMethod || 'cash',
+      original_price: item.originalPrice || null
     };
   });
 

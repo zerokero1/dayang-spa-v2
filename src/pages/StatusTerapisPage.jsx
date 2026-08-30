@@ -83,14 +83,20 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
   const multi = busy && bookingIdsOf(t).length > 1;
   const [showDiscount, setShowDiscount] = useState(false);
   const [discountPrice, setDiscountPrice] = useState('');
+  const [partialIdx, setPartialIdx] = useState(0);
+  const [showPartial, setShowPartial] = useState(false);
 
   function submitDiscount() {
     const num = Number(discountPrice);
     if (isNaN(num) || num < 0) return;
-    onBatalSebagian(t, num);
+    onBatalSebagian(t, num, partialIdx);
     setShowDiscount(false);
     setDiscountPrice('');
+    setShowPartial(false);
   }
+
+  const pNames = multi ? (t.currentTreatmentNames || []) : [];
+  const pIds = bookingIdsOf(t);
 
   return (
     <div
@@ -147,27 +153,42 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
           <div>Mulai {formatClock(t.startAt)} — Selesai {formatClock(t.endAt)}</div>
           <div style={{ fontWeight: 700, color: 'var(--primary)', marginTop: 4 }}>{formatCountdown(t.endAt)}</div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-            {!t.currentPaid && (
-              <>
-                <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)' }} onClick={() => onTandaiLunas(t, 'cash')}>
-                  Lunas (Cash)
+          {!t.currentPaid && (
+            <div style={{
+              marginTop: 10, padding: 10, borderRadius: 10,
+              background: 'var(--busy-bg)', border: '1px solid var(--busy)'
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--busy)', letterSpacing: 0.5 }}>BELUM BAYAR</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--danger)', margin: '2px 0 8px' }}>
+                {rp(t.currentPrice)}
+              </div>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Terima pembayaran:</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)' }} onClick={() => onTandaiLunas(t, 'cash')}>
+                  Lunas Cash
                 </button>
-                <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)' }} onClick={() => onTandaiLunas(t, 'cardless')}>
-                  Lunas (Cardless)
+                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)' }} onClick={() => onTandaiLunas(t, 'cardless')}>
+                  Lunas Cardless
                 </button>
-              </>
-            )}
-            {t.currentPaid && t.currentPaymentMethod && (
-              <span style={{ fontSize: 12, color: 'var(--text-secondary)', alignSelf: 'center' }}>
-                Dibayar via {PAYMENT_METHOD_LABEL[t.currentPaymentMethod]}
-              </span>
-            )}
+              </div>
+            </div>
+          )}
+          {t.currentPaid && t.currentPaymentMethod && (
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', alignSelf: 'center', marginTop: 8 }}>
+              ✓ Dibayar via {PAYMENT_METHOD_LABEL[t.currentPaymentMethod]}
+            </span>
+          )}
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
             <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none' }} onClick={() => onSelesai(t)}>
               Tandai selesai
             </button>
-            {!multi && (
-              <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--busy)' }} onClick={() => setShowDiscount((v) => !v)}>
+            {multi ? (
+              <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--busy)' }} onClick={() => setShowPartial((v) => !v)}>
+                Batal sebagian
+              </button>
+            ) : (
+              <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--busy)' }} onClick={() => { setShowDiscount((v) => !v); setShowPartial(false); }}>
                 Batal + potongan harga
               </button>
             )}
@@ -177,11 +198,29 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
             </button>
           </div>
 
+          {showPartial && multi && (
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--border)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Pilih treatment yang dibatalkan & potong harga:</div>
+              {pNames.map((n, i) => (
+                <button
+                  key={i}
+                  className={partialIdx === i ? 'active' : ''}
+                  onClick={() => { setPartialIdx(i); setShowDiscount(true); }}
+                  style={{ fontSize: 12, marginRight: 6, marginBottom: 6, padding: '6px 10px', width: 'auto', boxShadow: 'none' }}
+                >
+                  {i + 1}. {n}
+                </button>
+              ))}
+            </div>
+          )}
+
           {showDiscount && (
             <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
               <input type="number" placeholder="Harga baru (Rp)" value={discountPrice}
                 onChange={(e) => setDiscountPrice(e.target.value)} style={{ margin: 0, flex: 1 }} />
-              <button style={{ width: 'auto', padding: '10px 14px', boxShadow: 'none' }} onClick={submitDiscount}>Simpan</button>
+              <button style={{ width: 'auto', padding: '10px 14px', boxShadow: 'none' }} onClick={submitDiscount}>
+                {multi ? `Simpan $${partialIdx + 1}` : 'Simpan'}
+              </button>
             </div>
           )}
         </div>
@@ -319,10 +358,13 @@ export default function StatusTerapisPage({ active }) {
       setMessage(`Booking ${t.name} dibatalkan, stok minyak dikembalikan.`);
     } catch (e) { setMessage('Gagal membatalkan: ' + e.message); }
   }
-  async function handleBatalSebagian(t, newPrice) {
-    if (!t.currentOutletId || !t.currentBookingId) return;
+  async function handleBatalSebagian(t, newPrice, index = 0) {
+    if (!t.currentOutletId) return;
+    const ids = bookingIdsOf(t);
+    const targetId = ids[index] || ids[0];
+    if (!targetId) return;
     try {
-      await cancelBookingPartial(t.currentOutletId, t.currentBookingId, t.id, newPrice);
+      await cancelBookingPartial(t.currentOutletId, targetId, t.id, newPrice);
       setMessage(`Booking ${t.name} ditutup dengan harga baru ${rp(newPrice)}.`);
     } catch (e) { setMessage('Gagal: ' + e.message); }
   }
