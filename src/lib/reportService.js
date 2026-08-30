@@ -143,6 +143,7 @@ export async function getCombinedDailyReport(dateStr) {
   let grandTotalCommission = 0;
   let grandTotalRevenue = 0;
   let grandTotalDiscount = 0;
+  const therapistCommissions = {};
 
   const bookingsAll = await getAllDailyBookings(dateStr);
   for (const outlet of OUTLETS) {
@@ -153,7 +154,24 @@ export async function getCombinedDailyReport(dateStr) {
     grandTotalCommission += summary.totalCommission;
     grandTotalRevenue += summary.totalRevenue;
     grandTotalDiscount += summary.totalDiscount;
+
+    // Gabungkan komisi per terapis lintas outlet (nama terapis + jumlah)
+    for (const oId of Object.keys(summary.byTherapist)) {
+      const t = summary.byTherapist[oId];
+      if (!therapistCommissions[oId]) {
+        therapistCommissions[oId] = { therapistName: t.therapistName || oId, commissionTotal: 0, treatmentCount: 0 };
+      }
+      therapistCommissions[oId].commissionTotal += t.commissionTotal;
+      therapistCommissions[oId].treatmentCount += t.treatmentCount;
+    }
   }
 
-  return { perOutlet, grandTotalTreatment, grandTotalCommission, grandTotalRevenue, grandTotalDiscount };
+  return {
+    perOutlet,
+    grandTotalTreatment,
+    grandTotalCommission,
+    grandTotalRevenue,
+    grandTotalDiscount,
+    therapistCommissions
+  };
 }

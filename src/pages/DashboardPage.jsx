@@ -110,6 +110,20 @@ export default function DashboardPage({ active }) {
               </tbody>
             </table>
           </div>
+
+          {Object.keys(report.therapistCommissions || {}).length > 0 && (
+            <div className="oil-card" style={{ padding: 12, marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Komisi per Terapis</div>
+              {Object.entries(report.therapistCommissions)
+                .sort((a, b) => b[1].commissionTotal - a[1].commissionTotal)
+                .map(([tid, t]) => (
+                  <div key={tid} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                    <span>{t.therapistName} <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>({t.treatmentCount} trx)</span></span>
+                    <span>{rp(Math.round(t.commissionTotal))}</span>
+                  </div>
+                ))}
+            </div>
+          )}
         </>
       )}
 
