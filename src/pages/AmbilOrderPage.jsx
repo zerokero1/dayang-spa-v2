@@ -202,8 +202,9 @@ export default function AmbilOrderPage({ active }) {
           {filteredTherapists.map((t) => {
             const busy = (t.status || 'free') === 'ambil_tamu';
             const inCart = cartTherapistIds.has(t.id);
-            const isMassage = usesOil(selTreatment);
-            const disabled = busy || (inCart && isMassage);
+            // Satu terapis boleh mengambil beberapa treatment sekaligus
+            // (double treatment), baik Massage maupun bukan.
+            const disabled = busy;
             return (
               <button
                 key={t.id}
@@ -213,7 +214,7 @@ export default function AmbilOrderPage({ active }) {
               >
                 {t.name}{t.homeOutletId ? ` (${t.homeOutletId})` : ''}
                 {busy && ' 🔴 Ambil Tamu'}
-                {!busy && inCart && (isMassage ? ' · di daftar' : ` · ${cartCountByTherapist[t.id]} treatment di daftar`)}
+                {!busy && inCart && ` · ${cartCountByTherapist[t.id]} treatment di daftar`}
               </button>
             );
           })}

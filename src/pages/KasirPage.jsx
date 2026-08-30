@@ -79,12 +79,9 @@ export default function KasirPage({ outletId, active }) {
 
   function handlePickTherapist(t) {
     const busy = (t.status || 'free') === 'ambil_tamu';
-    const isMassage = usesOil(pendingTreatment);
-    const alreadyInCart = cartTherapistIds.has(t.id);
-    // Terapis yang sibuk, atau sudah dipakai utk Massage, tidak bisa dipilih lagi.
-    // Untuk treatment non-Massage, satu terapis boleh mengambil beberapa treatment sekaligus.
+    // Terapis yang sibuk tidak bisa dipilih. Satu terapis boleh mengambil
+    // beberapa treatment sekaligus (double treatment), baik Massage maupun bukan.
     if (busy) return;
-    if (alreadyInCart && isMassage) return;
 
     setCart((c) => [...c, { therapist: t, treatment: pendingTreatment, oil: usesOil(pendingTreatment) ? pendingOil : null, size: usesOil(pendingTreatment) ? pendingSize : null }]);
     setPendingTreatment(null); setPendingOil(null); setPendingSize(null);
@@ -194,19 +191,17 @@ export default function KasirPage({ outletId, active }) {
             <div className="pos-chip-list">
               {filteredTherapists.map((t) => {
                 const busy = (t.status || 'free') === 'ambil_tamu';
-                const isMassage = usesOil(pendingTreatment);
                 const alreadyInCart = cartTherapistIds.has(t.id);
-                const disabled = busy || (alreadyInCart && isMassage);
                 return (
                   <button
                     key={t.id}
-                    className={disabled ? 'pos-chip pos-chip-busy' : 'pos-chip'}
-                    disabled={disabled}
+                    className={busy ? 'pos-chip pos-chip-busy' : 'pos-chip'}
+                    disabled={busy}
                     onClick={() => handlePickTherapist(t)}
                   >
                     {t.name}{t.homeOutletId ? ` (${t.homeOutletId})` : ''}
                     {busy && ' 🔴 Ambil Tamu'}
-                    {!busy && alreadyInCart && (isMassage ? ' · di keranjang' : ` · ${cartCountByTherapist[t.id]} treatment di keranjang`)}
+                    {!busy && alreadyInCart && ` · ${cartCountByTherapist[t.id]} treatment di keranjang`}
                   </button>
                 );
               })}
