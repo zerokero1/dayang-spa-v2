@@ -44,7 +44,7 @@ export default function DashboardPage({ active }) {
     return () => clearInterval(iv);
   }, [active]);
 
-  const grand = report || { grandTotalRevenue: 0, grandTotalCommission: 0, grandTotalTreatment: 0 };
+  const grand = report || { grandTotalRevenue: 0, grandTotalCommission: 0, grandTotalTreatment: 0, grandTotalDiscount: 0 };
   const perOutlet = report?.perOutlet || {};
 
   return (
@@ -69,6 +69,10 @@ export default function DashboardPage({ active }) {
         <div className="oil-card" style={{ textAlign: 'center', padding: 14 }}>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Total Treatment</div>
           <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4 }}>{grand.grandTotalTreatment}</div>
+        </div>
+        <div className="oil-card" style={{ textAlign: 'center', padding: 14 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Total Diskon</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--busy)', marginTop: 4 }}>{rp(grand.grandTotalDiscount)}</div>
         </div>
       </div>
 

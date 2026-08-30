@@ -59,7 +59,7 @@ async function getAllDailyBookings(dateStr) {
   const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
   const { data, error } = await supabase
     .from('bookings')
-    .select('outlet_id, therapist_id, therapist_name, treatment_price, commission_amount, status, paid, payment_method')
+    .select('outlet_id, therapist_id, therapist_name, treatment_price, commission_amount, status, paid, payment_method, original_price')
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString());
   if (error) throw error;
@@ -73,6 +73,7 @@ export function summarizeDailyBookings(bookings) {
     totalTreatment: counted.length,
     totalCommission: 0,
     totalRevenue: 0,
+    totalDiscount: 0,
     totalBatal: bookings.length - counted.length,
     cashRevenue: 0,
     cardlessRevenue: 0,
@@ -84,6 +85,10 @@ export function summarizeDailyBookings(bookings) {
   counted.forEach((b) => {
     summary.totalCommission += b.commissionAmount || 0;
     summary.totalRevenue += b.treatmentPrice || 0;
+
+    if (b.originalPrice != null && Number(b.originalPrice) > Number(b.treatmentPrice)) {
+      summary.totalDiscount += Number(b.originalPrice) - Number(b.treatmentPrice);
+    }
 
     if (b.paid) {
       if (b.paymentMethod === 'cardless') summary.cardlessRevenue += b.treatmentPrice || 0;
@@ -137,6 +142,7 @@ export async function getCombinedDailyReport(dateStr) {
   let grandTotalTreatment = 0;
   let grandTotalCommission = 0;
   let grandTotalRevenue = 0;
+  let grandTotalDiscount = 0;
 
   const bookingsAll = await getAllDailyBookings(dateStr);
   for (const outlet of OUTLETS) {
@@ -146,7 +152,8 @@ export async function getCombinedDailyReport(dateStr) {
     grandTotalTreatment += summary.totalTreatment;
     grandTotalCommission += summary.totalCommission;
     grandTotalRevenue += summary.totalRevenue;
+    grandTotalDiscount += summary.totalDiscount;
   }
 
-  return { perOutlet, grandTotalTreatment, grandTotalCommission, grandTotalRevenue };
+  return { perOutlet, grandTotalTreatment, grandTotalCommission, grandTotalRevenue, grandTotalDiscount };
 }

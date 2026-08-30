@@ -140,8 +140,11 @@ export default function RingkasanTransaksiPage({ active }) {
     const noBill = !b.paid ? b.treatmentPrice : 0;
     acc.charge += charge; acc.card += card; acc.noBill += noBill;
     acc.revenue += b.treatmentPrice || 0; acc.komisi += b.commissionAmount || 0;
+    if (b.originalPrice != null && Number(b.originalPrice) > Number(b.treatmentPrice)) {
+      acc.discount += Number(b.originalPrice) - Number(b.treatmentPrice);
+    }
     return acc;
-  }, { charge: 0, card: 0, noBill: 0, revenue: 0, komisi: 0 });
+  }, { charge: 0, card: 0, noBill: 0, revenue: 0, komisi: 0, discount: 0 });
 
   return (
     <div className="kasir-page">
@@ -184,6 +187,11 @@ export default function RingkasanTransaksiPage({ active }) {
                 <div>
                   <strong style={{ fontSize: 14 }}>{i + 1}. {b.therapistName}</strong>
                   <div style={{ fontSize: 13, marginTop: 2 }}>{b.treatmentName}</div>
+                  {b.originalPrice != null && Number(b.originalPrice) > Number(b.treatmentPrice) && (
+                    <div style={{ fontSize: 12, color: 'var(--busy)' }}>
+                      Diskon {rp(Number(b.originalPrice) - Number(b.treatmentPrice))} (dari {rp(b.originalPrice)})
+                    </div>
+                  )}
                   {b.oilType && <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Minyak: {b.oilType} ({b.oilSize})</div>}
                 </div>
                 <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => setEditingId(b.id)}>
@@ -212,6 +220,7 @@ export default function RingkasanTransaksiPage({ active }) {
             <div>No Bill: {rp(totals.noBill)}</div>
             <div>Revenue: {rp(totals.revenue)}</div>
             <div>Komisi: {rp(totals.komisi)}</div>
+            {totals.discount > 0 && <div style={{ color: 'var(--busy)' }}>Total Diskon: {rp(totals.discount)}</div>}
           </div>
         </div>
       )}
