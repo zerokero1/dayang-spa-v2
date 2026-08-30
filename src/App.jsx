@@ -1,24 +1,25 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { OUTLETS } from './lib/constants';
 import { listenAuthState, logout } from './lib/authService';
 import { listenAllTherapists } from './lib/therapistService';
 import { completeBooking } from './lib/bookingService';
 import LoginPage from './pages/LoginPage';
-import KasirPage from './pages/KasirPage';
-import AbsensiPage from './pages/AbsensiPage';
-import LaporanPage from './pages/LaporanPage';
-import InventoryPage from './pages/InventoryPage';
-import StokMinyakPage from './pages/StokMinyakPage';
-import StatusTerapisPage from './pages/StatusTerapisPage';
-import ReservasiPage from './pages/ReservasiPage';
-import KelolaTerapisPage from './pages/KelolaTerapisPage';
-import LaporanAbsensiPage from './pages/LaporanAbsensiPage';
-import LaporanInventoryPage from './pages/LaporanInventoryPage';
-import AmbilOrderPage from './pages/AmbilOrderPage';
-import StrukPage from './pages/StrukPage';
-import RingkasanTransaksiPage from './pages/RingkasanTransaksiPage';
-import DashboardPage from './pages/DashboardPage';
 import './styles.css';
+
+const KasirPage = lazy(() => import('./pages/KasirPage'));
+const AbsensiPage = lazy(() => import('./pages/AbsensiPage'));
+const LaporanPage = lazy(() => import('./pages/LaporanPage'));
+const InventoryPage = lazy(() => import('./pages/InventoryPage'));
+const StokMinyakPage = lazy(() => import('./pages/StokMinyakPage'));
+const StatusTerapisPage = lazy(() => import('./pages/StatusTerapisPage'));
+const ReservasiPage = lazy(() => import('./pages/ReservasiPage'));
+const KelolaTerapisPage = lazy(() => import('./pages/KelolaTerapisPage'));
+const LaporanAbsensiPage = lazy(() => import('./pages/LaporanAbsensiPage'));
+const LaporanInventoryPage = lazy(() => import('./pages/LaporanInventoryPage'));
+const AmbilOrderPage = lazy(() => import('./pages/AmbilOrderPage'));
+const StrukPage = lazy(() => import('./pages/StrukPage'));
+const RingkasanTransaksiPage = lazy(() => import('./pages/RingkasanTransaksiPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 
 const PAGES = {
   kasir: { label: 'Kasir', icon: '🧾', Component: KasirPage },
@@ -196,11 +197,11 @@ export default function App() {
         </header>
 
         <main className="content">
-          {visiblePageEntries.map(([key, p]) => (
-            <div key={key} style={{ display: activePage === key ? 'block' : 'none' }}>
-              <p.Component outletId={activeOutlet} active={activePage === key} />
-            </div>
-          ))}
+          <Suspense fallback={<div style={{ padding: 24, fontSize: 14, color: 'var(--text-secondary)' }}>Memuat…</div>}>
+            {currentPage && currentPage.Component && (
+              <currentPage.Component outletId={activeOutlet} active={true} />
+            )}
+          </Suspense>
         </main>
       </div>
     </div>
