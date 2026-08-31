@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listenAllTherapists, setTherapistStatusManual } from '../lib/therapistService';
-import { THERAPIST_STATUS, OUTLETS, OIL_TYPES, OIL_SIZES, PAYMENT_METHOD_LABEL, treatmentUsesOil } from '../lib/constants';
+import { THERAPIST_STATUS, OUTLETS, OIL_TYPES, OIL_SIZES, PAYMENT_METHOD_LABEL, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
 import { completeBooking, cancelBookingFull, cancelBookingPartial, markBookingPaid, continueTreatment, completeBookingGroup, markGroupPaid, openWhatsAppMessage } from '../lib/bookingService';
 import { listenTreatments } from '../lib/treatmentService';
 import { getTherapistDailyReport } from '../lib/reportService';
@@ -726,7 +726,7 @@ export default function StatusTerapisPage({ active }) {
               <div style={{ marginBottom: 14 }}>
                 <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Pilih minyak & ukuran (wajib)</p>
                 <div className="grid-2">
-                  {OIL_TYPES.map((oil) => (
+                  {oilChoicesFor(cTreatment).map((oil) => (
                     <button key={oil} className={cOil === oil ? 'active' : ''} onClick={() => setCOil(oil)} style={{ fontSize: 12 }}>{oil}</button>
                   ))}
                 </div>

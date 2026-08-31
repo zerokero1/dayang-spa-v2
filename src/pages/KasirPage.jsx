@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, PAYMENT_METHODS, PAYMENT_METHOD_LABEL, treatmentUsesOil } from '../lib/constants';
+import { OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, PAYMENT_METHODS, PAYMENT_METHOD_LABEL, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createBooking, createBookingsBatch } from '../lib/bookingService';
@@ -185,7 +185,7 @@ export default function KasirPage({ outletId, active }) {
             <p style={{ fontSize: 13, fontWeight: 600, marginTop: 0 }}>
               {pendingTreatment.name} — pilih minyak & ukuran
             </p>
-            {OIL_TYPES.map((oil) => (
+            {oilChoicesFor(pendingTreatment).map((oil) => (
               <div key={oil} style={{ marginBottom: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>{oil}</span>
                 <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>

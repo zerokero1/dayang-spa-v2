@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil } from '../lib/constants';
+import { OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createReservation, listenReservations, checkInReservation, cancelReservation } from '../lib/reservationService';
@@ -201,7 +201,7 @@ export default function ReservasiPage({ outletId, active }) {
       <section>
         <p>Pilih minyak & ukuran</p>
         <div className="grid-2">
-          {OIL_TYPES.map((oil) => (
+          {oilChoicesFor(selTreatment).map((oil) => (
             <div key={oil} className="oil-card">
               <div>{oil}</div>
               <div className="row">

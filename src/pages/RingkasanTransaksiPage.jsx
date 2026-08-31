@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { OUTLETS, OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil } from '../lib/constants';
+import { OUTLETS, OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
 import { listenTreatments } from '../lib/treatmentService';
 import { getDailyBookings } from '../lib/reportService';
 import { editBookingDetails } from '../lib/bookingService';
@@ -74,7 +74,7 @@ function EditRow({ booking, treatments, onSave, onCancel }) {
       {needsOil && (
       <div style={{ marginBottom: 8 }}>
         <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Minyak</p>
-        {OIL_TYPES.map((oil) => (
+        {oilChoicesFor(activeTreatment).map((oil) => (
           <div key={oil} style={{ display: 'inline-block', marginRight: 6, marginBottom: 4 }}>
             {OIL_SIZES.map((size) => (
               <button

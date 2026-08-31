@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { OUTLETS, OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil } from '../lib/constants';
+import { OUTLETS, OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createBooking, createBookingsBatch } from '../lib/bookingService';
@@ -209,7 +209,7 @@ export default function AmbilOrderPage({ active }) {
       <section>
         <p>Pilih minyak & ukuran</p>
         <div className={`grid-2 ${selNoOil ? 'oil-card-disabled' : ''}`} style={selNoOil ? { opacity: 0.5, pointerEvents: 'none' } : undefined}>
-          {OIL_TYPES.map((oil) => (
+          {oilChoicesFor(selTreatment).map((oil) => (
             <div key={oil} className="oil-card">
               <div>{oil}</div>
               <div className="row">

@@ -12,15 +12,31 @@ export const OIL_TYPES = [
 ];
 export const OIL_SIZES = ['Kecil', 'Besar']; // Kecil = 10ml, Besar = 30ml
 
+export const FOOT_PRODUCTS = ['Foot Cream', 'FM'];
+
 export const TREATMENT_CATEGORIES = ['Massage', 'Nail', 'Body Care', 'Waxing', 'Hair Treatment'];
 
-/** Apakah sebuah treatment memakai minyak? Prioritas:
- *  1. field `usesOil` di data treatment (kalau ada/terisi)
- *  2. fallback: hanya kategori Massage yang pakai minyak, TAPI Foot Massage TIDAK */
+/** Apakah treatment ini Foot Massage (pakai produk Foot Cream / FM)? */
+export function isFootMassage(t) {
+  if (!t) return false;
+  return String(t.name || '').toLowerCase().includes('foot massage');
+}
+
+/** Pilihan produk/minyak yang muncul saat memilih sebuah treatment.
+ *  Foot Massage difokuskan pada Foot Cream / FM, yang lain pakai body oil biasa. */
+export function oilChoicesFor(t) {
+  return isFootMassage(t) ? FOOT_PRODUCTS : OIL_TYPES;
+}
+
+/** Apakah sebuah treatment memakai minyak/produk? Prioritas:
+ *  1. Foot Massage -> true (pakai Foot Cream / FM)
+ *  2. field `usesOil` di data treatment (kalau ada/terisi)
+ *  3. fallback: kategori Massage yang pakai minyak */
 export function treatmentUsesOil(t) {
   if (!t) return false;
+  if (isFootMassage(t)) return true;
   if (t.usesOil !== undefined) return !!t.usesOil;
-  return t.category === 'Massage' && !String(t.name || '').toLowerCase().includes('foot massage');
+  return t.category === 'Massage';
 }
 
 export const PAYMENT_METHODS = { CASH: 'cash', CARDLESS: 'cardless' };
