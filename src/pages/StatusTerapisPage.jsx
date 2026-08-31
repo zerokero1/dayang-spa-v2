@@ -389,16 +389,17 @@ export default function StatusTerapisPage({ active }) {
       setMessage(`Booking ${t.name} ditutup dengan harga baru ${rp(newPrice)}.`);
     } catch (e) { setMessage('Gagal: ' + e.message); }
   }
-  // Cetak struk otomatis setelah pembayaran lunas. `window.print()` memakai
-  // dialog cetak sistem; hanya elemen .receipt-print (struk) yang ikut tercetak.
+  // Menampilkan struk sebagai konfirmasi visual setelah pembayaran lunas.
+  // Catatan: `window.print()` TIDAK lagi dipanggil di sini — agar dialog
+  // "Simpan PDF" dari browser tidak muncul. Cetak struk ke printer Bluetooth
+  // ditangani oleh aplikasi Android "Dayang Print" (di luar web app ini).
   function triggerPrint(lines, outletId) {
     setPrintLines(lines);
     setPrintOutletId(outletId || null);
     setTimeout(() => {
-      window.print();
       setPrintLines([]);
       setPrintOutletId(null);
-    }, 250);
+    }, 2500);
   }
 
   async function handleTandaiLunas(t, method) {
