@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import { getDailyBookings } from '../lib/reportService';
+import { ReceiptLines } from '../components/Receipt';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -8,55 +9,6 @@ function todayId() {
   // Tanggal LOKAL WIB (UTC+7) — konsisten dengan reportService
   const now = new Date(Date.now() + 7 * 3600000);
   return now.toISOString().slice(0, 10);
-}
-
-function formatDateTime(ms) {
-  if (!ms) return '-';
-  return new Date(ms).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
-function ReceiptContent({ booking, outletName }) {
-  return (
-    <div className="receipt-print">
-      <div style={{ textAlign: 'center', marginBottom: 8 }}>
-        <strong style={{ fontSize: 13 }}>DAYANG SPA</strong>
-        <div style={{ fontSize: 10 }}>{outletName}</div>
-      </div>
-      <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
-      <div style={{ fontSize: 10 }}>
-        <div>Tanggal: {formatDateTime(booking.startAt)}</div>
-        <div>Pelanggan: {booking.customerName || '-'}</div>
-      </div>
-      <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
-      <div style={{ fontSize: 10 }}>
-        <div>{booking.treatmentName}</div>
-        <div>Terapis: {booking.therapistName}</div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-          <span>Harga</span>
-          <span>{rp(booking.treatmentPrice)}</span>
-        </div>
-        {booking.originalPrice != null && Number(booking.originalPrice) > Number(booking.treatmentPrice) && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555' }}>
-            <span>Diskon</span>
-            <span>-{rp(Number(booking.originalPrice) - Number(booking.treatmentPrice))}</span>
-          </div>
-        )}
-      </div>
-      <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: 12 }}>
-        <span>TOTAL</span>
-        <span>{rp(booking.treatmentPrice)}</span>
-      </div>
-      <div style={{ fontSize: 10, marginTop: 4 }}>
-        <div>Metode: {booking.paymentMethod === 'cardless' ? 'Cardless' : 'Cash'}</div>
-        <div>Status: {booking.paid ? 'LUNAS' : 'BELUM BAYAR'}</div>
-      </div>
-      <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
-      <div style={{ textAlign: 'center', fontSize: 10, marginTop: 8 }}>
-        Terima kasih atas kunjungan Anda
-      </div>
-    </div>
-  );
 }
 
 export default function StrukPage({ outletId, active }) {
@@ -123,7 +75,7 @@ export default function StrukPage({ outletId, active }) {
         </div>
       ))}
 
-      {printingBooking && <ReceiptContent booking={printingBooking} outletName={outletName} />}
+      {printingBooking && <ReceiptLines lines={[printingBooking]} outletName={outletName} />}
     </div>
   );
 }

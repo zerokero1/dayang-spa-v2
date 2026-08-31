@@ -6,6 +6,7 @@ import { listenTreatments } from '../lib/treatmentService';
 import { getTherapistDailyReport } from '../lib/reportService';
 import { getShiftWindowStatus, SHIFT_WINDOW_LABEL } from '../lib/shiftService';
 import { SHIFT_LABEL, SHIFT_SHORT_CODE } from '../lib/constants';
+import { ReceiptLines } from '../components/Receipt';
 
 const STATUS_LABEL = { free: 'Free', libur: 'Libur', ambil_tamu: 'Ambil Tamu', break: 'Break' };
 const OUTLET_NAME = Object.fromEntries(OUTLETS.map((o) => [o.id, o.name]));
@@ -326,6 +327,8 @@ export default function StatusTerapisPage({ active }) {
   const [cPaid, setCPaid] = useState(false);
   const [cMethod, setCMethod] = useState('cash');
   const [cSaving, setCSaving] = useState(false);
+  const [printLines, setPrintLines] = useState([]);
+  const [printOutletId, setPrintOutletId] = useState(null);
 
   useEffect(() => {
     if (!active) return;
@@ -386,6 +389,18 @@ export default function StatusTerapisPage({ active }) {
       setMessage(`Booking ${t.name} ditutup dengan harga baru ${rp(newPrice)}.`);
     } catch (e) { setMessage('Gagal: ' + e.message); }
   }
+  // Cetak struk otomatis setelah pembayaran lunas. `window.print()` memakai
+  // dialog cetak sistem; hanya elemen .receipt-print (struk) yang ikut tercetak.
+  function triggerPrint(lines, outletId) {
+    setPrintLines(lines);
+    setPrintOutletId(outletId || null);
+    setTimeout(() => {
+      window.print();
+      setPrintLines([]);
+      setPrintOutletId(null);
+    }, 250);
+  }
+
   async function handleTandaiLunas(t, method) {
     if (!t.currentOutletId) return;
     try {
@@ -393,6 +408,18 @@ export default function StatusTerapisPage({ active }) {
         await markBookingPaid(t.currentOutletId, bId, t.id, method);
       }
       setMessage(`Booking ${t.name} ditandai lunas (${PAYMENT_METHOD_LABEL[method]}).`);
+      const names = Array.isArray(t.currentTreatmentNames) && t.currentTreatmentNames.length
+        ? t.currentTreatmentNames
+        : (t.currentTreatmentName ? [t.currentTreatmentName] : []);
+      triggerPrint([{
+        treatmentName: names.join(' + '),
+        treatmentPrice: t.currentPrice || 0,
+        therapistName: t.name,
+        customerName: t.currentCustomerName || '',
+        startAt: t.startAt,
+        paymentMethod: method,
+        usesOil: t.currentUsesOil
+      }], t.currentOutletId);
     } catch (e) { setMessage('Gagal: ' + e.message); }
   }
 
@@ -425,6 +452,17 @@ export default function StatusTerapisPage({ active }) {
         paymentMethod: cMethod
       });
       setMessage(`Treatment lanjutan untuk ${continueTarget.name} dicatat.`);
+      if (cPaid) {
+        triggerPrint([{
+          treatmentName: cTreatment.name,
+          treatmentPrice: cTreatment.price,
+          therapistName: continueTarget.name,
+          customerName: continueTarget.currentCustomerName || '',
+          startAt: Date.now(),
+          paymentMethod: cMethod,
+          usesOil: usesOilFlag
+        }], continueTarget.currentOutletId);
+      }
       setContinueTarget(null);
       setCTreatment(null); setCOil(null); setCSize(null);
     } catch (e) {
@@ -444,6 +482,15 @@ export default function StatusTerapisPage({ active }) {
     try {
       await markGroupPaid(members, method);
       setMessage(`Grup (${members.length} orang) ditandai lunas (${PAYMENT_METHOD_LABEL[method]}).`);
+      const total = members.reduce((s, m) => s + (m.currentPrice || 0), 0);
+      triggerPrint([{
+        treatmentName: `Grup Massage (${members.length} orang)`,
+        treatmentPrice: total,
+        therapistName: members.map((m) => m.name).join(', '),
+        customerName: '',
+        startAt: members[0] && members[0].startAt,
+        paymentMethod: method
+      }], (members[0] && members[0].currentOutletId) || undefined);
     } catch (e) { setMessage('Gagal: ' + e.message); }
   }
 
@@ -685,6 +732,9 @@ export default function StatusTerapisPage({ active }) {
             </button>
           </div>
         </div>
+      )}
+      {printLines.length > 0 && (
+        <ReceiptLines lines={printLines} outletName={OUTLET_NAME[printOutletId] || 'Dayang Spa'} />
       )}
     </div>
   );
