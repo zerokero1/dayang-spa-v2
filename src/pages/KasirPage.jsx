@@ -93,7 +93,7 @@ export default function KasirPage({ outletId, active }) {
     // beberapa treatment sekaligus (double treatment), baik Massage maupun bukan.
     if (busy) return;
 
-    setCart((c) => [...c, { therapist: t, treatment: pendingTreatment, oil: (usesOil(pendingTreatment) && !pendingNoOil) ? pendingOil : null, size: (usesOil(pendingTreatment) && !pendingNoOil) ? pendingSize : null, noOil: pendingNoOil, discountPct: 0 }]);
+    setCart((c) => [...c, { therapist: t, treatment: pendingTreatment, oil: (usesOil(pendingTreatment) && !pendingNoOil) ? pendingOil : null, size: (usesOil(pendingTreatment) && !pendingNoOil) ? pendingSize : null, noOil: pendingNoOil, discountPct: 0, discountReason: '' }]);
     setPendingTreatment(null); setPendingOil(null); setPendingSize(null); setPendingNoOil(false);
     setStep(null);
     setError('');
@@ -111,7 +111,11 @@ export default function KasirPage({ outletId, active }) {
   }
 
   function handleDiscount(index, pct) {
-    setCart((c) => c.map((l, i) => (i === index ? { ...l, discountPct: pct } : l)));
+    setCart((c) => c.map((l, i) => (i === index ? { ...l, discountPct: pct, discountReason: pct === 0 ? '' : l.discountReason } : l)));
+  }
+
+  function handleDiscountReason(index, reason) {
+    setCart((c) => c.map((l, i) => (i === index ? { ...l, discountReason: reason } : l)));
   }
 
   function cancelPicking() {
@@ -121,6 +125,12 @@ export default function KasirPage({ outletId, active }) {
 
   async function handlePay() {
     if (cart.length === 0) return;
+    // Validasi: semua item berdiskon wajib punya alasan
+    const missingReason = cart.find((line) => line.discountPct > 0 && !(line.discountReason || '').trim());
+    if (missingReason) {
+      setError(`Alasan diskon wajib diisi untuk "${missingReason.treatment.name}".`);
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -135,6 +145,7 @@ export default function KasirPage({ outletId, active }) {
           treatmentName: line.treatment.name,
           treatmentPrice: discounted,
           originalPrice: line.discountPct ? (line.treatment.price || 0) : null,
+          discountReason: line.discountPct ? line.discountReason : null,
           commissionPercent: line.treatment.commissionPercent,
           durationMinutes: line.treatment.durationMinutes,
           usesOil: useOil,
@@ -306,6 +317,14 @@ export default function KasirPage({ outletId, active }) {
                     </button>
                   ))}
                 </div>
+                {line.discountPct > 0 && (
+                  <input
+                    placeholder="Alasan diskon (wajib)"
+                    value={line.discountReason}
+                    onChange={(e) => handleDiscountReason(i, e.target.value)}
+                    style={{ marginTop: 6, fontSize: 12, padding: '6px 8px' }}
+                  />
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>

@@ -4,7 +4,7 @@ import { THERAPIST_STATUS } from './constants';
 export async function createBookingCore({
   outletId, therapistId, therapistName, treatmentId, treatmentName,
   treatmentPrice, commissionPercent, durationMinutes, oilType, oilSize, customerName, paid, paymentMethod, groupId,
-  usesOil = true, therapist = 'set', originalPrice
+  usesOil = true, therapist = 'set', originalPrice, discountReason
 }) {
   const isPaid = !!paid;
   const method = paymentMethod || 'cash';
@@ -27,7 +27,8 @@ export async function createBookingCore({
     p_paid: isPaid,
     p_payment_method: method,
     p_group_id: groupId || null,
-    p_update_therapist: therapist !== 'suppress'
+    p_update_therapist: therapist !== 'suppress',
+    p_discount_reason: discountReason || null
   });
   if (error) throw error;
 
@@ -85,7 +86,8 @@ export async function createBookingsBatch(items) {
       customer_name: item.customerName || '',
       paid: !!item.paid,
       payment_method: item.paymentMethod || 'cash',
-      original_price: item.originalPrice || null
+      original_price: item.originalPrice || null,
+      discount_reason: item.discountReason || null
     };
   });
 
@@ -136,13 +138,14 @@ export async function continueTreatment({
   return bookingId;
 }
 
-export async function markBookingPaid(outletId, bookingId, therapistId, paymentMethod, discountPct) {
+export async function markBookingPaid(outletId, bookingId, therapistId, paymentMethod, discountPct, discountReason) {
   const { error } = await supabase.rpc('mark_booking_paid', {
     p_outlet_id: outletId,
     p_booking_id: bookingId,
     p_therapist_id: therapistId || null,
     p_payment_method: paymentMethod || null,
-    p_discount_pct: (discountPct && discountPct > 0) ? discountPct : null
+    p_discount_pct: (discountPct && discountPct > 0) ? discountPct : null,
+    p_discount_reason: (discountPct && discountPct > 0) ? (discountReason || null) : null
   });
   if (error) throw error;
 }
@@ -180,11 +183,11 @@ export async function completeBookingGroup(members) {
   }
 }
 
-export async function markGroupPaid(members, paymentMethod, discountPct) {
+export async function markGroupPaid(members, paymentMethod, discountPct, discountReason) {
   for (const t of members) {
     if (t.currentOutletId) {
       for (const bId of bookingIdsOf(t)) {
-        await markBookingPaid(t.currentOutletId, bId, t.id, paymentMethod, discountPct);
+        await markBookingPaid(t.currentOutletId, bId, t.id, paymentMethod, discountPct, discountReason);
       }
     }
   }

@@ -88,6 +88,7 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
   const [partialIdx, setPartialIdx] = useState(0);
   const [showPartial, setShowPartial] = useState(false);
   const [payDisc, setPayDisc] = useState(0);
+  const [payReason, setPayReason] = useState('');
   const basePrice = t.currentPrice || 0;
   const payEffective = basePrice - (payDisc ? Math.round(basePrice * payDisc / 100) : 0);
 
@@ -98,6 +99,17 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
     setShowDiscount(false);
     setDiscountPrice('');
     setShowPartial(false);
+  }
+
+  function confirmDiscount(method) {
+    if (payDisc > 0) {
+      if (!payReason.trim()) {
+        alert('Alasan diskon wajib diisi.');
+        return;
+      }
+      if (!confirm(`Terapkan diskon ${payDisc}% (${rp(payEffective)}) dengan alasan "${payReason.trim()}"?`)) return;
+    }
+    onTandaiLunas(t, method, payDisc, payReason.trim());
   }
 
   const pNames = multi ? (t.currentTreatmentNames || []) : [];
@@ -173,17 +185,25 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
               <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
                 {[0, 5, 10, 15, 20, 25].map((p) => (
                   <button key={p} className={payDisc === p ? 'pos-chip active' : 'pos-chip'}
-                    onClick={() => setPayDisc(p)} style={{ fontSize: 11, padding: '4px 10px', boxShadow: 'none' }}>
+                    onClick={() => { setPayDisc(p); if (p === 0) setPayReason(''); }} style={{ fontSize: 11, padding: '4px 10px', boxShadow: 'none' }}>
                     {p === 0 ? '0%' : `${p}%`}
                   </button>
                 ))}
               </div>
+              {payDisc > 0 && (
+                <input
+                  placeholder="Alasan diskon (wajib)"
+                  value={payReason}
+                  onChange={(e) => setPayReason(e.target.value)}
+                  style={{ marginBottom: 8, fontSize: 13 }}
+                />
+              )}
               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Terima pembayaran:</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => onTandaiLunas(t, 'cash', payDisc)}>
+                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => confirmDiscount(t, 'cash')}>
                   Lunas Cash
                 </button>
-                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => onTandaiLunas(t, 'cardless', payDisc)}>
+                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => confirmDiscount(t, 'cardless')}>
                   Lunas Cardless
                 </button>
               </div>
@@ -263,14 +283,22 @@ function GroupCard({ members, onCompleteGroup, onPayGroup, cardProps }) {
   const [showDetail, setShowDetail] = useState(false);
   const [busy, setBusy] = useState(false);
   const [payDisc, setPayDisc] = useState(0);
+  const [payReason, setPayReason] = useState('');
   const total = members.reduce((sum, m) => sum + (m.currentPrice || 0), 0);
   const totalEffective = total - (payDisc ? Math.round(total * payDisc / 100) : 0);
   const allPaid = members.every((m) => m.currentPaid);
   const earliestEnd = Math.min(...members.map((m) => m.endAt || Infinity));
 
   async function handlePay(method) {
+    if (payDisc > 0) {
+      if (!payReason.trim()) {
+        alert('Alasan diskon wajib diisi.');
+        return;
+      }
+      if (!confirm(`Terapkan diskon ${payDisc}% (${rp(totalEffective)}) dengan alasan "${payReason.trim()}"?`)) return;
+    }
     setBusy(true);
-    try { await onPayGroup(members, method, payDisc); } finally { setBusy(false); }
+    try { await onPayGroup(members, method, payDisc, payReason.trim()); } finally { setBusy(false); }
   }
   async function handleComplete() {
     setBusy(true);
@@ -301,11 +329,19 @@ function GroupCard({ members, onCompleteGroup, onPayGroup, cardProps }) {
         <div style={{ display: 'flex', gap: 4, marginTop: 8, flexWrap: 'wrap' }}>
           {[0, 5, 10, 15, 20, 25].map((p) => (
             <button key={p} className={payDisc === p ? 'pos-chip active' : 'pos-chip'}
-              onClick={() => setPayDisc(p)} style={{ fontSize: 11, padding: '4px 10px', boxShadow: 'none' }}>
+              onClick={() => { setPayDisc(p); if (p === 0) setPayReason(''); }} style={{ fontSize: 11, padding: '4px 10px', boxShadow: 'none' }}>
               {p === 0 ? '0%' : `${p}%`}
             </button>
           ))}
         </div>
+      )}
+      {!allPaid && payDisc > 0 && (
+        <input
+          placeholder="Alasan diskon (wajib)"
+          value={payReason}
+          onChange={(e) => setPayReason(e.target.value)}
+          style={{ marginBottom: 8, fontSize: 13 }}
+        />
       )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
@@ -430,12 +466,13 @@ export default function StatusTerapisPage({ active }) {
     }, 2500);
   }
 
-  async function handleTandaiLunas(t, method, discountPct) {
+  async function handleTandaiLunas(t, method, discountPct, discountReason) {
     if (!t.currentOutletId) return;
     const disc = discountPct || 0;
+    const reason = discountReason || '';
     try {
       for (const bId of bookingIdsOf(t)) {
-        await markBookingPaid(t.currentOutletId, bId, t.id, method, disc);
+        await markBookingPaid(t.currentOutletId, bId, t.id, method, disc, reason);
       }
       setMessage(`Booking ${t.name} ditandai lunas (${PAYMENT_METHOD_LABEL[method]}).`);
       const names = Array.isArray(t.currentTreatmentNames) && t.currentTreatmentNames.length
@@ -511,10 +548,11 @@ export default function StatusTerapisPage({ active }) {
       setMessage(`Grup (${members.length} orang) selesai sekaligus.`);
     } catch (e) { setMessage('Gagal: ' + e.message); }
   }
-  async function handlePayGroup(members, method, discountPct) {
+  async function handlePayGroup(members, method, discountPct, discountReason) {
     try {
       const disc = discountPct || 0;
-      await markGroupPaid(members, method, disc);
+      const reason = discountReason || '';
+      await markGroupPaid(members, method, disc, reason);
       setMessage(`Grup (${members.length} orang) ditandai lunas (${PAYMENT_METHOD_LABEL[method]}).`);
       const base = members.reduce((s, m) => s + (m.currentPrice || 0), 0);
       const eff = base - (disc ? Math.round(base * disc / 100) : 0);
