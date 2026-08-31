@@ -28,7 +28,7 @@ const PAGES = {
   dashboard: { label: 'Dashboard', icon: '📈', Component: DashboardPage, global: true },
   struk: { label: 'Struk', icon: '🧾', Component: StrukPage },
   reservasi: { label: 'Reservasi', icon: '🗓️', Component: ReservasiPage },
-  status: { label: 'Status Terapis', icon: '💆', Component: StatusTerapisPage, global: true },
+  status: { label: 'Payment & List', icon: '💆', Component: StatusTerapisPage, global: true },
   absensi: { label: 'Absensi', icon: '✅', Component: AbsensiPage },
   inventory: { label: 'Inventory', icon: '📦', Component: InventoryPage },
   minyak: { label: 'Stok Minyak', icon: '🫗', Component: StokMinyakPage },

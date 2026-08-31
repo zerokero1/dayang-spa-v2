@@ -500,7 +500,7 @@ export default function StatusTerapisPage({ active }) {
 
   return (
     <div className="kasir-page">
-      <h2>Status Terapis</h2>
+      <h2>Payment & List</h2>
       <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: -8, marginBottom: 16 }}>
         Dikelompokkan per outlet — otomatis kembali Free saat waktu treatment habis
       </p>
