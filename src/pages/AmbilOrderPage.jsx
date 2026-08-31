@@ -17,6 +17,7 @@ export default function AmbilOrderPage({ active }) {
   const [selTreatment, setSelTreatment] = useState(null);
   const [selOil, setSelOil] = useState(null);
   const [selSize, setSelSize] = useState(null);
+  const [selNoOil, setSelNoOil] = useState(false);
   const [selTherapist, setSelTherapist] = useState(null);
 
   const [customerName, setCustomerName] = useState('');
@@ -43,18 +44,19 @@ export default function AmbilOrderPage({ active }) {
 
   const usesOil = (t) => treatmentUsesOil(t);
   const lineNeedsOil = usesOil(selTreatment);
-  const canAddLine = selTreatment && selTherapist && (!lineNeedsOil || (selOil && selSize));
+  const canAddLine = selTreatment && selTherapist && (!lineNeedsOil || selNoOil || (selOil && selSize));
   const discountedPrice = (line) => Math.round((line.treatment.price || 0) * (1 - (line.discountPct || 0) / 100));
   const cartTotal = cart.reduce((sum, l) => sum + discountedPrice(l), 0);
   const grandTotal = cartTotal + (canAddLine ? selTreatment.price : 0);
 
   function resetLineSelection() {
-    setSelTreatment(null); setSelOil(null); setSelSize(null); setSelTherapist(null);
+    setSelTreatment(null); setSelOil(null); setSelSize(null); setSelNoOil(false); setSelTherapist(null);
   }
 
   function handleAddToCart() {
     if (!canAddLine) return;
-    setCart((c) => [...c, { therapist: selTherapist, treatment: selTreatment, oil: usesOil(selTreatment) ? selOil : null, size: usesOil(selTreatment) ? selSize : null, discountPct: 0 }]);
+    const useOil = usesOil(selTreatment) && !selNoOil;
+    setCart((c) => [...c, { therapist: selTherapist, treatment: selTreatment, oil: useOil ? selOil : null, size: useOil ? selSize : null, noOil: selNoOil, discountPct: 0 }]);
     resetLineSelection();
   }
 
@@ -68,28 +70,36 @@ export default function AmbilOrderPage({ active }) {
 
   async function handleSaveAll() {
     const finalCart = canAddLine
-      ? [...cart, { therapist: selTherapist, treatment: selTreatment, oil: selOil, size: selSize }]
+      ? [...cart, {
+          therapist: selTherapist, treatment: selTreatment,
+          oil: (usesOil(selTreatment) && !selNoOil) ? selOil : null,
+          size: (usesOil(selTreatment) && !selNoOil) ? selSize : null,
+          noOil: selNoOil
+        }]
       : cart;
     if (finalCart.length === 0) return;
     setSaving(true);
     setError('');
     setMessage('');
     try {
-      const items = finalCart.map((line) => ({
-        outletId,
-        therapistId: line.therapist.id,
-        therapistName: line.therapist.name,
-        treatmentId: line.treatment.id,
-        treatmentName: line.treatment.name,
-        treatmentPrice: discountedPrice(line),
-        originalPrice: line.discountPct ? (line.treatment.price || 0) : null,
-        commissionPercent: line.treatment.commissionPercent,
-        durationMinutes: line.treatment.durationMinutes,
-        usesOil: treatmentUsesOil(line.treatment),
-        oilType: line.oil,
-        oilSize: line.size,
-        customerName
-      }));
+      const items = finalCart.map((line) => {
+        const useOil = treatmentUsesOil(line.treatment) && !line.noOil;
+        return {
+          outletId,
+          therapistId: line.therapist.id,
+          therapistName: line.therapist.name,
+          treatmentId: line.treatment.id,
+          treatmentName: line.treatment.name,
+          treatmentPrice: discountedPrice(line),
+          originalPrice: line.discountPct ? (line.treatment.price || 0) : null,
+          commissionPercent: line.treatment.commissionPercent,
+          durationMinutes: line.treatment.durationMinutes,
+          usesOil: useOil,
+          oilType: useOil ? line.oil : null,
+          oilSize: useOil ? line.size : null,
+          customerName
+        };
+      });
       if (items.length === 1) {
         await createBooking(items[0]);
       } else {
@@ -137,7 +147,7 @@ export default function AmbilOrderPage({ active }) {
                 <div style={{ fontSize: 13 }}>
                   <strong>{line.therapist.name}</strong> — {line.treatment.name}
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 400 }}>
-                    {line.oil ? `Minyak ${line.oil} (${line.size}) · ` : ''}
+                    {line.oil ? `Minyak ${line.oil} (${line.size}) · ` : (line.noOil ? 'Tanpa minyak · ' : '')}
                     <strong>{rp(discountedPrice(line))}</strong>
                     {line.discountPct ? (
                       <span style={{ color: 'var(--danger)' }}> (diskon {line.discountPct}%)</span>
@@ -145,7 +155,7 @@ export default function AmbilOrderPage({ active }) {
                   </div>
                 </div>
                 <button
-                  style={{ width: 'auto', padding: '6px 10px', fontSize: 12, boxShadow: 'none', background: 'var(--danger)' }}
+                  style={{ width: 'auto', padding: '6px 10px', fontSize: 12, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }}
                   onClick={() => handleRemoveFromCart(i)}
                 >
                   Hapus
@@ -198,7 +208,7 @@ export default function AmbilOrderPage({ active }) {
       {lineNeedsOil && (
       <section>
         <p>Pilih minyak & ukuran</p>
-        <div className="grid-2">
+        <div className={`grid-2 ${selNoOil ? 'oil-card-disabled' : ''}`} style={selNoOil ? { opacity: 0.5, pointerEvents: 'none' } : undefined}>
           {OIL_TYPES.map((oil) => (
             <div key={oil} className="oil-card">
               <div>{oil}</div>
@@ -207,7 +217,7 @@ export default function AmbilOrderPage({ active }) {
                   <button
                     key={size}
                     className={selOil === oil && selSize === size ? 'active' : ''}
-                    onClick={() => { setSelOil(oil); setSelSize(size); }}
+                    onClick={() => { setSelOil(oil); setSelSize(size); setSelNoOil(false); }}
                   >
                     {size}
                   </button>
@@ -216,6 +226,13 @@ export default function AmbilOrderPage({ active }) {
             </div>
           ))}
         </div>
+        <button
+          className={selNoOil ? 'active' : ''}
+          onClick={() => { setSelOil(null); setSelSize(null); setSelNoOil(true); }}
+          style={{ marginTop: 10, boxShadow: 'none' }}
+        >
+          Tanpa Minyak
+        </button>
       </section>
       )}
 

@@ -132,7 +132,7 @@ export default function ReservasiPage({ outletId, active }) {
                 <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => toWhatsAppReminder(r)}>
                   Kirim pengingat WA
                 </button>
-                <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--danger)' }} onClick={() => handleCancel(r)}>
+                <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }} onClick={() => handleCancel(r)}>
                   Batal
                 </button>
               </div>

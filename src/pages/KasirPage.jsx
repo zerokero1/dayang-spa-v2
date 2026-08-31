@@ -16,6 +16,7 @@ export default function KasirPage({ outletId, active }) {
   const [pendingTreatment, setPendingTreatment] = useState(null);
   const [pendingOil, setPendingOil] = useState(null);
   const [pendingSize, setPendingSize] = useState(null);
+  const [pendingNoOil, setPendingNoOil] = useState(false);
   const [step, setStep] = useState(null); // null | 'oil' | 'therapist'
   const [therapistSearch, setTherapistSearch] = useState('');
 
@@ -68,12 +69,21 @@ export default function KasirPage({ outletId, active }) {
     setPendingTreatment(treatment);
     setPendingOil(null);
     setPendingSize(null);
+    setPendingNoOil(false);
     setStep(usesOil(treatment) ? 'oil' : 'therapist');
   }
 
   function handlePickOil(oil, size) {
     setPendingOil(oil);
     setPendingSize(size);
+    setPendingNoOil(false);
+    setStep('therapist');
+  }
+
+  function handleNoOil() {
+    setPendingOil(null);
+    setPendingSize(null);
+    setPendingNoOil(true);
     setStep('therapist');
   }
 
@@ -83,8 +93,8 @@ export default function KasirPage({ outletId, active }) {
     // beberapa treatment sekaligus (double treatment), baik Massage maupun bukan.
     if (busy) return;
 
-    setCart((c) => [...c, { therapist: t, treatment: pendingTreatment, oil: usesOil(pendingTreatment) ? pendingOil : null, size: usesOil(pendingTreatment) ? pendingSize : null, discountPct: 0 }]);
-    setPendingTreatment(null); setPendingOil(null); setPendingSize(null);
+    setCart((c) => [...c, { therapist: t, treatment: pendingTreatment, oil: (usesOil(pendingTreatment) && !pendingNoOil) ? pendingOil : null, size: (usesOil(pendingTreatment) && !pendingNoOil) ? pendingSize : null, noOil: pendingNoOil, discountPct: 0 }]);
+    setPendingTreatment(null); setPendingOil(null); setPendingSize(null); setPendingNoOil(false);
     setStep(null);
     setError('');
   }
@@ -116,6 +126,7 @@ export default function KasirPage({ outletId, active }) {
     try {
       const items = cart.map((line) => {
         const discounted = discountedPrice(line);
+        const useOil = treatmentUsesOil(line.treatment) && !line.noOil;
         return {
           outletId,
           therapistId: line.therapist.id,
@@ -126,9 +137,9 @@ export default function KasirPage({ outletId, active }) {
           originalPrice: line.discountPct ? (line.treatment.price || 0) : null,
           commissionPercent: line.treatment.commissionPercent,
           durationMinutes: line.treatment.durationMinutes,
-          usesOil: treatmentUsesOil(line.treatment),
-          oilType: line.oil,
-          oilSize: line.size,
+          usesOil: useOil,
+          oilType: useOil ? line.oil : null,
+          oilSize: useOil ? line.size : null,
           customerName,
           paid: markPaidNow,
           paymentMethod
@@ -186,7 +197,10 @@ export default function KasirPage({ outletId, active }) {
                 </div>
               </div>
             ))}
-            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', marginTop: 6 }} onClick={cancelPicking}>
+            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--busy)', color: '#fff', marginTop: 8, fontWeight: 600 }} onClick={handleNoOil}>
+              Tanpa Minyak
+            </button>
+            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff', marginTop: 6 }} onClick={cancelPicking}>
               Batal
             </button>
           </div>
@@ -221,7 +235,7 @@ export default function KasirPage({ outletId, active }) {
                 );
               })}
             </div>
-            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', marginTop: 8 }} onClick={cancelPicking}>
+            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff', marginTop: 8 }} onClick={cancelPicking}>
               Batal
             </button>
           </div>
@@ -275,7 +289,7 @@ export default function KasirPage({ outletId, active }) {
               <div>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>{line.treatment.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                  {line.therapist.name}{line.oil ? ` · ${line.oil} (${line.size})` : ''}
+                  {line.therapist.name}{line.oil ? ` · ${line.oil} (${line.size})` : (line.noOil ? ' · tanpa minyak' : '')}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--primary)', marginTop: 2 }}>
                   {fmtTime(line.start)} – {fmtTime(line.end)} WIB ({line.treatment.durationMinutes || 0} mnt)
@@ -303,7 +317,7 @@ export default function KasirPage({ outletId, active }) {
                   ) : rp(line.treatment.price)}
                 </span>
                 <button
-                  style={{ width: 'auto', padding: '4px 8px', fontSize: 11, boxShadow: 'none', background: 'var(--danger)' }}
+                  style={{ width: 'auto', padding: '4px 8px', fontSize: 11, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }}
                   onClick={() => handleRemoveFromCart(i)}
                 >
                   ✕

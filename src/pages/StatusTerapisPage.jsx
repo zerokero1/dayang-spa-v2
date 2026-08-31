@@ -165,10 +165,10 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
               </div>
               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Terima pembayaran:</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)' }} onClick={() => onTandaiLunas(t, 'cash')}>
+                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => onTandaiLunas(t, 'cash')}>
                   Lunas Cash
                 </button>
-                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)' }} onClick={() => onTandaiLunas(t, 'cardless')}>
+                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => onTandaiLunas(t, 'cardless')}>
                   Lunas Cardless
                 </button>
               </div>
@@ -184,19 +184,19 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
             <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none' }} onClick={() => onSelesai(t)}>
               Tandai selesai
             </button>
-            <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--primary)' }} onClick={() => onContinue(t)}>
+            <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--primary)', color: '#fff' }} onClick={() => onContinue(t)}>
               + Lanjutkan treatment
             </button>
             {multi ? (
-              <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--busy)' }} onClick={() => setShowPartial((v) => !v)}>
+              <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--busy)', color: '#fff' }} onClick={() => setShowPartial((v) => !v)}>
                 Batal sebagian
               </button>
             ) : (
-              <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--busy)' }} onClick={() => { setShowDiscount((v) => !v); setShowPartial(false); }}>
+              <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--busy)', color: '#fff' }} onClick={() => { setShowDiscount((v) => !v); setShowPartial(false); }}>
                 Batal + potongan harga
               </button>
             )}
-            <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--danger)' }}
+            <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }}
               onClick={() => { if (confirm(`Batalkan ${multi ? `semua ${bookingIdsOf(t).length} treatment` : `booking ${t.name}`} sepenuhnya? Stok minyak akan dikembalikan.`)) onBatalPenuh(t); }}>
               Batalkan penuh
             </button>
@@ -282,10 +282,10 @@ function GroupCard({ members, onCompleteGroup, onPayGroup, cardProps }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
         {!allPaid && (
           <>
-            <button disabled={busy} style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)' }} onClick={() => handlePay('cash')}>
+            <button disabled={busy} style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => handlePay('cash')}>
               Lunas Semua (Cash)
             </button>
-            <button disabled={busy} style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)' }} onClick={() => handlePay('cardless')}>
+            <button disabled={busy} style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => handlePay('cardless')}>
               Lunas Semua (Cardless)
             </button>
           </>
@@ -294,7 +294,7 @@ function GroupCard({ members, onCompleteGroup, onPayGroup, cardProps }) {
         <button disabled={busy} style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none' }} onClick={handleComplete}>
           Selesaikan Semua (1 Klik)
         </button>
-        <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--text-secondary)' }} onClick={() => setShowDetail((v) => !v)}>
+        <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff' }} onClick={() => setShowDetail((v) => !v)}>
           {showDetail ? 'Sembunyikan detail' : 'Detail per orang'}
         </button>
       </div>
@@ -622,7 +622,7 @@ export default function StatusTerapisPage({ active }) {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <strong style={{ fontSize: 15 }}>Lanjutkan treatment — {continueTarget.name}</strong>
-              <button style={{ width: 'auto', padding: '6px 12px', boxShadow: 'none', background: 'var(--danger)' }} onClick={() => setContinueTarget(null)}>✕</button>
+              <button style={{ width: 'auto', padding: '6px 12px', boxShadow: 'none', background: 'var(--danger)', color: '#fff' }} onClick={() => setContinueTarget(null)}>✕</button>
             </div>
 
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>Pilih treatment lanjutan untuk tamu ini</p>

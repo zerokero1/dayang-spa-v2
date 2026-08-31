@@ -97,7 +97,7 @@ function EditRow({ booking, treatments, onSave, onCancel }) {
         <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} disabled={saving} onClick={handleSave}>
           {saving ? 'Menyimpan...' : 'Simpan perubahan'}
         </button>
-        <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)' }} onClick={onCancel}>
+        <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff' }} onClick={onCancel}>
           Batal
         </button>
       </div>
