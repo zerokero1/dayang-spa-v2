@@ -295,7 +295,7 @@ export default function KasirPage({ outletId, active }) {
                   {fmtTime(line.start)} – {fmtTime(line.end)} WIB ({line.treatment.durationMinutes || 0} mnt)
                 </div>
                 <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-                  {[0, 5, 10, 15, 20].map((p) => (
+                  {[0, 5, 10, 15, 20, 25].map((p) => (
                     <button
                       key={p}
                       className={line.discountPct === p ? 'pos-chip active' : 'pos-chip'}

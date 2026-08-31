@@ -171,7 +171,7 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
                 )}
               </div>
               <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
-                {[0, 5, 10, 15, 20].map((p) => (
+                {[0, 5, 10, 15, 20, 25].map((p) => (
                   <button key={p} className={payDisc === p ? 'pos-chip active' : 'pos-chip'}
                     onClick={() => setPayDisc(p)} style={{ fontSize: 11, padding: '4px 10px', boxShadow: 'none' }}>
                     {p === 0 ? '0%' : `${p}%`}
@@ -299,7 +299,7 @@ function GroupCard({ members, onCompleteGroup, onPayGroup, cardProps }) {
       </div>
       {!allPaid && (
         <div style={{ display: 'flex', gap: 4, marginTop: 8, flexWrap: 'wrap' }}>
-          {[0, 5, 10, 15, 20].map((p) => (
+          {[0, 5, 10, 15, 20, 25].map((p) => (
             <button key={p} className={payDisc === p ? 'pos-chip active' : 'pos-chip'}
               onClick={() => setPayDisc(p)} style={{ fontSize: 11, padding: '4px 10px', boxShadow: 'none' }}>
               {p === 0 ? '0%' : `${p}%`}
