@@ -136,12 +136,13 @@ export async function continueTreatment({
   return bookingId;
 }
 
-export async function markBookingPaid(outletId, bookingId, therapistId, paymentMethod) {
+export async function markBookingPaid(outletId, bookingId, therapistId, paymentMethod, discountPct) {
   const { error } = await supabase.rpc('mark_booking_paid', {
     p_outlet_id: outletId,
     p_booking_id: bookingId,
     p_therapist_id: therapistId || null,
-    p_payment_method: paymentMethod || null
+    p_payment_method: paymentMethod || null,
+    p_discount_pct: (discountPct && discountPct > 0) ? discountPct : null
   });
   if (error) throw error;
 }
@@ -179,11 +180,11 @@ export async function completeBookingGroup(members) {
   }
 }
 
-export async function markGroupPaid(members, paymentMethod) {
+export async function markGroupPaid(members, paymentMethod, discountPct) {
   for (const t of members) {
     if (t.currentOutletId) {
       for (const bId of bookingIdsOf(t)) {
-        await markBookingPaid(t.currentOutletId, bId, t.id, paymentMethod);
+        await markBookingPaid(t.currentOutletId, bId, t.id, paymentMethod, discountPct);
       }
     }
   }

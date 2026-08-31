@@ -87,6 +87,9 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
   const [discountPrice, setDiscountPrice] = useState('');
   const [partialIdx, setPartialIdx] = useState(0);
   const [showPartial, setShowPartial] = useState(false);
+  const [payDisc, setPayDisc] = useState(0);
+  const basePrice = t.currentPrice || 0;
+  const payEffective = basePrice - (payDisc ? Math.round(basePrice * payDisc / 100) : 0);
 
   function submitDiscount() {
     const num = Number(discountPrice);
@@ -162,14 +165,25 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
             }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--busy)', letterSpacing: 0.5 }}>BELUM BAYAR</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--danger)', margin: '2px 0 8px' }}>
-                {rp(t.currentPrice)}
+                {rp(payEffective)}
+                {payDisc > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'line-through', marginLeft: 6 }}>{rp(basePrice)}</span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
+                {[0, 5, 10, 15, 20].map((p) => (
+                  <button key={p} className={payDisc === p ? 'pos-chip active' : 'pos-chip'}
+                    onClick={() => setPayDisc(p)} style={{ fontSize: 11, padding: '4px 10px', boxShadow: 'none' }}>
+                    {p === 0 ? '0%' : `${p}%`}
+                  </button>
+                ))}
               </div>
               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Terima pembayaran:</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => onTandaiLunas(t, 'cash')}>
+                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => onTandaiLunas(t, 'cash', payDisc)}>
                   Lunas Cash
                 </button>
-                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => onTandaiLunas(t, 'cardless')}>
+                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => onTandaiLunas(t, 'cardless', payDisc)}>
                   Lunas Cardless
                 </button>
               </div>
@@ -248,13 +262,15 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
 function GroupCard({ members, onCompleteGroup, onPayGroup, cardProps }) {
   const [showDetail, setShowDetail] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [payDisc, setPayDisc] = useState(0);
   const total = members.reduce((sum, m) => sum + (m.currentPrice || 0), 0);
+  const totalEffective = total - (payDisc ? Math.round(total * payDisc / 100) : 0);
   const allPaid = members.every((m) => m.currentPaid);
   const earliestEnd = Math.min(...members.map((m) => m.endAt || Infinity));
 
   async function handlePay(method) {
     setBusy(true);
-    try { await onPayGroup(members, method); } finally { setBusy(false); }
+    try { await onPayGroup(members, method, payDisc); } finally { setBusy(false); }
   }
   async function handleComplete() {
     setBusy(true);
@@ -277,8 +293,20 @@ function GroupCard({ members, onCompleteGroup, onPayGroup, cardProps }) {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
         <span>Total Grup</span>
-        <span>{rp(total)}</span>
+        {payDisc > 0 ? (
+          <span>{rp(totalEffective)} <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'line-through', marginLeft: 4 }}>{rp(total)}</span></span>
+        ) : <span>{rp(total)}</span>}
       </div>
+      {!allPaid && (
+        <div style={{ display: 'flex', gap: 4, marginTop: 8, flexWrap: 'wrap' }}>
+          {[0, 5, 10, 15, 20].map((p) => (
+            <button key={p} className={payDisc === p ? 'pos-chip active' : 'pos-chip'}
+              onClick={() => setPayDisc(p)} style={{ fontSize: 11, padding: '4px 10px', boxShadow: 'none' }}>
+              {p === 0 ? '0%' : `${p}%`}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
         {!allPaid && (
@@ -402,19 +430,23 @@ export default function StatusTerapisPage({ active }) {
     }, 2500);
   }
 
-  async function handleTandaiLunas(t, method) {
+  async function handleTandaiLunas(t, method, discountPct) {
     if (!t.currentOutletId) return;
+    const disc = discountPct || 0;
     try {
       for (const bId of bookingIdsOf(t)) {
-        await markBookingPaid(t.currentOutletId, bId, t.id, method);
+        await markBookingPaid(t.currentOutletId, bId, t.id, method, disc);
       }
       setMessage(`Booking ${t.name} ditandai lunas (${PAYMENT_METHOD_LABEL[method]}).`);
       const names = Array.isArray(t.currentTreatmentNames) && t.currentTreatmentNames.length
         ? t.currentTreatmentNames
         : (t.currentTreatmentName ? [t.currentTreatmentName] : []);
+      const base = t.currentPrice || 0;
+      const eff = base - (disc ? Math.round(base * disc / 100) : 0);
       triggerPrint([{
         treatmentName: names.join(' + '),
-        treatmentPrice: t.currentPrice || 0,
+        treatmentPrice: eff,
+        originalPrice: disc > 0 ? base : null,
         therapistName: t.name,
         customerName: t.currentCustomerName || '',
         startAt: t.startAt,
@@ -479,14 +511,17 @@ export default function StatusTerapisPage({ active }) {
       setMessage(`Grup (${members.length} orang) selesai sekaligus.`);
     } catch (e) { setMessage('Gagal: ' + e.message); }
   }
-  async function handlePayGroup(members, method) {
+  async function handlePayGroup(members, method, discountPct) {
     try {
-      await markGroupPaid(members, method);
+      const disc = discountPct || 0;
+      await markGroupPaid(members, method, disc);
       setMessage(`Grup (${members.length} orang) ditandai lunas (${PAYMENT_METHOD_LABEL[method]}).`);
-      const total = members.reduce((s, m) => s + (m.currentPrice || 0), 0);
+      const base = members.reduce((s, m) => s + (m.currentPrice || 0), 0);
+      const eff = base - (disc ? Math.round(base * disc / 100) : 0);
       triggerPrint([{
         treatmentName: `Grup Massage (${members.length} orang)`,
-        treatmentPrice: total,
+        treatmentPrice: eff,
+        originalPrice: disc > 0 ? base : null,
         therapistName: members.map((m) => m.name).join(', '),
         customerName: '',
         startAt: members[0] && members[0].startAt,
