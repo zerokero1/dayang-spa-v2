@@ -4,11 +4,11 @@ import { OUTLETS, SHIFTS } from './constants';
 // Jam selesai shift normal (menit sejak 00:00) — patokan overtime.
 //  - Shift SP / Split    : 11:00-15:00 & 18:00-23:00 -> selesai 23:00
 //  - Shift Malam         : 15:00-23:00               -> selesai 23:00
-//  - Shift ST / Short    : 11:00-16:00               -> selesai 16:00
+//  - Shift ST / Short    : 11:00-17:00               -> selesai 17:00
 const SHIFT_END_MINUTES = {
   [SHIFTS.SP]: 23 * 60,
   [SHIFTS.MALAM]: 23 * 60,
-  [SHIFTS.ST]: 16 * 60
+  [SHIFTS.ST]: 17 * 60
 };
 
 function toMinutes(ms) {
