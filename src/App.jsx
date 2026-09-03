@@ -20,6 +20,7 @@ const AmbilOrderPage = lazy(() => import('./pages/AmbilOrderPage'));
 const StrukPage = lazy(() => import('./pages/StrukPage'));
 const RingkasanTransaksiPage = lazy(() => import('./pages/RingkasanTransaksiPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const KoreksiBookingPage = lazy(() => import('./pages/KoreksiBookingPage'));
 
 const PAGES = {
   kasir: { label: 'Kasir', icon: '🧾', Component: KasirPage },
@@ -35,7 +36,8 @@ const PAGES = {
   laporan: { label: 'Laporan Keuangan', icon: '💰', Component: LaporanPage },
   laporanAbsensi: { label: 'Laporan Absensi', icon: '📋', Component: LaporanAbsensiPage, global: true },
   laporanInventory: { label: 'Laporan Inventory', icon: '📦', Component: LaporanInventoryPage, global: true },
-  kelolaTerapis: { label: 'Kelola Terapis', icon: '👥', Component: KelolaTerapisPage, global: true, adminOnly: true }
+  kelolaTerapis: { label: 'Kelola Terapis', icon: '👥', Component: KelolaTerapisPage, global: true, adminOnly: true },
+  koreksiBooking: { label: 'Koreksi Booking', icon: '✏️', Component: KoreksiBookingPage, global: true, officeOnly: true }
 };
 
 // Role yang hanya boleh melihat sebagian halaman (staff order-taking).
@@ -125,11 +127,13 @@ export default function App() {
   }
 
   const isAdminPusat = profile.role === 'admin_pusat';
+  const isOffice = (user.email || '').trim().toLowerCase() === 'office.op@dayang.com';
   const visibleOutlets = isAdminPusat ? OUTLETS : OUTLETS.filter((o) => o.id === profile.outletId);
   const currentPage = PAGES[activePage];
   const allowedKeys = RESTRICTED_ROLE_PAGES[profile.role] || null;
   const visiblePageEntries = Object.entries(PAGES).filter(([key, p]) => {
     if (p.adminOnly && !isAdminPusat) return false;
+    if (p.officeOnly && !isOffice) return false;
     if (p.roles && !p.roles.includes(profile.role)) return false;
     if (allowedKeys && !allowedKeys.includes(key)) return false;
     return true;
@@ -199,7 +203,7 @@ export default function App() {
         <main className="content">
           <Suspense fallback={<div style={{ padding: 24, fontSize: 14, color: 'var(--text-secondary)' }}>Memuat…</div>}>
             {currentPage && currentPage.Component && (
-              <currentPage.Component outletId={activeOutlet} active={true} />
+              <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} />
             )}
           </Suspense>
         </main>
