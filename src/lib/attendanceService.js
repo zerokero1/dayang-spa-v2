@@ -47,6 +47,7 @@ export function summarizeAttendance(records) {
   records.forEach((r) => {
     if (!byEmployee[r.employeeId]) {
       byEmployee[r.employeeId] = {
+        employeeId: r.employeeId,
         employeeName: r.employeeName,
         hadir: 0, sakit: 0, izin: 0, telat: 0, alpha: 0, lembur: 0, overtimeMinutes: 0
       };

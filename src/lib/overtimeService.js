@@ -118,3 +118,20 @@ function wibDayShiftEndMs(dateStr, shiftEndMin) {
   const endLocal = new Date(Date.UTC(y, m - 1, d, Math.floor(shiftEndMin / 60), shiftEndMin % 60, 0));
   return endLocal.getTime() - 7 * 3600000;
 }
+
+/**
+ * Agregasi overtime otomatis (dari data booking) per karyawan pada rentang tanggal.
+ * Return: { [employeeId]: { employeeName, totalOvertimeMinutes, daysCount } }
+ */
+export async function getOvertimeByEmployee(startDate, endDate) {
+  const rows = await getOvertimeReport(startDate, endDate);
+  const byEmployee = {};
+  rows.forEach((r) => {
+    if (!byEmployee[r.therapistId]) {
+      byEmployee[r.therapistId] = { employeeName: r.therapistName, totalOvertimeMinutes: 0, daysCount: 0 };
+    }
+    byEmployee[r.therapistId].totalOvertimeMinutes += r.overtimeMinutes;
+    if (r.overtimeMinutes > 0) byEmployee[r.therapistId].daysCount += 1;
+  });
+  return byEmployee;
+}

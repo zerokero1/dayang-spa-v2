@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { getAttendanceRange, summarizeAttendance } from '../lib/attendanceService';
+import { getOvertimeByEmployee } from '../lib/overtimeService';
 import { OUTLETS } from '../lib/constants';
 import { exportExcelReport } from '../lib/excelExport';
 
@@ -20,16 +21,45 @@ export default function LaporanAbsensiPage() {
     setLoading(true);
     try {
       const records = await getAttendanceRange(startDate, endDate, outletFilter || undefined);
-      setSummary(summarizeAttendance(records));
+      const summary = summarizeAttendance(records);
+
+      // Gabungkan overtime OTOMATIS (dari data booking) per karyawan
+      try {
+        const autoOt = await getOvertimeByEmployee(startDate, endDate);
+        Object.values(summary).forEach((s) => {
+          const a = autoOt[s.employeeId];
+          if (a) {
+            s.autoOvertimeMinutes = a.totalOvertimeMinutes;
+            s.autoOvertimeDays = a.daysCount;
+          }
+        });
+        // Karyawan yang hanya lembur otomatis (tanpa catatan absensi manual)
+        if (outletFilter === '') {
+          Object.entries(autoOt).forEach(([empId, a]) => {
+            if (!summary[empId]) {
+              summary[empId] = {
+                employeeId: empId, employeeName: a.employeeName,
+                hadir: 0, sakit: 0, izin: 0, telat: 0, alpha: 0, lembur: 0,
+                overtimeMinutes: 0, autoOvertimeMinutes: a.totalOvertimeMinutes, autoOvertimeDays: a.daysCount
+              };
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('auto OT gagal dimuat', e);
+      }
+
+      setSummary(summary);
     } finally {
       setLoading(false);
     }
   }
 
   async function handleDownload() {
-    const headers = ['Nama Karyawan', 'Hadir', 'Sakit', 'Izin', 'Telat', 'Alpha', 'Lembur', 'Menit Lembur'];
+    const headers = ['Nama Karyawan', 'Hadir', 'Sakit', 'Izin', 'Telat', 'Alpha', 'Lembur', 'Menit Lembur Manual', 'Lembur Otomatis (Menit)', 'Total Lembur (Menit)'];
     const rows = Object.values(summary).map((s) => [
-      s.employeeName, s.hadir, s.sakit, s.izin, s.telat, s.alpha, s.lembur, s.overtimeMinutes
+      s.employeeName, s.hadir, s.sakit, s.izin, s.telat, s.alpha, s.lembur,
+      s.overtimeMinutes, s.autoOvertimeMinutes || 0, (s.overtimeMinutes || 0) + (s.autoOvertimeMinutes || 0)
     ]);
     const outletLabel = outletFilter ? OUTLETS.find((o) => o.id === outletFilter)?.name : 'Semua Outlet';
     await exportExcelReport({
@@ -86,8 +116,19 @@ export default function LaporanAbsensiPage() {
               <strong style={{ fontSize: 14 }}>{s.employeeName}</strong>
               <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
                 Hadir: {s.hadir} · Sakit: {s.sakit} · Izin: {s.izin} · Telat: {s.telat} · Alpha: {s.alpha} · Lembur: {s.lembur}
-                {s.overtimeMinutes > 0 && ` (${s.overtimeMinutes} menit)`}
+                {(s.overtimeMinutes || 0) > 0 && ` (${s.overtimeMinutes} menit)`}
               </div>
+              {(s.autoOvertimeMinutes || 0) > 0 && (
+                <div style={{ fontSize: 12, color: 'var(--busy)', marginTop: 2 }}>
+                  Lembur otomatis (dari booking): {s.autoOvertimeMinutes} menit
+                  {s.autoOvertimeDays ? ` (${s.autoOvertimeDays} hari)` : ''}
+                </div>
+              )}
+              {(s.overtimeMinutes || 0) + (s.autoOvertimeMinutes || 0) > 0 && (
+                <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>
+                  Total lembur: {(s.overtimeMinutes || 0) + (s.autoOvertimeMinutes || 0)} menit
+                </div>
+              )}
             </div>
           ))}
         </section>
