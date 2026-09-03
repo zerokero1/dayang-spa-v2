@@ -175,3 +175,29 @@ export async function getCombinedDailyReport(dateStr) {
     therapistCommissions
   };
 }
+
+export async function getCommissionStaffReport(dateStr) {
+  const bookingsAll = await getAllDailyBookings(dateStr);
+  const staff = {};
+  bookingsAll.forEach((b) => {
+    if (b.status === 'batal') return;
+    const key = b.therapistName || String(b.therapistId);
+    if (!staff[key]) {
+      staff[key] = { therapistName: key, treatmentCount: 0, commissionTotal: 0, outlets: {} };
+    }
+    const s = staff[key];
+    s.treatmentCount += 1;
+    s.commissionTotal += b.commissionAmount || 0;
+    s.outlets[b.outletId] = true;
+  });
+  return Object.values(staff)
+    .map((s) => ({
+      therapistName: s.therapistName,
+      treatmentCount: s.treatmentCount,
+      commissionTotal: s.commissionTotal,
+      outlets: Object.keys(s.outlets)
+        .map((oid) => OUTLETS.find((o) => o.id === oid)?.name || oid)
+        .sort()
+    }))
+    .sort((a, b) => b.commissionTotal - a.commissionTotal);
+}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import {
-  getDailyBookings, summarizeDailyBookings, getCombinedDailyReport
+  getDailyBookings, summarizeDailyBookings, getCombinedDailyReport, getCommissionStaffReport
 } from '../lib/reportService';
 import { exportExcelReport } from '../lib/excelExport';
 
@@ -13,11 +13,12 @@ function todayId() {
 
 export default function LaporanPage({ outletId }) {
   const [date, setDate] = useState(todayId());
-  const [mode, setMode] = useState('outlet'); // 'outlet' | 'gabungan'
+  const [mode, setMode] = useState('outlet'); // 'outlet' | 'gabungan' | 'komisi'
   const [loading, setLoading] = useState(false);
   const [outletSummary, setOutletSummary] = useState(null);
   const [rawBookings, setRawBookings] = useState([]);
   const [combined, setCombined] = useState(null);
+  const [staffCommissions, setStaffCommissions] = useState(null);
 
   async function loadOutletReport() {
     setLoading(true);
@@ -40,9 +41,20 @@ export default function LaporanPage({ outletId }) {
     }
   }
 
+  async function loadCommissionReport() {
+    setLoading(true);
+    try {
+      const result = await getCommissionStaffReport(date);
+      setStaffCommissions(result);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleLoad() {
     if (mode === 'outlet') loadOutletReport();
-    else loadCombinedReport();
+    else if (mode === 'gabungan') loadCombinedReport();
+    else loadCommissionReport();
   }
 
   async function handleDownloadOutlet() {
@@ -81,6 +93,23 @@ export default function LaporanPage({ outletId }) {
     });
   }
 
+  async function handleDownloadKomisi() {
+    const headers = ['Staff', 'Jumlah Treatment', 'Total Komisi', 'Outlet'];
+    const rows = staffCommissions.map((s) => [
+      s.therapistName, s.treatmentCount, s.commissionTotal, s.outlets.join(', ')
+    ]);
+    const totalKomisi = staffCommissions.reduce((sum, s) => sum + s.commissionTotal, 0);
+    rows.push(['TOTAL', staffCommissions.reduce((sum, s) => sum + s.treatmentCount, 0), totalKomisi, '']);
+    await exportExcelReport({
+      filename: `Laporan-Komisi-Staff-${date}`,
+      title: 'Laporan Komisi Staff — Dayang Spa',
+      subtitle: `Semua Outlet · ${date}`,
+      headers, rows,
+      currencyColumns: [2],
+      totalRowIndex: rows.length - 1
+    });
+  }
+
   const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
   return (
@@ -100,6 +129,9 @@ export default function LaporanPage({ outletId }) {
           </button>
           <button className={mode === 'gabungan' ? 'active' : ''} onClick={() => setMode('gabungan')}>
             Gabungan 6 outlet
+          </button>
+          <button className={mode === 'komisi' ? 'active' : ''} onClick={() => setMode('komisi')}>
+            Komisi Staff
           </button>
         </div>
       </section>
@@ -155,6 +187,27 @@ export default function LaporanPage({ outletId }) {
               {o.outletName}: {o.totalTreatment} treatment - omzet {rp(o.totalRevenue)} - komisi {rp(o.totalCommission)}
             </p>
           ))}
+        </section>
+      )}
+
+      {mode === 'komisi' && staffCommissions && (
+        <section style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0 }}>Komisi Staff</h3>
+            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={handleDownloadKomisi}>
+              ⬇ Download Excel
+            </button>
+          </div>
+          {staffCommissions.length === 0 ? (
+            <p>Tidak ada data komisi untuk tanggal ini.</p>
+          ) : (
+            staffCommissions.map((s, i) => (
+              <p key={i}>
+                {s.therapistName}: {s.treatmentCount} Treatment - Komisi {rp(s.commissionTotal)}
+                {s.outlets.length > 0 && <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}> - Outlet: {s.outlets.join(', ')}</span>}
+              </p>
+            ))
+          )}
         </section>
       )}
     </div>
