@@ -188,6 +188,15 @@ export async function koreksiBooking(bookingId, {
   if (error) throw error;
 }
 
+// Hapus treatment dari booking — khusus akun office (office.op@dayang.com).
+// Menandai booking batal + catat audit + update status terapis bila berjalan.
+export async function hapusBookingOffice(bookingId) {
+  const { error } = await supabase.rpc('hapus_booking_office', {
+    p_booking_id: bookingId
+  });
+  if (error) throw error;
+}
+
 function bookingIdsOf(t) {
   if (Array.isArray(t.currentBookingIds) && t.currentBookingIds.length) return t.currentBookingIds;
   return t.currentBookingId ? [t.currentBookingId] : [];

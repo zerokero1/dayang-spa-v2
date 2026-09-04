@@ -212,3 +212,60 @@ end;
 $fn$;
 
 grant execute on function public.edit_booking_correction(uuid, uuid, text, numeric, numeric, uuid, boolean, text, text) to authenticated;
+
+-- ------------------------------------------------------------
+-- RPC: hapus_booking_office — HAPUS TREATMENT dari booking
+--   (khusus office). Menandai booking status = 'batal' (data DIPERTAHANKAN
+--   di database, terekam audit), mengembalikan stok minyak, dan bila
+--   booking sedang berjalan, memperbarui session terapis.
+-- ------------------------------------------------------------
+create or replace function hapus_booking_office(
+  p_booking_id uuid
+) returns void
+language plpgsql as $fn$
+declare
+  v_outlet text;
+  v_therapist uuid;
+  v_uses_oil boolean;
+  v_oil_type text;
+  v_oil_size text;
+  v_status text;
+begin
+  -- ---- KEAMANAN: wajib office ----
+  if not is_office_op() then
+    raise exception 'Anda tidak berhak menghapus booking.';
+  end if;
+
+  select outlet_id, therapist_id, uses_oil, oil_type, oil_size, status
+    into v_outlet, v_therapist, v_uses_oil, v_oil_type, v_oil_size, v_status
+    from bookings where id = p_booking_id;
+
+  if not found then raise exception 'Booking tidak ditemukan'; end if;
+
+  if v_status in ('batal', 'batal_sebagian') then
+    raise exception 'Booking sudah batal.';
+  end if;
+
+  -- Kembalikan stok minyak (kalau pakai)
+  if v_uses_oil and v_oil_type is not null and v_oil_size is not null then
+    update oil_inventory set stock = stock + 1
+     where outlet_id = v_outlet and oil_type = v_oil_type and size = v_oil_size;
+  end if;
+
+  -- Tandai batal (data tetap ada di DB)
+  update bookings set status = 'batal', cancelled_at = now(), completed_at = null
+   where id = p_booking_id;
+
+  -- Bila sedang berjalan: perbarui session terapis (bersihkan bila tak ada
+  -- treatment berjalan lain, atau pakai sisa treatment yang masih berjalan)
+  if v_status = 'berjalan' and v_therapist is not null then
+    perform refresh_therapist_session(v_therapist);
+  end if;
+
+  -- Audit
+  perform log_audit('cancel', p_booking_id, v_outlet,
+    jsonb_build_object('action', 'office_hapus_treatment'));
+end;
+$fn$;
+
+grant execute on function public.hapus_booking_office(uuid) to authenticated;

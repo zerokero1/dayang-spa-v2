@@ -3,7 +3,7 @@ import { OUTLETS, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesF
 import { listenTreatments } from '../lib/treatmentService';
 import { listenAllTherapists } from '../lib/therapistService';
 import { getDailyBookings } from '../lib/reportService';
-import { koreksiBooking } from '../lib/bookingService';
+import { koreksiBooking, hapusBookingOffice } from '../lib/bookingService';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -179,6 +179,18 @@ export default function KoreksiBookingPage({ active, isOffice }) {
     setTimeout(() => setMessage(''), 3000);
   }
 
+  async function handleDelete(b) {
+    if (!window.confirm(`Hapus treatment "${b.treatmentName}" milik ${b.therapistName}? Booking akan ditandai batal.`)) return;
+    try {
+      await hapusBookingOffice(b.id);
+      setMessage(`Treatment ${b.therapistName} - ${b.treatmentName} dihapus (batal).`);
+      await loadBookings();
+      setTimeout(() => setMessage(''), 3000);
+    } catch (e) {
+      alert('Gagal menghapus: ' + e.message);
+    }
+  }
+
   const outletName = (id) => OUTLETS.find((o) => o.id === id)?.name || id;
 
   if (!isOffice) {
@@ -242,9 +254,17 @@ export default function KoreksiBookingPage({ active, isOffice }) {
                     Komisi {b.commissionPercent ?? 0}% ({rp(b.commissionAmount)}) · {STATUS_LABEL[b.status] || b.status}
                   </div>
                 </div>
-                <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => setEditingId(b.id)}>
-                  Koreksi
-                </button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => setEditingId(b.id)}>
+                    Koreksi
+                  </button>
+                  <button
+                    style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }}
+                    onClick={() => handleDelete(b)}
+                  >
+                    Hapus treatment
+                  </button>
+                </div>
               </div>
             </div>
           )}
