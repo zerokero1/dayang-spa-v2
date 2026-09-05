@@ -22,6 +22,7 @@ const RingkasanTransaksiPage = lazy(() => import('./pages/RingkasanTransaksiPage
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const KoreksiBookingPage = lazy(() => import('./pages/KoreksiBookingPage'));
 const OvertimePage = lazy(() => import('./pages/OvertimePage'));
+const LaporanPemakaianStokPage = lazy(() => import('./pages/LaporanPemakaianStokPage'));
 
 const PAGES = {
   kasir: { label: 'Kasir', icon: '🧾', Component: KasirPage },
@@ -39,7 +40,8 @@ const PAGES = {
   laporanInventory: { label: 'Laporan Inventory', icon: '📦', Component: LaporanInventoryPage, global: true },
   kelolaTerapis: { label: 'Kelola Terapis', icon: '👥', Component: KelolaTerapisPage, global: true, adminOnly: true },
   koreksiBooking: { label: 'Koreksi Booking', icon: '✏️', Component: KoreksiBookingPage, global: true, officeOnly: true },
-  overtime: { label: 'Overtime', icon: '⏱️', Component: OvertimePage, global: true, officeOnly: true }
+  overtime: { label: 'Overtime', icon: '⏱️', Component: OvertimePage, global: true, officeOnly: true },
+  laporanPemakaianStok: { label: 'Pemakaian Stok', icon: '📉', Component: LaporanPemakaianStokPage, global: true, officeOnly: true }
 };
 
 // Role yang hanya boleh melihat sebagian halaman (staff order-taking).
