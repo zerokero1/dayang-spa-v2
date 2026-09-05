@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { listenInventory, addInventoryItem, stockIn, stockOut } from '../lib/inventoryService';
+import { listenInventory, addInventoryItem, stockIn, stockOut, deleteInventoryItem } from '../lib/inventoryService';
 
 export default function InventoryPage({ outletId, active }) {
   const [items, setItems] = useState([]);
@@ -58,6 +58,22 @@ export default function InventoryPage({ outletId, active }) {
     }
   }
 
+  async function handleDelete() {
+    if (!selItem) return;
+    if (!window.confirm(`Hapus item "${selItem.name}" (${selItem.stock} ${selItem.unit}) beserta riwayatnya?`)) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      await deleteInventoryItem(outletId, selItem.id);
+      setMessage(`Item "${selItem.name}" dihapus`);
+      setSelItem(null); setQty(''); setNote('');
+    } catch (e) {
+      setMessage('Gagal: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="kasir-page">
       <h2>Inventory - {outletId}</h2>
@@ -86,6 +102,13 @@ export default function InventoryPage({ outletId, active }) {
             <button onClick={handleIn} disabled={busy || !qty}>Barang masuk</button>
             <button onClick={handleOut} disabled={busy || !qty}>Barang keluar</button>
           </div>
+          <button
+            onClick={handleDelete}
+            disabled={busy}
+            style={{ width: 'auto', padding: '6px 12px', fontSize: 12, background: 'var(--danger)', color: '#fff', boxShadow: 'none', marginTop: 8 }}
+          >
+            Hapus item ini
+          </button>
         </section>
       )}
 

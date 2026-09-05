@@ -25,6 +25,14 @@ export async function stockOut(outletId, itemId, qty, note) {
   if (error) throw error;
 }
 
+// Hapus item beserta log inventory-nya (permanen). Pastikan stock sudah 0 bila ingin rapi.
+export async function deleteInventoryItem(outletId, itemId) {
+  const { error } = await supabase.rpc('delete_inventory_item', {
+    p_outlet_id: outletId, p_item_id: itemId
+  });
+  if (error) throw error;
+}
+
 export function listenInventory(outletId, callback) {
   const channel = supabase
     .channel(`inv-${outletId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`)
