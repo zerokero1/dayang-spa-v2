@@ -66,6 +66,14 @@ async function getAllDailyBookings(dateStr) {
   return (data || []).map(mapBooking);
 }
 
+// Format tanggal dari komponen LOKAL (WIB) — bukan toISOString (UTC),
+// agar rentang "hari ini" tidak tergeser 1 hari mundur.
+function fmtLocalDate(d) {
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
 // Ambil semua booking dalam rentang tanggal (semua outlet) — di-loop per hari
 // supaya agregat per minggu/bulan konsisten dengan batas WIB per hari.
 export async function getAllBookingsRange(startDate, endDate) {
@@ -73,7 +81,7 @@ export async function getAllBookingsRange(startDate, endDate) {
   const start = new Date(startDate + 'T00:00:00');
   const end = new Date(endDate + 'T00:00:00');
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().slice(0, 10);
+    const dateStr = fmtLocalDate(d);
     try {
       const rows = await getAllDailyBookings(dateStr);
       all.push(...rows);
@@ -90,7 +98,7 @@ export async function getDailyBookingsRange(outletId, startDate, endDate) {
   const start = new Date(startDate + 'T00:00:00');
   const end = new Date(endDate + 'T00:00:00');
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().slice(0, 10);
+    const dateStr = fmtLocalDate(d);
     try {
       const rows = await getDailyBookings(outletId, dateStr);
       all.push(...rows);

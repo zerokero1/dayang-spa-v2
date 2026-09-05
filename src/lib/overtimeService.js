@@ -23,6 +23,14 @@ function wibDayBoundsUtc(dateStr) {
   return { startUtc, endUtc };
 }
 
+// Format tanggal dari komponen LOKAL (WIB) — bukan toISOString (UTC),
+// agar rentang "hari ini" tidak tergeser 1 hari mundur.
+function fmtLocalDate(d) {
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
 /**
  * Hitung overtime per terapis pada rentang tanggal, bersumber dari DATA BOOKING.
  *
@@ -44,7 +52,7 @@ export async function getOvertimeReport(startDate, endDate) {
   // Ambil semua booking dalam rentang (semua outlet) — sekali query per hari.
   const allBookings = [];
   for (let d = new Date(startDate + 'T00:00:00'); d <= new Date(endDate + 'T00:00:00'); d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().slice(0, 10);
+    const dateStr = fmtLocalDate(d);
     try {
       const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
       const { data, error } = await supabase

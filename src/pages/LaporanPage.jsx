@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import {
   getDailyBookingsRange, summarizeDailyBookings, getCombinedDailyReport, getCommissionStaffReport
@@ -59,6 +59,15 @@ export default function LaporanPage({ outletId }) {
     else if (mode === 'gabungan') loadCombinedReport();
     else loadCommissionReport();
   }
+
+  // Muat otomatis saat halaman dibuka + refresh berkala supaya selalu real-time.
+  useEffect(() => {
+    if (loading) return;
+    handleLoad();
+    const timer = setInterval(() => handleLoad(), 60000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleDownloadOutlet() {
     const headers = ['Terapis', 'Treatment', 'Harga', 'Komisi %', 'Komisi Rp', 'Metode Bayar', 'Status Bayar', 'Pelanggan'];
