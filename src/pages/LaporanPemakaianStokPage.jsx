@@ -29,11 +29,11 @@ export default function LaporanPemakaianStokPage({ isOffice }) {
 
   async function handleDownloadOil() {
     if (!oil) return;
-    const headers = ['Tanggal', 'Minyak', 'Ukuran', 'Stok Awal', 'Terpakai', 'Stok Akhir'];
+    const headers = ['Tanggal', 'Produk', 'Ukuran', 'Stok Awal', 'Terpakai', 'Stok Akhir'];
     const rows = oil.rows.map((r) => [r.date, r.oilType, r.size, r.stockAwal, r.used, r.stockAkhir]);
     await exportExcelReport({
-      filename: `Pemakaian-Minyak-${outletId}-${startDate}_${endDate}`,
-      title: 'Pemakaian Minyak per Hari — Dayang Spa',
+      filename: `Pemakaian-Produk-${outletId}-${startDate}_${endDate}`,
+      title: 'Pemakaian Produk per Hari — Dayang Spa',
       subtitle: `Outlet ${outletId} · ${startDate} s/d ${endDate}${oil.estimated ? ' · Stok awal/akhir estimasi' : ''}`,
       headers, rows
     });
@@ -54,7 +54,7 @@ export default function LaporanPemakaianStokPage({ isOffice }) {
   if (!isOffice) {
     return (
       <div className="kasir-page">
-        <h2>Laporan Pemakaian Stok</h2>
+        <h2>Laporan Produk</h2>
         <p>Halaman ini hanya tersedia untuk akun Office.</p>
       </div>
     );
@@ -62,7 +62,7 @@ export default function LaporanPemakaianStokPage({ isOffice }) {
 
   return (
     <div className="kasir-page">
-      <h2>Laporan Pemakaian Stok</h2>
+      <h2>Laporan Produk</h2>
 
       <section>
         <p>Outlet</p>
@@ -92,7 +92,7 @@ export default function LaporanPemakaianStokPage({ isOffice }) {
         <section style={{ marginTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0 }}>
-              Minyak — stok hari ini: {oil.current.map((c) => `${c.oilType} (${c.size}): ${c.stock}`).join(' · ')}
+              Produk — stok hari ini: {oil.current.map((c) => `${c.oilType} (${c.size}): ${c.stock}`).join(' · ')}
             </h3>
             <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={handleDownloadOil}>
               ⬇ Download Excel
@@ -100,17 +100,17 @@ export default function LaporanPemakaianStokPage({ isOffice }) {
           </div>
           {oil.estimated && (
             <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '4px 0' }}>
-              * Stok awal/akhir minyak adalah estimasi (dihitung mundur dari stok saat ini; akurat bila tidak ada pengisian stok di rentang tersebut).
+              * Stok awal/akhir produk adalah estimasi (dihitung mundur dari stok saat ini; akurat bila tidak ada pengisian stok di rentang tersebut).
             </p>
           )}
           {oil.rows.length === 0 ? (
-            <p>Tidak ada data pemakaian minyak di rentang ini.</p>
+            <p>Tidak ada data pemakaian produk di rentang ini.</p>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr>
                   <th style={cellHead}>Tanggal</th>
-                  <th style={cellHead}>Minyak</th>
+                  <th style={cellHead}>Produk</th>
                   <th style={cellHead}>Ukuran</th>
                   <th style={cellHead}>Stok Awal*</th>
                   <th style={cellHead}>Terpakai</th>

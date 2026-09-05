@@ -41,7 +41,7 @@ const PAGES = {
   kelolaTerapis: { label: 'Kelola Terapis', icon: '👥', Component: KelolaTerapisPage, global: true, adminOnly: true },
   koreksiBooking: { label: 'Koreksi Booking', icon: '✏️', Component: KoreksiBookingPage, global: true, officeOnly: true },
   overtime: { label: 'Overtime', icon: '⏱️', Component: OvertimePage, global: true, officeOnly: true },
-  laporanPemakaianStok: { label: 'Pemakaian Stok', icon: '📉', Component: LaporanPemakaianStokPage, global: true, officeOnly: true }
+  laporanPemakaianStok: { label: 'Laporan Produk', icon: '📉', Component: LaporanPemakaianStokPage, global: true, officeOnly: true }
 };
 
 // Role yang hanya boleh melihat sebagian halaman (staff order-taking).
