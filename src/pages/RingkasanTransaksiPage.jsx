@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { OUTLETS, OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
 import { listenTreatments } from '../lib/treatmentService';
-import { getDailyBookings } from '../lib/reportService';
+import { getDailyBookingsRange } from '../lib/reportService';
 import { editBookingDetails } from '../lib/bookingService';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
@@ -107,7 +107,8 @@ function EditRow({ booking, treatments, onSave, onCancel }) {
 
 export default function RingkasanTransaksiPage({ active }) {
   const [outletId, setOutletId] = useState(OUTLETS[0].id);
-  const [date, setDate] = useState(todayId());
+  const [startDate, setStartDate] = useState(todayId());
+  const [endDate, setEndDate] = useState(todayId());
   const [bookings, setBookings] = useState([]);
   const [treatments, setTreatments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -121,7 +122,7 @@ export default function RingkasanTransaksiPage({ active }) {
   async function loadBookings() {
     setLoading(true);
     try {
-      const data = await getDailyBookings(outletId, date);
+      const data = await getDailyBookingsRange(outletId, startDate, endDate);
       const withOutlet = data.filter((b) => b.status !== 'batal').map((b) => ({ ...b, outletId }));
       setBookings(withOutlet.sort((a, b) => (b.startAt || 0) - (a.startAt || 0)));
     } finally {
@@ -132,7 +133,7 @@ export default function RingkasanTransaksiPage({ active }) {
   useEffect(() => {
     if (!active) return;
     loadBookings();
-  }, [active, outletId, date]);
+  }, [active, outletId, startDate, endDate]);
 
   const totals = bookings.reduce((acc, b) => {
     const charge = b.paid && b.paymentMethod !== 'cardless' ? b.treatmentPrice : 0;
@@ -163,13 +164,19 @@ export default function RingkasanTransaksiPage({ active }) {
       </section>
 
       <section>
-        <p>Tanggal</p>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <p>Rentang tanggal</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+          Atur selama 1 minggu / 1 bulan untuk rekap mingguan / bulanan.
+        </p>
       </section>
 
       {loading && <p style={{ fontSize: 13 }}>Memuat...</p>}
       {!loading && bookings.length === 0 && (
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Belum ada transaksi di tanggal ini.</p>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Belum ada transaksi di rentang tanggal ini.</p>
       )}
 
       {bookings.map((b, i) => (

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import {
-  getDailyBookings, summarizeDailyBookings, getCombinedDailyReport, getCommissionStaffReport
+  getDailyBookingsRange, summarizeDailyBookings, getCombinedDailyReport, getCommissionStaffReport
 } from '../lib/reportService';
 import { exportExcelReport } from '../lib/excelExport';
 
@@ -12,7 +12,8 @@ function todayId() {
 }
 
 export default function LaporanPage({ outletId }) {
-  const [date, setDate] = useState(todayId());
+  const [startDate, setStartDate] = useState(todayId());
+  const [endDate, setEndDate] = useState(todayId());
   const [mode, setMode] = useState('outlet'); // 'outlet' | 'gabungan' | 'komisi'
   const [loading, setLoading] = useState(false);
   const [outletSummary, setOutletSummary] = useState(null);
@@ -20,10 +21,12 @@ export default function LaporanPage({ outletId }) {
   const [combined, setCombined] = useState(null);
   const [staffCommissions, setStaffCommissions] = useState(null);
 
+  const rangeLabel = startDate === endDate ? startDate : `${startDate} s/d ${endDate}`;
+
   async function loadOutletReport() {
     setLoading(true);
     try {
-      const bookings = await getDailyBookings(outletId, date);
+      const bookings = await getDailyBookingsRange(outletId, startDate, endDate);
       setRawBookings(bookings.filter((b) => b.status !== 'batal'));
       setOutletSummary(summarizeDailyBookings(bookings));
     } finally {
@@ -34,7 +37,7 @@ export default function LaporanPage({ outletId }) {
   async function loadCombinedReport() {
     setLoading(true);
     try {
-      const result = await getCombinedDailyReport(date);
+      const result = await getCombinedDailyReport(startDate, endDate);
       setCombined(result);
     } finally {
       setLoading(false);
@@ -44,7 +47,7 @@ export default function LaporanPage({ outletId }) {
   async function loadCommissionReport() {
     setLoading(true);
     try {
-      const result = await getCommissionStaffReport(date);
+      const result = await getCommissionStaffReport(startDate, endDate);
       setStaffCommissions(result);
     } finally {
       setLoading(false);
@@ -68,9 +71,9 @@ export default function LaporanPage({ outletId }) {
     ]);
     rows.push(['', 'TOTAL', outletSummary.totalRevenue, '', outletSummary.totalCommission, '', '', '']);
     await exportExcelReport({
-      filename: `Laporan-Keuangan-${outletId}-${date}`,
+      filename: `Laporan-Keuangan-${outletId}-${startDate}_${endDate}`,
       title: 'Laporan Keuangan — Dayang Spa',
-      subtitle: `Outlet ${outletId} · ${date}`,
+      subtitle: `Outlet ${outletId} · ${rangeLabel}`,
       headers, rows,
       currencyColumns: [2, 4],
       totalRowIndex: rows.length - 1
@@ -84,9 +87,9 @@ export default function LaporanPage({ outletId }) {
     ]);
     rows.push(['GRAND TOTAL', combined.grandTotalTreatment, combined.grandTotalRevenue, combined.grandTotalCommission]);
     await exportExcelReport({
-      filename: `Laporan-Keuangan-Gabungan-${date}`,
+      filename: `Laporan-Keuangan-Gabungan-${startDate}_${endDate}`,
       title: 'Laporan Keuangan Gabungan — Dayang Spa',
-      subtitle: `Semua Outlet · ${date}`,
+      subtitle: `Semua Outlet · ${rangeLabel}`,
       headers, rows,
       currencyColumns: [2, 3],
       totalRowIndex: rows.length - 1
@@ -101,9 +104,9 @@ export default function LaporanPage({ outletId }) {
     const totalKomisi = staffCommissions.reduce((sum, s) => sum + s.commissionTotal, 0);
     rows.push(['TOTAL', staffCommissions.reduce((sum, s) => sum + s.treatmentCount, 0), totalKomisi, '']);
     await exportExcelReport({
-      filename: `Laporan-Komisi-Staff-${date}`,
+      filename: `Laporan-Komisi-Staff-${startDate}_${endDate}`,
       title: 'Laporan Komisi Staff — Dayang Spa',
-      subtitle: `Semua Outlet · ${date}`,
+      subtitle: `Semua Outlet · ${rangeLabel}`,
       headers, rows,
       currencyColumns: [2],
       totalRowIndex: rows.length - 1
@@ -117,8 +120,14 @@ export default function LaporanPage({ outletId }) {
       <h2>Laporan Keuangan</h2>
 
       <section>
-        <p>Tanggal</p>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <p>Rentang tanggal</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+          Atur selama 1 minggu / 1 bulan untuk rekap mingguan / bulanan.
+        </p>
       </section>
 
       <section>
@@ -199,7 +208,7 @@ export default function LaporanPage({ outletId }) {
             </button>
           </div>
           {staffCommissions.length === 0 ? (
-            <p>Tidak ada data komisi untuk tanggal ini.</p>
+            <p>Tidak ada data komisi untuk rentang tanggal ini.</p>
           ) : (
             staffCommissions.map((s, i) => (
               <p key={i}>

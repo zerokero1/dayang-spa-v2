@@ -66,6 +66,41 @@ async function getAllDailyBookings(dateStr) {
   return (data || []).map(mapBooking);
 }
 
+// Ambil semua booking dalam rentang tanggal (semua outlet) — di-loop per hari
+// supaya agregat per minggu/bulan konsisten dengan batas WIB per hari.
+export async function getAllBookingsRange(startDate, endDate) {
+  const all = [];
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+    try {
+      const rows = await getAllDailyBookings(dateStr);
+      all.push(...rows);
+    } catch (e) {
+      console.warn('getAllBookingsRange error', dateStr, e);
+    }
+  }
+  return all;
+}
+
+// Booking satu outlet dalam rentang tanggal (untuk mode "Outlet ini saja").
+export async function getDailyBookingsRange(outletId, startDate, endDate) {
+  const all = [];
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+    try {
+      const rows = await getDailyBookings(outletId, dateStr);
+      all.push(...rows);
+    } catch (e) {
+      console.warn('getDailyBookingsRange error', dateStr, e);
+    }
+  }
+  return all;
+}
+
 export function summarizeDailyBookings(bookings) {
   const counted = bookings.filter((b) => b.status !== 'batal');
 
@@ -137,7 +172,7 @@ export async function getTherapistDailyReport(dateStr) {
   return { totals, commissions };
 }
 
-export async function getCombinedDailyReport(dateStr) {
+export async function getCombinedDailyReport(startDate, endDate) {
   const perOutlet = {};
   let grandTotalTreatment = 0;
   let grandTotalCommission = 0;
@@ -145,7 +180,7 @@ export async function getCombinedDailyReport(dateStr) {
   let grandTotalDiscount = 0;
   const therapistCommissions = {};
 
-  const bookingsAll = await getAllDailyBookings(dateStr);
+  const bookingsAll = endDate ? await getAllBookingsRange(startDate, endDate) : await getAllDailyBookings(startDate);
   for (const outlet of OUTLETS) {
     const bookings = bookingsAll.filter((b) => b.outletId === outlet.id);
     const summary = summarizeDailyBookings(bookings);
@@ -176,8 +211,8 @@ export async function getCombinedDailyReport(dateStr) {
   };
 }
 
-export async function getCommissionStaffReport(dateStr) {
-  const bookingsAll = await getAllDailyBookings(dateStr);
+export async function getCommissionStaffReport(startDate, endDate) {
+  const bookingsAll = endDate ? await getAllBookingsRange(startDate, endDate) : await getAllDailyBookings(startDate);
   const staff = {};
   bookingsAll.forEach((b) => {
     if (b.status === 'batal') return;
