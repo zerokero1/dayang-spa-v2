@@ -2,6 +2,7 @@ import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { OUTLETS } from './lib/constants';
 import { listenAuthState, logout } from './lib/authService';
 import { listenAllTherapists } from './lib/therapistService';
+import { startAutoFreeTicker, stopAutoFreeTicker } from './lib/autoFreeService';
 import { completeBooking } from './lib/bookingService';
 import LoginPage from './pages/LoginPage';
 import './styles.css';
@@ -78,6 +79,12 @@ export default function App() {
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    if (user) startAutoFreeTicker(30000);
+    else stopAutoFreeTicker();
+    return () => stopAutoFreeTicker();
+  }, [user]);
 
   // Auto-selesaikan terapis yang waktu treatment-nya sudah habis, supaya
   // status kembali "free" tanpa perlu klik manual "Tandai Selesai".
