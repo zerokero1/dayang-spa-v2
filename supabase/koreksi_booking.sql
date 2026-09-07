@@ -165,7 +165,7 @@ begin
   -- yang sudah tersimpan, atau harga saat ini.
   if p_discount_pct is not null then
     if p_discount_pct < 0 or p_discount_pct > 100 then
-      raise exception 'Diskon harus antara 0 dan 100%.';
+      raise exception 'Diskon harus antara 0 dan 100%%.';
     end if;
     if p_discount_pct > 0 and coalesce(p_discount_reason, '') = '' then
       raise exception 'Alasan diskon wajib diisi.';
