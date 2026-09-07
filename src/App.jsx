@@ -1,7 +1,6 @@
 import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { OUTLETS } from './lib/constants';
 import { listenAuthState, logout } from './lib/authService';
-import { listenAllTherapists } from './lib/therapistService';
 import { startAutoFreeTicker, stopAutoFreeTicker } from './lib/autoFreeService';
 import { completeBooking } from './lib/bookingService';
 import LoginPage from './pages/LoginPage';
@@ -85,46 +84,6 @@ export default function App() {
     else stopAutoFreeTicker();
     return () => stopAutoFreeTicker();
   }, [user]);
-
-  // Auto-selesaikan terapis yang waktu treatment-nya sudah habis, supaya
-  // status kembali "free" tanpa perlu klik manual "Tandai Selesai".
-  // Berjalan selama app ini terbuka di perangkat mana pun.
-  useEffect(() => {
-    if (!user || !profile) return;
-    let latestTherapists = [];
-
-    function checkAndComplete() {
-      const now = Date.now();
-      latestTherapists.forEach((t) => {
-        // Hanya auto-selesaikan terapis yang waktu treatment-nya sudah habis
-        // DAN SUDAH LUNAS. Kalau masih belum bayar, biarkan tetap terlihat di
-        // Status Terapis supaya kasir bisa menagih (Lunas Cash/Cardless) —
-        // tidak boleh selesai otomatis tanpa dibayar.
-        if (
-          t.status === 'ambil_tamu' &&
-          t.currentPaid &&
-          t.endAt && t.endAt <= now &&
-          t.currentOutletId
-        ) {
-          // Selesaikan SEMUA booking terapis (mendukung 1 terapis = beberapa treatment)
-          const ids = Array.isArray(t.currentBookingIds) && t.currentBookingIds.length
-            ? t.currentBookingIds
-            : (t.currentBookingId ? [t.currentBookingId] : []);
-          ids.forEach((bId) => {
-            completeBooking(t.currentOutletId, bId, t.id).catch(() => {});
-          });
-        }
-      });
-    }
-
-    const unsub = listenAllTherapists((all) => {
-      latestTherapists = all;
-      checkAndComplete();
-    });
-    const interval = setInterval(checkAndComplete, 20000); // cek tiap 20 detik
-
-    return () => { unsub(); clearInterval(interval); };
-  }, [user, profile]);
 
   if (authLoading) return <div className="app"><p>Memuat...</p></div>;
   if (!user) return <LoginPage />;

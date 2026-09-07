@@ -7,6 +7,7 @@ import { getTherapistDailyReport } from '../lib/reportService';
 import { getShiftWindowStatus, SHIFT_WINDOW_LABEL } from '../lib/shiftService';
 import { SHIFT_LABEL, SHIFT_SHORT_CODE } from '../lib/constants';
 import { ReceiptLines } from '../components/Receipt';
+import { supabase } from '../lib/supabase';
 
 const STATUS_LABEL = { free: 'Free', libur: 'Libur', ambil_tamu: 'Ambil Tamu', break: 'Break' };
 const OUTLET_NAME = Object.fromEntries(OUTLETS.map((o) => [o.id, o.name]));
@@ -15,6 +16,13 @@ function todayId() {
   // Tanggal LOKAL WIB (UTC+7) — bukan UTC, agar konsisten dengan getDailyBookings
   const now = new Date(Date.now() + 7 * 3600000); // geser ke WIB
   return now.toISOString().slice(0, 10);
+}
+
+/** Rentang hari ini (WIB) dalam epoch ms, untuk kueri booking. */
+function todayBoundsMs() {
+  const now = new Date(Date.now() + 7 * 3600000);
+  const start = Date.parse(now.toISOString().slice(0, 10) + 'T00:00:00+07:00');
+  return { start, end: start + 24 * 3600000 };
 }
 
 function formatCountdown(endAt) {
@@ -382,6 +390,7 @@ export default function StatusTerapisPage({ active }) {
   const [, setTick] = useState(0);
   const [message, setMessage] = useState('');
   const [outletFilter, setOutletFilter] = useState('semua');
+  const [unpaidList, setUnpaidList] = useState([]);
 
   const [treatments, setTreatments] = useState([]);
   const [continueTarget, setContinueTarget] = useState(null);
@@ -403,6 +412,37 @@ export default function StatusTerapisPage({ active }) {
     if (!active) return;
     return listenTreatments(setTreatments);
   }, [active]);
+
+  // Muat daftar booking HARI INI yang belum bayar (perawatannya boleh sudah
+  // selesai/otomatis free — tagihan tetap dikumpulkan di sini). Refresh tiap 30 detik.
+  function loadUnpaid() {
+    const { start, end } = todayBoundsMs();
+    supabase
+      .from('bookings')
+      .select('id, outlet_id, therapist_id, therapist_name, treatment_name, customer_name, treatment_price, status, start_at')
+      .gte('start_at', start)
+      .lte('start_at', end)
+      .eq('paid', false)
+      .in('status', ['berjalan', 'selesai', 'lunas'])
+      .order('start_at', { ascending: false })
+      .limit(200)
+      .then(({ data, error }) => { if (!error) setUnpaidList(data || []); });
+  }
+
+  useEffect(() => {
+    if (!active) return;
+    loadUnpaid();
+    const iv = setInterval(loadUnpaid, 30000);
+    return () => clearInterval(iv);
+  }, [active]);
+
+  async function handleUnpaidPaid(b, method) {
+    try {
+      await markBookingPaid(b.outlet_id, b.id, b.therapist_id || null, method, 0, '');
+      setMessage(`Booking ${b.customer_name || b.treatment_name} ditandai lunas (${PAYMENT_METHOD_LABEL[method]}).`);
+      loadUnpaid();
+    } catch (e) { setMessage('Gagal: ' + e.message); }
+  }
 
   useEffect(() => {
     const interval = setInterval(() => setTick((t) => t + 1), 30000);
@@ -599,6 +639,7 @@ export default function StatusTerapisPage({ active }) {
   // "Ambil Tamu", dan hanya terapis dengan homeOutletId itu untuk Free/Break/Libur
   const outletsToShow = outletFilter === 'semua' ? OUTLETS : OUTLETS.filter((o) => o.id === outletFilter);
   const filteredFree = outletFilter === 'semua' ? free : free.filter((t) => t.homeOutletId === outletFilter);
+  const unpaidShown = outletFilter === 'semua' ? unpaidList : unpaidList.filter((b) => b.outlet_id === outletFilter);
   const filteredOthers = outletFilter === 'semua' ? others : others.filter((t) => t.homeOutletId === outletFilter);
   const filteredBusyCount = outletFilter === 'semua' ? busy.length : (busyByOutlet[outletFilter]?.length || 0);
 
@@ -708,6 +749,37 @@ export default function StatusTerapisPage({ active }) {
             </div>
           );
         })}
+      </section>
+
+      <section>
+        <p>Belum Bayar ({unpaidShown.length})</p>
+        {unpaidShown.length === 0 && (
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Semua sudah lunas.</p>
+        )}
+        {unpaidShown.map((b) => (
+          <div key={b.id} className="oil-card" style={{ margin: 0, marginBottom: 8, padding: '10px 12px', textAlign: 'left' }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>
+              {b.treatment_name}{b.customer_name ? ` · ${b.customer_name}` : ''}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+              {b.therapist_name} · {OUTLET_NAME[b.outlet_id] || b.outlet_id} · {rp(b.treatment_price)}
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+              <button
+                style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }}
+                onClick={() => handleUnpaidPaid(b, 'cash')}
+              >
+                Lunas (Cash)
+              </button>
+              <button
+                style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }}
+                onClick={() => handleUnpaidPaid(b, 'cardless')}
+              >
+                Lunas (Cardless)
+              </button>
+            </div>
+          </div>
+        ))}
       </section>
 
       <section>

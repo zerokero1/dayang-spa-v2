@@ -5,10 +5,12 @@
 --
 -- Aturan:
 --   * Hanya berlaku untuk terapis berstatus 'ambil_tamu'.
---   * Efektif ASAL semua booking 'berjalan'-nya sudah LUNAS (paid = true).
---     Kalau masih ada yang belum bayar, terapis TETAP tampil di
---     Payment & List sampai dilunasi (agar tagihan tidak hilang).
---   * Booking 'berjalan' yang waktu-nya habis diakhiri jadi 'selesai'.
+--   * Tanpa syarat sudah-bayar: begitu waktu habis -> booking
+--     'berjalan' diakhiri jadi 'selesai' dan terapis langsung free.
+--     Tagihan yang belum bayar tetap terlihat di seksi "Belum Bayar"
+--     pada halaman Payment & List (dibuat dari booking paid=false).
+--   * Terapis 'ambil_tamu' yang tidak punya booking 'berjalan'
+--     sama sekali (status nyangkut lama) dipaksa bersihkan jadi free.
 --
 -- Dijalankan otomatis oleh web app setiap 30 detik.
 -- JALANKAN file ini SEKALI di Supabase SQL Editor.
@@ -25,18 +27,14 @@ declare
 begin
   v_now := (extract(epoch from now()) * 1000)::bigint;
 
+  -- (1) Terapis yang waktu treatment-nya sudah lewat -> akhiri booking
+  --     yang sudah lewat + kembalikan ke free (tanpa syarat lunas).
   for r in
     select t.id as tid
     from therapists t
     where t.status = 'ambil_tamu'
       and t.end_at is not null
       and t.end_at <= v_now
-      and not exists (
-        select 1 from bookings b
-        where b.therapist_id = t.id
-          and b.status = 'berjalan'
-          and coalesce(b.paid, false) = false
-      )
   loop
     update bookings
        set status = 'selesai',
@@ -46,6 +44,21 @@ begin
        and end_at is not null
        and end_at <= v_now;
 
+    perform clear_therapist_session(r.tid);
+    v_done := v_done + 1;
+  end loop;
+
+  -- (2) Terapis 'ambil_tamu' yang tidak punya booking 'berjalan' sama sekali
+  --     (status nyangkut dari sisa lama) -> paksa bersihkan jadi free.
+  for r in
+    select t.id as tid
+    from therapists t
+    where t.status = 'ambil_tamu'
+      and not exists (
+        select 1 from bookings b
+        where b.therapist_id = t.id and b.status = 'berjalan'
+      )
+  loop
     perform clear_therapist_session(r.tid);
     v_done := v_done + 1;
   end loop;
