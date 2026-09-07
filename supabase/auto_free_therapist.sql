@@ -1,16 +1,14 @@
 -- ============================================================
--- AUTO FREE TERAPIS
+-- AUTO UNBLOCK TERAPIS
 -- Terapis otomatis kembali ke status 'free' begitu waktu treatment
 -- (end_at) sudah lewat — tanpa harus menekan tombol Selesai.
 --
--- Aturan:
---   * Hanya berlaku untuk terapis berstatus 'ambil_tamu'.
---   * Tanpa syarat sudah-bayar: begitu waktu habis -> booking
---     'berjalan' diakhiri jadi 'selesai' dan terapis langsung free.
---     Tagihan yang belum bayar tetap terlihat di seksi "Belum Bayar"
---     pada halaman Payment & List (dibuat dari booking paid=false).
---   * Terapis 'ambil_tamu' yang tidak punya booking 'berjalan'
---     sama sekali (status nyangkut lama) dipaksa bersihkan jadi free.
+-- Penting:
+--   * HANYA status terapis yang di-unblock (free). TRANSANSI/BOOKING
+--     TIDAK diubah — tetap 'berjalan' sampai kasir menutup manual
+--     (Selesai / Batal / Batal Sebagian).
+--   * Terapis 'ambil_tamu' yang tidak punya booking 'berjalan' sama
+--     sekali (status nyangkut lama) dipaksa bersihkan jadi free.
 --
 -- Dijalankan otomatis oleh web app setiap 30 detik.
 -- JALANKAN file ini SEKALI di Supabase SQL Editor.
@@ -27,8 +25,8 @@ declare
 begin
   v_now := (extract(epoch from now()) * 1000)::bigint;
 
-  -- (1) Terapis yang waktu treatment-nya sudah lewat -> akhiri booking
-  --     yang sudah lewat + kembalikan ke free (tanpa syarat lunas).
+  -- (1) Terapis yang waktu treatment-nya sudah lewat -> langsung free.
+  --     Booking TIDAK disentuh (tetap 'berjalan').
   for r in
     select t.id as tid
     from therapists t
@@ -36,14 +34,6 @@ begin
       and t.end_at is not null
       and t.end_at <= v_now
   loop
-    update bookings
-       set status = 'selesai',
-           completed_at = now()
-     where therapist_id = r.tid
-       and status = 'berjalan'
-       and end_at is not null
-       and end_at <= v_now;
-
     perform clear_therapist_session(r.tid);
     v_done := v_done + 1;
   end loop;
