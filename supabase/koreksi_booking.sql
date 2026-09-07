@@ -104,6 +104,11 @@ grant execute on function public.refresh_therapist_session(uuid) to authenticate
 --   p_commission_percent: % komisi baru (nullable = tetap)
 --   p_new_therapist_id  : terapis baru (nullable = tetap)
 --   p_oil_type / p_oil_size / p_uses_oil : sesuaikan minyak
+--   p_discount_pct   : DISKON baru dlm % (0-100). Isi utk menambah /
+--                      mengubah / menghapus diskon (0 = hapus diskon).
+--                      Basis diskon = harga treatment (atau original_price
+--                      bila sudah ada diskon sebelumnya).
+--   p_discount_reason: alasan diskon (wajib bila p_discount_pct > 0)
 -- ------------------------------------------------------------
 create or replace function edit_booking_correction(
   p_booking_id uuid,
@@ -114,7 +119,9 @@ create or replace function edit_booking_correction(
   p_new_therapist_id uuid default null,
   p_uses_oil boolean default null,
   p_oil_type text default null,
-  p_oil_size text default null
+  p_oil_size text default null,
+  p_discount_pct numeric default null,
+  p_discount_reason text default null
 ) returns void
 language plpgsql as $fn$
 declare
@@ -127,6 +134,8 @@ declare
   v_new_oil text;
   v_new_price numeric;
   v_new_commission numeric;
+  v_base numeric;
+  v_old_original numeric;
   v_status text;
 begin
   -- ---- KEAMANAN: wajib office ---- 
@@ -136,9 +145,9 @@ begin
 
   -- ---- Ambil data lama ----
   select outlet_id, therapist_id, uses_oil, oil_type, oil_size,
-         treatment_price, commission_percent, status
+         treatment_price, commission_percent, status, original_price
     into v_outlet, v_old_therapist, v_orig_uses_oil, v_old_oil_type, v_old_oil_size,
-         v_new_price, v_new_commission, v_status
+         v_new_price, v_new_commission, v_status, v_old_original
     from bookings where id = p_booking_id;
 
   if not found then raise exception 'Booking tidak ditemukan'; end if;
@@ -150,6 +159,24 @@ begin
   -- ---- Tentukan nilai baru (fallback ke lama) ----
   v_new_price := coalesce(p_treatment_price, v_new_price);
   v_new_commission := coalesce(p_commission_percent, v_new_commission);
+
+  -- ---- Terapkan diskon baru (bila dikirim) ----
+  -- Basis diskon = harga yang dikoreksi (p_treatment_price), atau original_price
+  -- yang sudah tersimpan, atau harga saat ini.
+  if p_discount_pct is not null then
+    if p_discount_pct < 0 or p_discount_pct > 100 then
+      raise exception 'Diskon harus antara 0 dan 100%.';
+    end if;
+    if p_discount_pct > 0 and coalesce(p_discount_reason, '') = '' then
+      raise exception 'Alasan diskon wajib diisi.';
+    end if;
+    v_base := coalesce(p_treatment_price, v_old_original, v_new_price);
+    if p_discount_pct > 0 then
+      v_new_price := round(v_base * (1 - p_discount_pct / 100.0));
+    else
+      v_new_price := v_base;
+    end if;
+  end if;
 
   -- Stok: bandingkan minyak LAMA (asal dari DB) vs minyak BARU (hasil koreksi)
   v_old_oil := case when v_orig_uses_oil then (coalesce(v_old_oil_type,'')||'_'||coalesce(v_old_oil_size,'')) end;
@@ -185,6 +212,20 @@ begin
       when p_new_therapist_id is not null
         then (select name from therapists where id = p_new_therapist_id)
       else therapist_name
+    end,
+    original_price = case
+      when p_discount_pct is not null and p_discount_pct > 0 then v_base
+      when p_discount_pct is not null and p_discount_pct = 0 then null
+      else original_price
+    end,
+    discount_pct = case
+      when p_discount_pct is not null then p_discount_pct
+      else discount_pct
+    end,
+    discount_reason = case
+      when p_discount_pct is not null and p_discount_pct > 0 then p_discount_reason
+      when p_discount_pct is not null and p_discount_pct = 0 then null
+      else discount_reason
     end
   where id = p_booking_id;
 
@@ -206,12 +247,14 @@ begin
       'therapist_id', p_new_therapist_id,
       'uses_oil', p_uses_oil,
       'oil_type', p_oil_type,
-      'oil_size', p_oil_size
+      'oil_size', p_oil_size,
+      'discount_pct', p_discount_pct,
+      'discount_reason', p_discount_reason
     ));
 end;
 $fn$;
 
-grant execute on function public.edit_booking_correction(uuid, uuid, text, numeric, numeric, uuid, boolean, text, text) to authenticated;
+grant execute on function public.edit_booking_correction(uuid, uuid, text, numeric, numeric, uuid, boolean, text, text, numeric, text) to authenticated;
 
 -- ------------------------------------------------------------
 -- RPC: hapus_booking_office — HAPUS TREATMENT dari booking

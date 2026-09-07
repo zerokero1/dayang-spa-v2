@@ -24,6 +24,8 @@ function mapBooking(row) {
     startAt: row.start_at,
     endAt: row.end_at,
     originalPrice: row.original_price != null ? Number(row.original_price) : null,
+    discountPct: row.discount_pct != null ? Number(row.discount_pct) : null,
+    discountReason: row.discount_reason,
     createdAt: row.created_at,
     completedAt: row.completed_at,
     cancelledAt: row.cancelled_at

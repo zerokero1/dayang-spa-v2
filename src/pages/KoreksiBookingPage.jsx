@@ -19,6 +19,8 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
   const [selTreatment, setSelTreatment] = useState(null);
   const [selTherapistId, setSelTherapistId] = useState(null);
   const [commission, setCommission] = useState(String(booking.commissionPercent ?? ''));
+  const [discount, setDiscount] = useState(booking.discountPct != null ? String(booking.discountPct) : '');
+  const [discountReason, setDiscountReason] = useState(booking.discountReason || '');
   const [selUsesOil, setSelUsesOil] = useState(booking.usesOil !== undefined ? booking.usesOil : (booking.oilType != null));
   const [selOil, setSelOil] = useState(booking.oilType);
   const [selSize, setSelSize] = useState(booking.oilSize);
@@ -39,6 +41,15 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
       setError('Komisi % tidak valid.');
       return;
     }
+    const discountVal = discount !== '' ? Number(discount) : null;
+    if (discountVal !== null && (isNaN(discountVal) || discountVal < 0 || discountVal > 100)) {
+      setError('Diskon % harus antara 0 dan 100.');
+      return;
+    }
+    if (discountVal !== null && discountVal > 0 && !discountReason.trim()) {
+      setError('Alasan diskon wajib diisi.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -48,7 +59,9 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
         newTherapistId: selTherapistId || null,
         usesOil: needsOil,
         oilType: needsOil ? selOil : null,
-        oilSize: needsOil ? selSize : null
+        oilSize: needsOil ? selSize : null,
+        discountPct: discountVal,
+        discountReason: discountVal != null && discountVal > 0 ? discountReason.trim() : null
       });
       onSave();
     } catch (e) {
@@ -85,6 +98,18 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
       <div style={{ marginBottom: 8 }}>
         <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Komisi % (kosongkan = pakai % treatment/tersimpan)</p>
         <input type="number" value={commission} onChange={(e) => setCommission(e.target.value)} placeholder={`${booking.commissionPercent ?? 0}%`} style={{ margin: 0, maxWidth: 120 }} />
+      </div>
+
+      <div style={{ marginBottom: 8, border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+        <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Diskon % (kosongkan = tidak diubah · 0 = hapus diskon)</p>
+        {booking.originalPrice != null && booking.originalPrice > booking.treatmentPrice && (
+          <p style={{ fontSize: 11, color: 'var(--primary-dark)', margin: '0 0 6px' }}>
+            Saat ini: diskon {booking.discountPct != null ? `${booking.discountPct}%` : ''} — harga {rp(booking.treatmentPrice)} dari {rp(booking.originalPrice)}
+            {booking.discountReason ? ` (${booking.discountReason})` : ''}
+          </p>
+        )}
+        <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" style={{ margin: 0, maxWidth: 120, marginBottom: 6 }} />
+        <input type="text" value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="Alasan diskon (wajib bila >0)" style={{ margin: 0, width: '100%' }} />
       </div>
 
       {needsOil && (
@@ -206,7 +231,7 @@ export default function KoreksiBookingPage({ active, isOffice }) {
     <div className="kasir-page">
       <h2>Koreksi Booking</h2>
       <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: -8, marginBottom: 16 }}>
-        Koreksi treatment, komisi, atau terapis pada booking yang salah input (khusus Office).
+        Koreksi treatment, komisi, terapis, minyak, atau diskon pada booking yang salah input (khusus Office).
       </p>
 
       <section>
@@ -251,7 +276,10 @@ export default function KoreksiBookingPage({ active, isOffice }) {
                   <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 6 }}>({outletName(b.outletId)})</span>
                   <div style={{ fontSize: 13, marginTop: 2 }}>{b.treatmentName}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                    Komisi {b.commissionPercent ?? 0}% ({rp(b.commissionAmount)}) · {STATUS_LABEL[b.status] || b.status}
+                    {rp(b.treatmentPrice)}
+                    {b.originalPrice != null && b.originalPrice > b.treatmentPrice
+                      ? ` (dari ${rp(b.originalPrice)}${b.discountPct ? `, potong ${b.discountPct}%` : ''}${b.discountReason ? ` — ${b.discountReason}` : ''})`
+                      : ''} · Komisi {b.commissionPercent ?? 0}% ({rp(b.commissionAmount)}) · {STATUS_LABEL[b.status] || b.status}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
