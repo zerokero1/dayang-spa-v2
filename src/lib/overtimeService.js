@@ -4,11 +4,11 @@ import { OUTLETS, SHIFTS } from './constants';
 // Jam selesai shift normal (menit sejak 00:00) — patokan overtime.
 //  - Shift SP / Split    : 11:00-15:00 & 18:00-23:00 -> selesai 23:00
 //  - Shift Malam         : 15:00-23:00               -> selesai 23:00
-//  - Shift ST / Short    : 11:00-17:00               -> selesai 17:00
+//  - Shift ST / Short    : 11:00-16:00               -> selesai 16:00
 const SHIFT_END_MINUTES = {
   [SHIFTS.SP]: 23 * 60,
   [SHIFTS.MALAM]: 23 * 60,
-  [SHIFTS.ST]: 17 * 60
+  [SHIFTS.ST]: 16 * 60
 };
 
 function toMinutes(ms) {
@@ -57,7 +57,7 @@ export async function getOvertimeReport(startDate, endDate) {
       const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
       const { data, error } = await supabase
         .from('bookings')
-        .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, commission_percent, start_at, end_at, status')
+        .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, commission_percent, start_at, end_at, status, booking_source')
         .gte('start_at', startUtc.getTime())
         .lte('start_at', endUtc.getTime());
       if (error) throw error;
@@ -74,6 +74,8 @@ export async function getOvertimeReport(startDate, endDate) {
     // Hanya booking yang berlaku (bukan batal)
     if (b.status === 'batal' || b.status === 'batal_sebagian') return;
     if (!b.therapist_id || !b.date) return;
+    // Oncall tidak dihitung lembur (komisi berbeda)
+    if (b.booking_source === 'oncall') return;
     const key = `${b.therapist_id}|${b.date}`;
     if (!rows[key]) {
       rows[key] = {
