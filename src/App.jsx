@@ -44,7 +44,7 @@ const PAGES = {
   koreksiBooking: { label: 'Koreksi Booking', icon: '✏️', Component: KoreksiBookingPage, global: true, officeOnly: true },
   overtime: { label: 'Overtime', icon: '⏱️', Component: OvertimePage, global: true, officeOnly: true },
   laporanPemakaianStok: { label: 'Laporan Produk', icon: '📉', Component: LaporanPemakaianStokPage, global: true, officeOnly: true },
-  logAktivitas: { label: 'Log Aktivitas Office', icon: '📜', Component: LogAktivitasPage, global: true, officeOnly: true }
+  logAktivitas: { label: 'Log Aktivitas', icon: '📜', Component: LogAktivitasPage, global: true, officeOnly: true }
 };
 
 // Role yang hanya boleh melihat sebagian halaman (staff order-taking).

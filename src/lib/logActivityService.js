@@ -9,12 +9,11 @@ export function logOfficeLogin() {
   });
 }
 
-/** Ambil riwayat aktivitas akun office (aksi koreksi/hapus + login). */
-export async function getOfficeActivity(userId, limit = 300) {
+/** Ambil seluruh riwayat log aktivitas (aksinya semua akun: kasir & office). */
+export async function getAllLogs(limit = 500) {
   const { data, error } = await supabase
     .from('audit_logs')
     .select('id, actor, actor_name, action, table_name, record_id, outlet_id, detail, created_at')
-    .eq('actor', userId)
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw error;

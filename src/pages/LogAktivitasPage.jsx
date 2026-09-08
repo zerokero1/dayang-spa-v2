@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
-import { getOfficeActivity } from '../lib/logActivityService';
+import { getAllLogs } from '../lib/logActivityService';
 
 const ACTION_LABEL = {
   login: 'Login Office',
@@ -44,10 +44,9 @@ export default function LogAktivitasPage({ active, user }) {
   const [message, setMessage] = useState('');
 
   async function load() {
-    if (!user) return;
     setLoading(true);
     try {
-      const data = await getOfficeActivity(user.id);
+      const data = await getAllLogs();
       setList(data);
     } catch (e) {
       setMessage('Gagal memuat log: ' + e.message);
@@ -58,13 +57,13 @@ export default function LogAktivitasPage({ active, user }) {
 
   useEffect(() => {
     if (active) load();
-  }, [active, user]);
+  }, [active]);
 
   useEffect(() => {
     if (!active) return;
     const iv = setInterval(load, 60000);
     return () => clearInterval(iv);
-  }, [active, user]);
+  }, [active]);
 
   const filtered = useMemo(() => {
     return list.filter((r) => {
@@ -79,9 +78,9 @@ export default function LogAktivitasPage({ active, user }) {
 
   return (
     <div className="kasir-page">
-      <h2>Log Aktivitas Office</h2>
+      <h2>Log Aktivitas</h2>
       <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: -8, marginBottom: 16 }}>
-        Riwayat tindakan akun {user ? user.email : ''} (koreksi, hapus treatment, diskon, dan login). Diperbarui tiap 60 detik.
+        Riwayat tindakan SEMUA akun (kasir & office): membuat booking, lunas/diskon, koreksi, hapus treatment, dan login. Khusus akun office. Diperbarui tiap 60 detik.
       </p>
 
       <section>
@@ -116,7 +115,8 @@ export default function LogAktivitasPage({ active, user }) {
             <span style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{fmtWib(new Date(r.created_at).getTime())}</span>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-            {r.outlet_id ? OUTLET_NAME[r.outlet_id] || r.outlet_id : '—'}
+            <strong style={{ color: 'var(--primary-dark)' }}>{r.actor_name || 'system'}</strong>
+            {r.outlet_id ? ` · ${OUTLET_NAME[r.outlet_id] || r.outlet_id}` : ''}
             {r.record_id ? ` · Booking: ${r.record_id.slice(0, 8)}…` : ''}
           </div>
           {r.action !== 'login' && r.detail && (
