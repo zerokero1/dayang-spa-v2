@@ -105,8 +105,9 @@ function EditRow({ booking, treatments, onSave, onCancel }) {
   );
 }
 
-export default function RingkasanTransaksiPage({ active }) {
-  const [outletId, setOutletId] = useState(OUTLETS[0].id);
+export default function RingkasanTransaksiPage({ active, profile }) {
+  const [outletId, setOutletId] = useState(profile?.role === 'kasir' ? (profile?.outletId || OUTLETS[0].id) : OUTLETS[0].id);
+  const viewOutlets = profile?.role === 'kasir' ? OUTLETS.filter((o) => o.id === profile.outletId) : OUTLETS;
   const [startDate, setStartDate] = useState(todayId());
   const [endDate, setEndDate] = useState(todayId());
   const [bookings, setBookings] = useState([]);
@@ -158,7 +159,7 @@ export default function RingkasanTransaksiPage({ active }) {
       <section>
         <p>Outlet</p>
         <div className="grid-2">
-          {OUTLETS.map((o) => (
+          {viewOutlets.map((o) => (
             <button key={o.id} className={outletId === o.id ? 'active' : ''} onClick={() => setOutletId(o.id)}>{o.name}</button>
           ))}
         </div>

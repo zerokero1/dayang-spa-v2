@@ -11,7 +11,8 @@ function todayId() {
   return now.toISOString().slice(0, 10);
 }
 
-export default function LaporanPage({ outletId }) {
+export default function LaporanPage({ outletId, profile }) {
+  const isKasir = profile?.role === 'kasir';
   const [startDate, setStartDate] = useState(todayId());
   const [endDate, setEndDate] = useState(todayId());
   const [mode, setMode] = useState('outlet'); // 'outlet' | 'gabungan' | 'komisi'
@@ -145,13 +146,22 @@ export default function LaporanPage({ outletId }) {
           <button className={mode === 'outlet' ? 'active' : ''} onClick={() => setMode('outlet')}>
             Outlet ini saja
           </button>
-          <button className={mode === 'gabungan' ? 'active' : ''} onClick={() => setMode('gabungan')}>
-            Gabungan 6 outlet
-          </button>
-          <button className={mode === 'komisi' ? 'active' : ''} onClick={() => setMode('komisi')}>
-            Komisi Staff
-          </button>
+          {!isKasir && (
+            <>
+              <button className={mode === 'gabungan' ? 'active' : ''} onClick={() => setMode('gabungan')}>
+                Gabungan 6 outlet
+              </button>
+              <button className={mode === 'komisi' ? 'active' : ''} onClick={() => setMode('komisi')}>
+                Komisi Staff
+              </button>
+            </>
+          )}
         </div>
+        {isKasir && (
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+            Kasir hanya dapat melihat laporan outlet sendiri.
+          </p>
+        )}
       </section>
 
       <button onClick={handleLoad} disabled={loading}>

@@ -182,7 +182,7 @@ export default function App() {
         <main className="content">
           <Suspense fallback={<div style={{ padding: 24, fontSize: 14, color: 'var(--text-secondary)' }}>Memuat…</div>}>
             {currentPage && currentPage.Component && (
-              <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} />
+              <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} />
             )}
           </Suspense>
         </main>

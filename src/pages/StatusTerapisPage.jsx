@@ -388,13 +388,17 @@ function GroupCard({ members, onCompleteGroup, onPayGroup, cardProps }) {
   );
 }
 
-export default function StatusTerapisPage({ active }) {
+export default function StatusTerapisPage({ active, profile }) {
+  const isKasir = profile?.role === 'kasir';
+  const ownOutlet = profile?.outletId;
+  // Kasir hanya boleh menangani transaksi outlet-nya sendiri.
+  const viewOutlets = isKasir ? OUTLETS.filter((o) => o.id === ownOutlet) : OUTLETS;
   const [therapists, setTherapists] = useState([]);
   const [dailyTotals, setDailyTotals] = useState({});
   const [dailyCommissions, setDailyCommissions] = useState({});
   const [, setTick] = useState(0);
   const [message, setMessage] = useState('');
-  const [outletFilter, setOutletFilter] = useState('semua');
+  const [outletFilter, setOutletFilter] = useState(isKasir ? (ownOutlet || 'semua') : 'semua');
   const [unpaidList, setUnpaidList] = useState([]);
 
   const [treatments, setTreatments] = useState([]);
@@ -646,11 +650,13 @@ export default function StatusTerapisPage({ active }) {
 
   // Kalau outlet tertentu dipilih, persempit tampilan: hanya outlet itu untuk
   // "Ambil Tamu", dan hanya terapis dengan homeOutletId itu untuk Free/Break/Libur
-  const outletsToShow = outletFilter === 'semua' ? OUTLETS : OUTLETS.filter((o) => o.id === outletFilter);
+  const outletsToShow = outletFilter === 'semua' ? viewOutlets : OUTLETS.filter((o) => o.id === outletFilter);
   const filteredFree = outletFilter === 'semua' ? free : free.filter((t) => t.homeOutletId === outletFilter);
   const unpaidShown = outletFilter === 'semua' ? unpaidList : unpaidList.filter((b) => b.outlet_id === outletFilter);
   const filteredOthers = outletFilter === 'semua' ? others : others.filter((t) => t.homeOutletId === outletFilter);
-  const filteredBusyCount = outletFilter === 'semua' ? busy.length : (busyByOutlet[outletFilter]?.length || 0);
+  const filteredBusyCount = outletFilter === 'semua'
+    ? (isKasir ? viewOutlets.reduce((s, o) => s + (busyByOutlet[o.id]?.length || 0), 0) : busy.length)
+    : (busyByOutlet[outletFilter]?.length || 0);
 
   const cardProps = {
     onManualStatus: handleManualStatus,
@@ -662,7 +668,7 @@ export default function StatusTerapisPage({ active }) {
   };
 
   // Ringkasan per outlet: jumlah terapis sedang ambil tamu vs total terapis di outlet itu
-  const outletSummary = OUTLETS.map((o) => {
+  const outletSummary = viewOutlets.map((o) => {
     const inOutlet = therapists.filter((t) => t.homeOutletId === o.id);
     const busyHere = inOutlet.filter((t) => (t.status || 'free') === 'ambil_tamu').length;
     const freeHere = inOutlet.filter((t) => (t.status || 'free') === 'free').length;
@@ -688,7 +694,7 @@ export default function StatusTerapisPage({ active }) {
       <div className="grid-2" style={{ marginBottom: 12 }}>
         {outletSummary.map(({ outlet, total, busy, free }) => (
           <div key={outlet.id} className="oil-card" style={{ textAlign: 'left', padding: '8px 12px', margin: 0, cursor: 'pointer' }}
-            onClick={() => setOutletFilter(outletFilter === outlet.id ? 'semua' : outlet.id)}>
+            onClick={() => setOutletFilter(outletFilter === outlet.id ? (isKasir ? outlet.id : 'semua') : outlet.id)}>
             <div style={{ fontWeight: 700, fontSize: 13 }}>{outlet.name} <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>({outlet.id})</span></div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
               {total} terapis · <span style={{ color: 'var(--primary)' }}>{busy} ambil tamu</span> · {free} free
@@ -698,10 +704,12 @@ export default function StatusTerapisPage({ active }) {
       </div>
 
       <div className="grid-2" style={{ marginBottom: 16 }}>
-        <button className={outletFilter === 'semua' ? 'active' : ''} onClick={() => setOutletFilter('semua')}>
-          Semua Outlet
-        </button>
-        {OUTLETS.map((o) => (
+        {!isKasir && (
+          <button className={outletFilter === 'semua' ? 'active' : ''} onClick={() => setOutletFilter('semua')}>
+            Semua Outlet
+          </button>
+        )}
+        {viewOutlets.map((o) => (
           <button key={o.id} className={outletFilter === o.id ? 'active' : ''} onClick={() => setOutletFilter(o.id)}>
             {o.name}
           </button>
