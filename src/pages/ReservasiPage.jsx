@@ -65,7 +65,7 @@ export default function ReservasiPage({ outletId, active }) {
     return () => { unsub1(); unsub2(); unsub3(); };
   }, [active, outletId]);
 
-  const filteredTherapists = therapists.filter((t) => t.homeOutletId === outletId && t.name.toLowerCase().includes(therapistSearch.toLowerCase()));
+  const filteredTherapists = therapists.filter((t) => t.name.toLowerCase().includes(therapistSearch.toLowerCase()));
   const upcoming = reservations
     .filter((r) => r.status === 'terjadwal')
     .sort((a, b) => a.scheduledAt - b.scheduledAt);
