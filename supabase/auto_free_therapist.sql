@@ -40,6 +40,9 @@ begin
 
   -- (2) Terapis 'ambil_tamu' yang tidak punya booking 'berjalan' sama sekali
   --     (status nyangkut dari sisa lama) -> paksa bersihkan jadi free.
+  --     KECUALI yang sedang ONCALL (booking status 'selesai' tapi terapis
+  --     diberi blok sementara) — itu dibebaskan oleh kasus (1) begitu
+  --     jam oncall selesai (end_at lewat).
   for r in
     select t.id as tid
     from therapists t
@@ -47,6 +50,12 @@ begin
       and not exists (
         select 1 from bookings b
         where b.therapist_id = t.id and b.status = 'berjalan'
+      )
+      and not exists (
+        select 1 from bookings b
+        where b.therapist_id = t.id
+          and b.booking_source = 'oncall'
+          and b.status <> 'batal'
       )
   loop
     perform clear_therapist_session(r.tid);

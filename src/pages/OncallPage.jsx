@@ -157,15 +157,19 @@ export default function OncallPage({ outletId, active }) {
           {therapistOptions.length === 0 && (
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Belum ada terapis untuk outlet {outletId}.</p>
           )}
-          {therapistOptions.map((t) => (
-            <button
-              key={t.id}
-              className={therapistId === t.id ? 'pos-chip active' : 'pos-chip'}
-              onClick={() => setTherapistId(t.id)}
-            >
-              {t.name}
-            </button>
-          ))}
+          {therapistOptions.map((t) => {
+            const busyT = (t.status || 'free') === 'ambil_tamu';
+            return (
+              <button
+                key={t.id}
+                className={busyT ? 'pos-chip pos-chip-busy' : therapistId === t.id ? 'pos-chip active' : 'pos-chip'}
+                disabled={busyT}
+                onClick={() => setTherapistId(t.id)}
+              >
+                {t.name}{busyT ? ' 🔴 Ambil Tamu' : ''}
+              </button>
+            );
+          })}
         </div>
       </section>
 

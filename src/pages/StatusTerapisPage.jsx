@@ -90,6 +90,7 @@ function buildAndSendTherapistList({ therapists, dailyCommissions }) {
 function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh, onBatalSebagian, onTandaiLunas, onContinue }) {
   const status = t.status || 'free';
   const busy = status === 'ambil_tamu';
+  const isOncall = busy && (t.currentGroupId || '').startsWith('oncall:');
   const multi = busy && bookingIdsOf(t).length > 1;
   const [showDiscount, setShowDiscount] = useState(false);
   const [discountPrice, setDiscountPrice] = useState('');
@@ -160,7 +161,7 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
               background: t.currentPaid ? 'var(--primary-light)' : 'var(--busy-bg)',
               color: t.currentPaid ? 'var(--primary-dark)' : 'var(--busy)'
             }}>
-              {t.currentPaid ? 'Lunas' : 'Belum Bayar'}
+              {t.currentPaid ? (isOncall ? 'ONCALL' : 'Lunas') : 'Belum Bayar'}
             </span>
           )}
         </div>
@@ -223,6 +224,8 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
             </span>
           )}
 
+          {!isOncall && (
+          <>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
             <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none' }} onClick={() => onSelesai(t)}>
               Tandai selesai
@@ -270,6 +273,8 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
               </button>
             </div>
           )}
+          </>
+        )}
         </div>
       )}
 

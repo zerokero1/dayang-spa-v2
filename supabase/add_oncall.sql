@@ -5,8 +5,10 @@
 --    - hotel_commission: komisi yang harus dibayar ke hotel (Rp)
 -- 2. RPC create_oncall_booking: simpan order oncall sebagai booking
 --    (status 'selesai', langsung lunas, komisi hotel tercatat).
---    Booking oncall TIDAK mengubah status terapis (tidak dihitung sesi
---    dalam toko), tapi tetap tampil di laporan omzet/komisi.
+--    Terapis yang dijadwalkan oncall langsung DIBLOK di list
+--    (status ambil_tamu dengan penanda group 'oncall:<id>'), sehingga
+--    tidak bisa menerima tamu lain sampai jam oncall selesai
+--    (auto-unblock oleh auto_free_expired_therapists).
 --
 -- Menu oncall full body massage:
 --   Mambo        : 350k/60mnt, 500k/90mnt  -> komisi hotel 100k
@@ -44,6 +46,10 @@ begin
     raise exception 'Terapis tidak ditemukan';
   end if;
 
+  if exists (select 1 from therapists where id = p_therapist_id and status = 'ambil_tamu') then
+    raise exception 'Terapis sedang sibuk (Ambil Tamu), tidak bisa dijadwalkan oncall';
+  end if;
+
   select round(p_commission_percent/100.0 * p_treatment_price) into v_commission;
   v_start_at := (extract(epoch from now())::bigint * 1000);
   v_end_at := v_start_at + (p_duration_minutes * 60000);
@@ -61,6 +67,23 @@ begin
     v_start_at, v_end_at, now(), p_treatment_price,
     'oncall', p_hotel_commission
   ) returning id into v_booking_id;
+
+  -- Blok terapis sampai jam oncall selesai (group penanda oncall unik,
+  -- supaya tidak ikut digabung sebagai grup tamu biasa).
+  update therapists set
+    status = 'ambil_tamu',
+    current_outlet_id = p_outlet_id,
+    current_booking_ids = coalesce(current_booking_ids, '[]'::jsonb) || jsonb_build_array(v_booking_id::text),
+    current_treatment_names = coalesce(current_treatment_names, '[]'::jsonb) || jsonb_build_array(p_package_name),
+    current_treatment_name = p_package_name,
+    current_booking_id = v_booking_id::text,
+    current_paid = true,
+    current_payment_method = p_payment_method,
+    current_price = p_treatment_price,
+    current_group_id = 'oncall:' || v_booking_id::text,
+    start_at = v_start_at,
+    end_at = v_end_at
+  where id = p_therapist_id;
 
   return v_booking_id;
 end;
