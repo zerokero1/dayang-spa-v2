@@ -2,6 +2,7 @@ import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { OUTLETS } from './lib/constants';
 import { listenAuthState, logout } from './lib/authService';
 import { startAutoFreeTicker, stopAutoFreeTicker } from './lib/autoFreeService';
+import { logOfficeLogin, OFFICE_EMAIL } from './lib/logActivityService';
 import { completeBooking } from './lib/bookingService';
 import LoginPage from './pages/LoginPage';
 import './styles.css';
@@ -23,6 +24,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const KoreksiBookingPage = lazy(() => import('./pages/KoreksiBookingPage'));
 const OvertimePage = lazy(() => import('./pages/OvertimePage'));
 const LaporanPemakaianStokPage = lazy(() => import('./pages/LaporanPemakaianStokPage'));
+const LogAktivitasPage = lazy(() => import('./pages/LogAktivitasPage'));
 
 const PAGES = {
   kasir: { label: 'Kasir', icon: '🧾', Component: KasirPage },
@@ -41,7 +43,8 @@ const PAGES = {
   kelolaTerapis: { label: 'Kelola Terapis', icon: '👥', Component: KelolaTerapisPage, global: true, adminOnly: true },
   koreksiBooking: { label: 'Koreksi Booking', icon: '✏️', Component: KoreksiBookingPage, global: true, officeOnly: true },
   overtime: { label: 'Overtime', icon: '⏱️', Component: OvertimePage, global: true, officeOnly: true },
-  laporanPemakaianStok: { label: 'Laporan Produk', icon: '📉', Component: LaporanPemakaianStokPage, global: true, officeOnly: true }
+  laporanPemakaianStok: { label: 'Laporan Produk', icon: '📉', Component: LaporanPemakaianStokPage, global: true, officeOnly: true },
+  logAktivitas: { label: 'Log Aktivitas Office', icon: '📜', Component: LogAktivitasPage, global: true, officeOnly: true }
 };
 
 // Role yang hanya boleh melihat sebagian halaman (staff order-taking).
@@ -83,6 +86,10 @@ export default function App() {
     if (user) startAutoFreeTicker(30000);
     else stopAutoFreeTicker();
     return () => stopAutoFreeTicker();
+  }, [user]);
+
+  useEffect(() => {
+    if (user && (user.email || '').trim().toLowerCase() === OFFICE_EMAIL) logOfficeLogin();
   }, [user]);
 
   if (authLoading) return <div className="app"><p>Memuat...</p></div>;
@@ -173,7 +180,7 @@ export default function App() {
         <main className="content">
           <Suspense fallback={<div style={{ padding: 24, fontSize: 14, color: 'var(--text-secondary)' }}>Memuat…</div>}>
             {currentPage && currentPage.Component && (
-              <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} />
+              <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} />
             )}
           </Suspense>
         </main>
