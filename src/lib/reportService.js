@@ -26,6 +26,8 @@ function mapBooking(row) {
     originalPrice: row.original_price != null ? Number(row.original_price) : null,
     discountPct: row.discount_pct != null ? Number(row.discount_pct) : null,
     discountReason: row.discount_reason,
+    bookingSource: row.booking_source,
+    hotelCommission: row.hotel_commission != null ? Number(row.hotel_commission) : 0,
     createdAt: row.created_at,
     completedAt: row.completed_at,
     cancelledAt: row.cancelled_at
@@ -61,7 +63,7 @@ async function getAllDailyBookings(dateStr) {
   const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
   const { data, error } = await supabase
     .from('bookings')
-    .select('outlet_id, therapist_id, therapist_name, treatment_price, commission_amount, status, paid, payment_method, original_price')
+    .select('outlet_id, therapist_id, therapist_name, treatment_price, commission_amount, status, paid, payment_method, original_price, booking_source, hotel_commission')
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString());
   if (error) throw error;
@@ -117,6 +119,7 @@ export function summarizeDailyBookings(bookings) {
   const summary = {
     totalTreatment: counted.length,
     totalCommission: 0,
+    totalHotelCommission: 0,
     totalRevenue: 0,
     totalDiscount: 0,
     totalBatal: bookings.length - counted.length,
@@ -129,6 +132,7 @@ export function summarizeDailyBookings(bookings) {
 
   counted.forEach((b) => {
     summary.totalCommission += b.commissionAmount || 0;
+    summary.totalHotelCommission += b.bookingSource === 'oncall' ? (b.hotelCommission || 0) : 0;
     summary.totalRevenue += b.treatmentPrice || 0;
 
     if (b.originalPrice != null && Number(b.originalPrice) > Number(b.treatmentPrice)) {
@@ -186,6 +190,7 @@ export async function getCombinedDailyReport(startDate, endDate) {
   const perOutlet = {};
   let grandTotalTreatment = 0;
   let grandTotalCommission = 0;
+  let grandTotalHotelCommission = 0;
   let grandTotalRevenue = 0;
   let grandTotalDiscount = 0;
   const therapistCommissions = {};
@@ -197,6 +202,7 @@ export async function getCombinedDailyReport(startDate, endDate) {
     perOutlet[outlet.id] = { outletName: outlet.name, ...summary };
     grandTotalTreatment += summary.totalTreatment;
     grandTotalCommission += summary.totalCommission;
+    grandTotalHotelCommission += summary.totalHotelCommission;
     grandTotalRevenue += summary.totalRevenue;
     grandTotalDiscount += summary.totalDiscount;
 
@@ -215,6 +221,7 @@ export async function getCombinedDailyReport(startDate, endDate) {
     perOutlet,
     grandTotalTreatment,
     grandTotalCommission,
+    grandTotalHotelCommission,
     grandTotalRevenue,
     grandTotalDiscount,
     therapistCommissions

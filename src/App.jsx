@@ -25,9 +25,11 @@ const KoreksiBookingPage = lazy(() => import('./pages/KoreksiBookingPage'));
 const OvertimePage = lazy(() => import('./pages/OvertimePage'));
 const LaporanPemakaianStokPage = lazy(() => import('./pages/LaporanPemakaianStokPage'));
 const LogAktivitasPage = lazy(() => import('./pages/LogAktivitasPage'));
+const OncallPage = lazy(() => import('./pages/OncallPage'));
 
 const PAGES = {
   kasir: { label: 'Kasir', icon: '🧾', Component: KasirPage },
+  oncall: { label: 'Oncall', icon: '🏨', Component: OncallPage },
   ambilOrder: { label: 'Ambil Order', icon: '🛍️', Component: AmbilOrderPage, global: true, roles: ['order_taker'] },
   ringkasan: { label: 'Ringkasan Transaksi', icon: '📊', Component: RingkasanTransaksiPage, global: true },
   dashboard: { label: 'Dashboard', icon: '📈', Component: DashboardPage, global: true },

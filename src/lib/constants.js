@@ -42,6 +42,38 @@ export function treatmentUsesOil(t) {
 export const PAYMENT_METHODS = { CASH: 'cash', CARDLESS: 'cardless' };
 export const PAYMENT_METHOD_LABEL = { cash: 'Cash', cardless: 'Cardless' };
 
+export const ONCALL_PACKAGES = [
+  {
+    id: 'MAMBO',
+    name: 'Mambo',
+    hotelCommission: 100000,
+    durations: [
+      { minutes: 60, price: 350000 },
+      { minutes: 90, price: 500000 }
+    ]
+  },
+  {
+    id: 'NIYAMA',
+    name: 'Niyama & Racotage',
+    hotelCommission: 50000,
+    durations: [
+      { minutes: 60, price: 300000 },
+      { minutes: 90, price: 450000 }
+    ]
+  },
+  {
+    id: 'LAIN',
+    name: 'Lainnya (harga baru)',
+    hotelCommission: 50000,
+    durations: [
+      { minutes: 60, price: 400000 },
+      { minutes: 90, price: 600000 }
+    ]
+  }
+];
+
+export const DEFAULT_ONCALL_COMMISSION_PCT = 30;
+
 export const SHIFTS = { SP: 'sp', MALAM: 'malam', ST: 'st' };
 export const SHIFT_LABEL = { sp: 'Shift SP (Split)', malam: 'Shift Malam', st: 'Shift ST (Short Time)' };
 export const SHIFT_SHORT_CODE = { sp: 'Sp', malam: '15', st: 'St' };

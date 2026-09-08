@@ -141,11 +141,12 @@ export default function RingkasanTransaksiPage({ active }) {
     const noBill = !b.paid ? b.treatmentPrice : 0;
     acc.charge += charge; acc.card += card; acc.noBill += noBill;
     acc.revenue += b.treatmentPrice || 0; acc.komisi += b.commissionAmount || 0;
+    acc.hotelKomisi += b.hotelCommission || 0;
     if (b.originalPrice != null && Number(b.originalPrice) > Number(b.treatmentPrice)) {
       acc.discount += Number(b.originalPrice) - Number(b.treatmentPrice);
     }
     return acc;
-  }, { charge: 0, card: 0, noBill: 0, revenue: 0, komisi: 0, discount: 0 });
+  }, { charge: 0, card: 0, noBill: 0, revenue: 0, komisi: 0, discount: 0, hotelKomisi: 0 });
 
   return (
     <div className="kasir-page">
@@ -212,6 +213,7 @@ export default function RingkasanTransaksiPage({ active }) {
                 <div>Total Revenue: {rp(b.treatmentPrice)}</div>
                 <div>Komisi ({b.commissionPercent}%): {rp(b.commissionAmount)}</div>
                 <div>Ket: {b.status === 'batal_sebagian' ? 'Potongan harga' : b.paid ? 'Lunas' : 'Belum bayar'}</div>
+                {b.hotelCommission > 0 && <div>Komisi Hotel: {rp(b.hotelCommission)}</div>}
               </div>
             </div>
           )}
@@ -228,6 +230,7 @@ export default function RingkasanTransaksiPage({ active }) {
             <div>Revenue: {rp(totals.revenue)}</div>
             <div>Komisi: {rp(totals.komisi)}</div>
             {totals.discount > 0 && <div style={{ color: 'var(--busy)' }}>Total Diskon: {rp(totals.discount)}</div>}
+            {totals.hotelKomisi > 0 && <div style={{ color: 'var(--busy)' }}>Komisi Hotel: {rp(totals.hotelKomisi)}</div>}
           </div>
         </div>
       )}

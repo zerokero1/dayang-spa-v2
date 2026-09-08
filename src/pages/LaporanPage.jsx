@@ -70,37 +70,37 @@ export default function LaporanPage({ outletId }) {
   }, []);
 
   async function handleDownloadOutlet() {
-    const headers = ['Terapis', 'Treatment', 'Harga', 'Komisi %', 'Komisi Rp', 'Metode Bayar', 'Status Bayar', 'Pelanggan'];
+    const headers = ['Terapis', 'Treatment', 'Harga', 'Komisi %', 'Komisi Rp', 'Komisi Hotel', 'Metode Bayar', 'Status Bayar', 'Pelanggan'];
     const rows = rawBookings.map((b) => [
       b.therapistName, b.treatmentName, b.treatmentPrice,
-      b.commissionPercent, b.commissionAmount,
+      b.commissionPercent, b.commissionAmount, b.hotelCommission,
       b.paymentMethod === 'cardless' ? 'Cardless' : 'Cash',
       b.paid ? 'Lunas' : 'Belum Bayar',
       b.customerName || '-'
     ]);
-    rows.push(['', 'TOTAL', outletSummary.totalRevenue, '', outletSummary.totalCommission, '', '', '']);
+    rows.push(['', 'TOTAL', outletSummary.totalRevenue, '', outletSummary.totalCommission, outletSummary.totalHotelCommission, '', '', '']);
     await exportExcelReport({
       filename: `Laporan-Keuangan-${outletId}-${startDate}_${endDate}`,
       title: 'Laporan Keuangan — Dayang Spa',
       subtitle: `Outlet ${outletId} · ${rangeLabel}`,
       headers, rows,
-      currencyColumns: [2, 4],
+      currencyColumns: [2, 4, 5],
       totalRowIndex: rows.length - 1
     });
   }
 
   async function handleDownloadCombined() {
-    const headers = ['Outlet', 'Jumlah Treatment', 'Total Omzet', 'Total Komisi'];
+    const headers = ['Outlet', 'Jumlah Treatment', 'Total Omzet', 'Total Komisi', 'Komisi Hotel'];
     const rows = Object.values(combined.perOutlet).map((o) => [
-      o.outletName, o.totalTreatment, o.totalRevenue, o.totalCommission
+      o.outletName, o.totalTreatment, o.totalRevenue, o.totalCommission, o.totalHotelCommission
     ]);
-    rows.push(['GRAND TOTAL', combined.grandTotalTreatment, combined.grandTotalRevenue, combined.grandTotalCommission]);
+    rows.push(['GRAND TOTAL', combined.grandTotalTreatment, combined.grandTotalRevenue, combined.grandTotalCommission, combined.grandTotalHotelCommission]);
     await exportExcelReport({
       filename: `Laporan-Keuangan-Gabungan-${startDate}_${endDate}`,
       title: 'Laporan Keuangan Gabungan — Dayang Spa',
       subtitle: `Semua Outlet · ${rangeLabel}`,
       headers, rows,
-      currencyColumns: [2, 3],
+      currencyColumns: [2, 3, 4],
       totalRowIndex: rows.length - 1
     });
   }
@@ -172,6 +172,9 @@ export default function LaporanPage({ outletId }) {
           )}
           <p>Total omzet: {rp(outletSummary.totalRevenue)}</p>
           <p>Total komisi: {rp(outletSummary.totalCommission)}</p>
+          {outletSummary.totalHotelCommission > 0 && (
+            <p>Total komisi hotel (oncall): {rp(outletSummary.totalHotelCommission)}</p>
+          )}
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '8px 0' }}>
             <div>Cash: {rp(outletSummary.cashRevenue)}</div>
             <div>Cardless: {rp(outletSummary.cardlessRevenue)}</div>
@@ -199,6 +202,9 @@ export default function LaporanPage({ outletId }) {
           <p>Total treatment: {combined.grandTotalTreatment}</p>
           <p>Total omzet: {rp(combined.grandTotalRevenue)}</p>
           <p>Total komisi: {rp(combined.grandTotalCommission)}</p>
+          {combined.grandTotalHotelCommission > 0 && (
+            <p>Total komisi hotel (oncall): {rp(combined.grandTotalHotelCommission)}</p>
+          )}
           <h4>Per outlet</h4>
           {Object.values(combined.perOutlet).map((o, i) => (
             <p key={i}>
