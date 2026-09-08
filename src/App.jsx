@@ -4,6 +4,7 @@ import { listenAuthState, logout } from './lib/authService';
 import { startAutoFreeTicker, stopAutoFreeTicker } from './lib/autoFreeService';
 import { logOfficeLogin, OFFICE_EMAIL } from './lib/logActivityService';
 import { completeBooking } from './lib/bookingService';
+import ReservationReminder from './components/ReservationReminder';
 import LoginPage from './pages/LoginPage';
 import './styles.css';
 
@@ -187,6 +188,8 @@ export default function App() {
           </Suspense>
         </main>
       </div>
+
+      <ReservationReminder outletId={activeOutlet} onOpen={() => setActivePage('reservasi')} />
     </div>
   );
 }

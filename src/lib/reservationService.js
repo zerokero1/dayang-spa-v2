@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { createBookingCore } from './bookingService';
 
 export async function createReservation({
-  outletId, therapistId, therapistName, treatmentId, treatmentName,
+  outletId, therapistId, therapistName, category, treatmentId, treatmentName,
   treatmentPrice, commissionPercent, durationMinutes, oilType, oilSize,
   customerName, customerPhone, scheduledAt, usesOil = true
 }) {
@@ -10,11 +10,12 @@ export async function createReservation({
     outlet_id: outletId,
     therapist_id: therapistId,
     therapist_name: therapistName,
-    treatment_id: treatmentId,
-    treatment_name: treatmentName,
-    treatment_price: treatmentPrice,
-    commission_percent: commissionPercent,
-    duration_minutes: durationMinutes,
+    category: category || null,
+    treatment_id: treatmentId || null,
+    treatment_name: treatmentName || null,
+    treatment_price: treatmentPrice || null,
+    commission_percent: commissionPercent || null,
+    duration_minutes: durationMinutes || null,
     uses_oil: usesOil,
     oil_type: usesOil ? oilType : null,
     oil_size: usesOil ? oilSize : null,
@@ -32,6 +33,7 @@ function mapReservation(row) {
     outletId: row.outlet_id,
     therapistId: row.therapist_id,
     therapistName: row.therapist_name,
+    category: row.category,
     treatmentId: row.treatment_id,
     treatmentName: row.treatment_name,
     treatmentPrice: row.treatment_price != null ? Number(row.treatment_price) : 0,
@@ -69,19 +71,19 @@ export function listenReservations(outletId, callback) {
   return () => supabase.removeChannel(channel);
 }
 
-export async function checkInReservation(outletId, reservation) {
+export async function checkInReservation({ outletId, reservation, treatment, oilType, oilSize, usesOil = true }) {
   await createBookingCore({
     outletId,
     therapistId: reservation.therapistId,
     therapistName: reservation.therapistName,
-    treatmentId: reservation.treatmentId,
-    treatmentName: reservation.treatmentName,
-    treatmentPrice: reservation.treatmentPrice,
-    commissionPercent: reservation.commissionPercent,
-    durationMinutes: reservation.durationMinutes,
-    usesOil: reservation.usesOil !== false,
-    oilType: reservation.oilType,
-    oilSize: reservation.oilSize,
+    treatmentId: treatment.id,
+    treatmentName: treatment.name,
+    treatmentPrice: treatment.price,
+    commissionPercent: treatment.commissionPercent,
+    durationMinutes: treatment.durationMinutes,
+    usesOil,
+    oilType: usesOil ? oilType : null,
+    oilSize: usesOil ? oilSize : null,
     customerName: reservation.customerName
   });
   const { error } = await supabase

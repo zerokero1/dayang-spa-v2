@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
+import { OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createReservation, listenReservations, checkInReservation, cancelReservation } from '../lib/reservationService';
@@ -13,7 +13,7 @@ function toWhatsAppReminder(r) {
     `Reservasi baru\n` +
     `Pelanggan: ${r.customerName || '-'}\n` +
     `Terapis: ${r.therapistName}\n` +
-    `Treatment: ${r.treatmentName}\n` +
+    `Kategori: ${r.category || r.treatmentName || '-'}\n` +
     `Jadwal: ${tanggal}, ${jam}`;
   openWhatsAppMessage(message);
 }
@@ -27,15 +27,21 @@ function formatSchedule(ms) {
   return `${tanggal}, ${jam}`;
 }
 
+function countdownText(ms) {
+  const diff = ms - Date.now();
+  if (diff <= 0) return 'Waktunya booking';
+  const totalMin = Math.ceil(diff / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}j ${m}m lagi` : `${m}m lagi`;
+}
+
 export default function ReservasiPage({ outletId, active }) {
   const [therapists, setTherapists] = useState([]);
   const [treatments, setTreatments] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [category, setCategory] = useState(TREATMENT_CATEGORIES[0]);
   const [selTherapist, setSelTherapist] = useState(null);
-  const [selTreatment, setSelTreatment] = useState(null);
-  const [selOil, setSelOil] = useState(null);
-  const [selSize, setSelSize] = useState(null);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [scheduleDate, setScheduleDate] = useState('');
@@ -43,7 +49,13 @@ export default function ReservasiPage({ outletId, active }) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [therapistSearch, setTherapistSearch] = useState('');
-  const [treatmentSearch, setTreatmentSearch] = useState('');
+
+  const [processTarget, setProcessTarget] = useState(null); // reservasi yang sedang diisi
+  const [pCategory, setPCategory] = useState(TREATMENT_CATEGORIES[0]);
+  const [pTreatment, setPTreatment] = useState(null);
+  const [pOil, setPOil] = useState(null);
+  const [pSize, setPSize] = useState(null);
+  const [pSaving, setPSaving] = useState(false);
 
   useEffect(() => {
     if (!active) return;
@@ -53,14 +65,12 @@ export default function ReservasiPage({ outletId, active }) {
     return () => { unsub1(); unsub2(); unsub3(); };
   }, [active, outletId]);
 
-  const usesOil = (t) => treatmentUsesOil(t);
-  const lineNeedsOil = usesOil(selTreatment);
-  const canSave = selTherapist && selTreatment && (!lineNeedsOil || (selOil && selSize)) && scheduleDate;
-  const treatmentsInCategory = treatments
-    .filter((t) => t.category === category)
-    .filter((t) => t.name.toLowerCase().includes(treatmentSearch.toLowerCase()));
-  const filteredTherapists = therapists.filter((t) => t.name.toLowerCase().includes(therapistSearch.toLowerCase()));
-  const upcoming = reservations.filter((r) => r.status === 'terjadwal');
+  const filteredTherapists = therapists.filter((t) => t.homeOutletId === outletId && t.name.toLowerCase().includes(therapistSearch.toLowerCase()));
+  const upcoming = reservations
+    .filter((r) => r.status === 'terjadwal')
+    .sort((a, b) => a.scheduledAt - b.scheduledAt);
+
+  const canSave = category && scheduleDate && selTherapist;
 
   async function handleSave() {
     if (!canSave) return;
@@ -71,21 +81,13 @@ export default function ReservasiPage({ outletId, active }) {
         outletId,
         therapistId: selTherapist.id,
         therapistName: selTherapist.name,
-        treatmentId: selTreatment.id,
-        treatmentName: selTreatment.name,
-        treatmentPrice: selTreatment.price,
-        commissionPercent: selTreatment.commissionPercent,
-        durationMinutes: selTreatment.durationMinutes,
-        usesOil: lineNeedsOil,
-        oilType: lineNeedsOil ? selOil : null,
-        oilSize: lineNeedsOil ? selSize : null,
+        category,
         customerName,
         customerPhone,
         scheduledAt: new Date(scheduleDate).getTime()
       });
-      setMessage('Reservasi tersimpan.');
-      setSelTherapist(null); setSelTreatment(null); setSelOil(null); setSelSize(null);
-      setCustomerName(''); setCustomerPhone(''); setScheduleDate('');
+      setMessage('Reservasi tersimpan (kategori ' + category + '). Saat jamnya mendekat, isi treatment via "Isi Treatment".');
+      setSelTherapist(null); setCustomerName(''); setCustomerPhone(''); setScheduleDate('');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -93,18 +95,44 @@ export default function ReservasiPage({ outletId, active }) {
     }
   }
 
-  async function handleCheckIn(r) {
+  function openProcess(r) {
+    setProcessTarget(r);
+    setPCategory(r.category || TREATMENT_CATEGORIES[0]);
+    setPTreatment(null); setPOil(null); setPSize(null);
+  }
+
+  const pNeedsOil = treatmentUsesOil(pTreatment);
+  const pCanSubmit = pTreatment && (!pNeedsOil || (pOil && pSize));
+
+  async function handleProcessSave() {
+    if (!pCanSubmit) return;
+    setPSaving(true);
+    setError('');
     try {
-      await checkInReservation(outletId, r);
-      setMessage(`${r.customerName || 'Tamu'} check-in, treatment dimulai.`);
+      await checkInReservation({
+        outletId,
+        reservation: processTarget,
+        treatment: pTreatment,
+        oilType: pOil,
+        oilSize: pSize,
+        usesOil: pNeedsOil
+      });
+      setMessage(`Booking ${processTarget.customerName || 'tamu'} dibuat — ${pTreatment.name}.`);
+      setProcessTarget(null);
     } catch (e) {
-      setMessage('Gagal check-in: ' + e.message);
+      setError('Gagal membuat booking: ' + e.message);
+    } finally {
+      setPSaving(false);
     }
   }
 
   async function handleCancel(r) {
     if (!confirm(`Batalkan reservasi ${r.customerName || 'tamu ini'}?`)) return;
-    await cancelReservation(outletId, r.id);
+    try {
+      await cancelReservation(outletId, r.id);
+    } catch (e) {
+      setError(e.message);
+    }
   }
 
   return (
@@ -113,68 +141,44 @@ export default function ReservasiPage({ outletId, active }) {
 
       {upcoming.length > 0 && (
         <section>
-          <p>Jadwal Mendatang ({upcoming.length})</p>
-          {upcoming.map((r) => (
-            <div key={r.id} className="oil-card" style={{ marginBottom: 8, textAlign: 'left' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <strong style={{ fontSize: 13 }}>{formatSchedule(r.scheduledAt)}</strong>
+          <p>Booking Mendatang ({upcoming.length})</p>
+          {upcoming.map((r) => {
+            const mins = Math.ceil((r.scheduledAt - Date.now()) / 60000);
+            const close = r.scheduledAt > Date.now() && mins <= 15;
+            return (
+              <div key={r.id} className="oil-card" style={{ marginBottom: 8, textAlign: 'left', borderLeft: close ? '4px solid var(--busy)' : undefined }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <strong style={{ fontSize: 13 }}>{formatSchedule(r.scheduledAt)}</strong>
+                  {close && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--busy)' }}>{mins} menit lagi!</span>}
+                </div>
+                <div style={{ fontSize: 13, marginTop: 4 }}>
+                  {r.therapistName} — <strong>{r.category || r.treatmentName || 'Kategori belum dipilih'}</strong>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  {r.customerName || 'Tanpa nama'}{r.customerPhone ? ` · ${r.customerPhone}` : ''} · {countdownText(r.scheduledAt)}
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                  <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => openProcess(r)}>
+                    Isi Treatment
+                  </button>
+                  <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => toWhatsAppReminder(r)}>
+                    Kirim pengingat WA
+                  </button>
+                  <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }} onClick={() => handleCancel(r)}>
+                    Batal
+                  </button>
+                </div>
               </div>
-              <div style={{ fontSize: 13, marginTop: 4 }}>
-                {r.therapistName} — {r.treatmentName}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                {r.customerName || 'Tanpa nama'}{r.customerPhone ? ` · ${r.customerPhone}` : ''}
-              </div>
-              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => handleCheckIn(r)}>
-                  Check-in
-                </button>
-                <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => toWhatsAppReminder(r)}>
-                  Kirim pengingat WA
-                </button>
-                <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }} onClick={() => handleCancel(r)}>
-                  Batal
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </section>
       )}
 
       <section>
-        <p>Buat reservasi baru</p>
-        <input
-          type="datetime-local"
-          value={scheduleDate}
-          onChange={(e) => setScheduleDate(e.target.value)}
-        />
-      </section>
-
-      <section>
-        <p>Pilih terapis</p>
-        <input placeholder="Cari nama terapis..." value={therapistSearch} onChange={(e) => setTherapistSearch(e.target.value)} style={{ marginBottom: 10 }} />
-        <div className="grid-2">
-          {filteredTherapists.map((t) => (
-            <button
-              key={t.id}
-              className={selTherapist?.id === t.id ? 'active' : ''}
-              onClick={() => setSelTherapist(t)}
-            >
-              {t.name}{t.homeOutletId ? ` (${t.homeOutletId})` : ''}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <p>Pilih kategori treatment</p>
+        <p>1. Pilih kategori treatment yang ingin dibook</p>
         <div className="grid-2">
           {TREATMENT_CATEGORIES.map((c) => (
-            <button
-              key={c}
-              className={category === c ? 'active' : ''}
-              onClick={() => { setCategory(c); setSelTreatment(null); }}
-            >
+            <button key={c} className={category === c ? 'active' : ''} onClick={() => setCategory(c)}>
               {c}
             </button>
           ))}
@@ -182,55 +186,25 @@ export default function ReservasiPage({ outletId, active }) {
       </section>
 
       <section>
-        <p>Pilih treatment</p>
-        <input placeholder="Cari treatment..." value={treatmentSearch} onChange={(e) => setTreatmentSearch(e.target.value)} style={{ marginBottom: 10 }} />
+        <p>2. Pilih jam yang diinginkan tamu</p>
+        <input type="datetime-local" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} />
+      </section>
+
+      <section>
+        <p>3. Pilih terapis</p>
+        <input placeholder="Cari nama terapis..." value={therapistSearch} onChange={(e) => setTherapistSearch(e.target.value)} style={{ marginBottom: 10 }} />
         <div className="grid-2">
-          {treatmentsInCategory.map((t) => (
-            <button
-              key={t.id}
-              className={selTreatment?.id === t.id ? 'active' : ''}
-              onClick={() => setSelTreatment(t)}
-            >
-              {t.name} - Rp{t.price?.toLocaleString('id-ID')}
+          {filteredTherapists.map((t) => (
+            <button key={t.id} className={selTherapist?.id === t.id ? 'active' : ''} onClick={() => setSelTherapist(t)}>
+              {t.name}
+              {(t.status || 'free') === 'ambil_tamu' && <span style={{ fontSize: 11, color: 'var(--busy)' }}> 🔴</span>}
             </button>
           ))}
         </div>
       </section>
 
-      {lineNeedsOil && (
-      <section>
-        <p>Pilih minyak & ukuran</p>
-        <div className="grid-2">
-          {oilChoicesFor(selTreatment).map((oil) => (
-            <div key={oil} className="oil-card">
-              <div>{oil}</div>
-              <div className="row">
-                {OIL_SIZES.map((size) => (
-                  <button
-                    key={size}
-                    className={selOil === oil && selSize === size ? 'active' : ''}
-                    onClick={() => { setSelOil(oil); setSelSize(size); }}
-                  >
-                    {size}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-      )}
-
-      <input
-        placeholder="Nama pelanggan"
-        value={customerName}
-        onChange={(e) => setCustomerName(e.target.value)}
-      />
-      <input
-        placeholder="No. HP pelanggan (opsional)"
-        value={customerPhone}
-        onChange={(e) => setCustomerPhone(e.target.value)}
-      />
+      <input placeholder="Nama pelanggan" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+      <input placeholder="No. HP pelanggan (opsional)" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
 
       {error && <p className="error">{error}</p>}
       {message && <p style={{ fontSize: 13 }}>{message}</p>}
@@ -238,6 +212,70 @@ export default function ReservasiPage({ outletId, active }) {
       <button disabled={!canSave || saving} onClick={handleSave}>
         {saving ? 'Menyimpan...' : 'Simpan reservasi'}
       </button>
+
+      {processTarget && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
+          <div className="oil-card" style={{ maxWidth: 420, width: '100%', maxHeight: '88vh', overflowY: 'auto', textAlign: 'left' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <strong style={{ fontSize: 14 }}>Isi Treatment — {processTarget.customerName || 'Tamu'}</strong>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                  {processTarget.therapistName} · {formatSchedule(processTarget.scheduledAt)}
+                </div>
+              </div>
+              <button style={{ width: 'auto', padding: '4px 10px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff' }} onClick={() => setProcessTarget(null)}>✕</button>
+            </div>
+
+            <p style={{ marginBottom: 6 }}>Kategori</p>
+            <div className="grid-2">
+              {TREATMENT_CATEGORIES.map((c) => (
+                <button key={c} className={pCategory === c ? 'active' : ''} onClick={() => { setPCategory(c); setPTreatment(null); }}>
+                  {c}
+                </button>
+              ))}
+            </div>
+
+            {pCategory && (
+              <>
+                <p style={{ marginBottom: 6 }}>Treatment</p>
+                <div className="grid-2">
+                  {treatments.filter((t) => t.category === pCategory).map((t) => (
+                    <button key={t.id} className={pTreatment?.id === t.id ? 'active' : ''} onClick={() => { setPTreatment(t); setPOil(null); setPSize(null); }}>
+                      {t.name} - Rp{t.price?.toLocaleString('id-ID')}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {pNeedsOil && (
+              <>
+                <p style={{ marginBottom: 6 }}>Pilih minyak & ukuran</p>
+                <div className="grid-2">
+                  {oilChoicesFor(pTreatment).map((oil) => (
+                    <div key={oil} className="oil-card" style={{ margin: 0 }}>
+                      <div>{oil}</div>
+                      <div className="row">
+                        {OIL_SIZES.map((size) => (
+                          <button key={size} className={pOil === oil && pSize === size ? 'active' : ''} onClick={() => { setPOil(oil); setPSize(size); }}>
+                            {size}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button disabled={!pCanSubmit || pSaving} onClick={handleProcessSave} style={{ flex: 1 }}>
+                {pSaving ? 'Membuat booking...' : 'Buat Booking & Selesai Reservasi'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
