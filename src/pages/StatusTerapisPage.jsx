@@ -398,7 +398,7 @@ export default function StatusTerapisPage({ active }) {
   const [cOil, setCOil] = useState(null);
   const [cSize, setCSize] = useState(null);
   const [cPaid, setCPaid] = useState(false);
-  const [cMethod, setCMethod] = useState('cash');
+  const [cMethod, setCMethod] = useState('');
   const [cSaving, setCSaving] = useState(false);
   const [printLines, setPrintLines] = useState([]);
   const [printOutletId, setPrintOutletId] = useState(null);
@@ -539,11 +539,15 @@ export default function StatusTerapisPage({ active }) {
     setCOil(null);
     setCSize(null);
     setCPaid(false);
-    setCMethod('cash');
+    setCMethod('');
   }
 
   async function handleSubmitContinue() {
     if (!continueTarget || !cTreatment) return;
+    if (cPaid && !cMethod) {
+      setMessage('Pilih metode pembayaran (Cash/Cardless) terlebih dahulu.');
+      return;
+    }
     setCSaving(true);
     try {
       const usesOilFlag = treatmentUsesOil(cTreatment);
@@ -866,6 +870,9 @@ export default function StatusTerapisPage({ active }) {
                     </button>
                   ))}
                 </div>
+              )}
+              {cPaid && !cMethod && (
+                <p style={{ fontSize: 12, color: 'var(--danger)', margin: '6px 0 0' }}>Wajib pilih metode pembayaran.</p>
               )}
             </div>
 

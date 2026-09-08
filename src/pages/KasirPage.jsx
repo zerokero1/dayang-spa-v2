@@ -23,7 +23,7 @@ export default function KasirPage({ outletId, active }) {
   const [customerName, setCustomerName] = useState('');
   const [cart, setCart] = useState([]);
   const [markPaidNow, setMarkPaidNow] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS.CASH);
+  const [paymentMethod, setPaymentMethod] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -134,6 +134,11 @@ export default function KasirPage({ outletId, active }) {
     setSaving(true);
     setError('');
     try {
+      if (markPaidNow && !paymentMethod) {
+        setError('Pilih metode pembayaran (Cash/Cardless) terlebih dahulu.');
+        setSaving(false);
+        return;
+      }
       const items = cart.map((line) => {
         const discounted = discountedPrice(line);
         const useOil = treatmentUsesOil(line.treatment) && !line.noOil;
@@ -372,6 +377,9 @@ export default function KasirPage({ outletId, active }) {
         <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: -4, marginBottom: 8 }}>
           Kalau belum dicentang, bisa ditandai lunas nanti (sebelum/sesudah treatment) di tab Status Terapis.
         </p>
+        {markPaidNow && !paymentMethod && (
+          <p style={{ fontSize: 12, color: 'var(--danger)' }}>Wajib pilih metode pembayaran di atas.</p>
+        )}
 
         <div className="pos-cart-footer">
           <div className="pos-cart-total">
