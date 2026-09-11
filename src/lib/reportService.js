@@ -253,3 +253,96 @@ export async function getCommissionStaffReport(startDate, endDate) {
     }))
     .sort((a, b) => b.commissionTotal - a.commissionTotal);
 }
+
+// Ukuran botol: Kecil = 10ml, Besar = 30ml (dipakai laporan produksi).
+export const OIL_BOTTLE_ML = { Kecil: 10, Besar: 30 };
+
+// Ambil semua booking non-batal dalam rentang tanggal (semua outlet),
+// cukup untuk laporan produksi: nama treatment + pemakaian minyak per hari.
+export async function getProductionBookings(startDate, endDate) {
+  const [y0, m0, d0] = startDate.split('-').map(Number);
+  const [y1, m1, d1] = endDate.split('-').map(Number);
+  // 00:00 WIB = 17:00 UTC tanggal yang sama (WIB = UTC+7).
+  const startUtc = new Date(Date.UTC(y0, m0 - 1, d0, 17, 0, 0)).toISOString();
+  const endUtc = new Date(Date.UTC(y1, m1 - 1, d1 + 1, 16, 59, 59)).toISOString();
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('outlet_id, treatment_name, oil_type, oil_size, uses_oil, status, created_at')
+    .gte('created_at', startUtc)
+    .lte('created_at', endUtc);
+  if (error) throw error;
+
+  return (data || [])
+    .filter((b) => b.status !== 'batal')
+    .map((b) => ({
+      outletId: b.outlet_id,
+      treatmentName: b.treatment_name || '-',
+      oilType: b.uses_oil ? b.oil_type || null : null,
+      oilSize: b.uses_oil ? b.oil_size || null : null,
+      date: wibDateStr(b.created_at)
+    }));
+}
+
+// Tanggal LOKAL WIB dari timestamp DB, tak bergantung zona waktu perangkat.
+function wibDateStr(iso) {
+  const wib = new Date(new Date(iso).getTime() + 7 * 3600000);
+  const m = String(wib.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(wib.getUTCDate()).padStart(2, '0');
+  return `${wib.getUTCFullYear()}-${m}-${d}`;
+}
+
+// Agregasi laporan produksi: jumlah treatment & pemakaian minyak (ml)
+// per jenis, per tanggal, per outlet — sekaligus total gabungan.
+export function buildProductionReport(rows, outletIds) {
+  const byTreatment = {};
+  const byOil = {};
+  const byDateTreatment = {};
+  const byDateOil = {};
+
+  const bump = (map, key, outletId, amount) => {
+    if (!map[key]) map[key] = {};
+    map[key][outletId] = (map[key][outletId] || 0) + amount;
+  };
+
+  rows.forEach((b) => {
+    bump(byTreatment, b.treatmentName, b.outletId, 1);
+    bump(byDateTreatment, b.date, b.outletId, 1);
+
+    if (b.oilType) {
+      const key = b.oilSize ? `${b.oilType} (${b.oilSize})` : b.oilType;
+      const ml = b.oilSize ? (OIL_BOTTLE_ML[b.oilSize] || 0) : 0;
+      bump(byOil, key, b.outletId, ml);
+      bump(byDateOil, b.date, b.outletId, ml);
+    }
+  });
+
+  const rowsOf = (map, sortKey) =>
+    Object.entries(map)
+      .map(([label, perOutlet]) => ({
+        label,
+        perOutlet,
+        total: outletIds.reduce((s, oid) => s + (perOutlet[oid] || 0), 0)
+      }))
+      .sort((a, b) => (sortKey === 'ml' ? b.total - a.total : b.total - a.total));
+
+  const dates = Object.keys(byDateTreatment).sort();
+
+  return {
+    byTreatment: rowsOf(byTreatment),
+    byOil: rowsOf(byOil),
+    dateRows: dates.map((date) => ({
+      date,
+      treatmentTotal: outletIds.reduce((s, oid) => s + (byDateTreatment[date][oid] || 0), 0),
+      oilTotal: outletIds.reduce((s, oid) => s + (byDateOil[date][oid] || 0), 0),
+      treatmentPerOutlet: byDateTreatment[date] || {},
+      oilPerOutlet: byDateOil[date] || {}
+    })),
+    totalTreatment: rows.length,
+    totalOilMl: outletIds.reduce((s, oid) => {
+      let sum = 0;
+      for (const o of Object.values(byOil)) sum += o[oid] || 0;
+      return s + sum;
+    }, 0)
+  };
+}
