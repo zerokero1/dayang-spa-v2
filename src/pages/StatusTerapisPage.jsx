@@ -441,6 +441,7 @@ export default function StatusTerapisPage({ active, profile }) {
   const [message, setMessage] = useState('');
   const [outletFilter, setOutletFilter] = useState(isKasir ? (ownOutlet || 'semua') : 'semua');
   const [unpaidList, setUnpaidList] = useState([]);
+  const [unpaidError, setUnpaidError] = useState('');
 
   const [treatments, setTreatments] = useState([]);
   const [continueTarget, setContinueTarget] = useState(null);
@@ -476,7 +477,16 @@ export default function StatusTerapisPage({ active, profile }) {
       .in('status', ['berjalan', 'selesai', 'lunas'])
       .order('start_at', { ascending: false })
       .limit(200)
-      .then(({ data, error }) => { if (!error) setUnpaidList(data || []); });
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('loadUnpaid error:', error);
+          setUnpaidError('Gagal memuat daftar belum bayar: ' + (error.message || error.code || 'RLS ditolak'));
+          setUnpaidList([]);
+          return;
+        }
+        setUnpaidError('');
+        setUnpaidList(data || []);
+      });
   }
 
   useEffect(() => {
@@ -742,6 +752,12 @@ export default function StatusTerapisPage({ active, profile }) {
       </div>
 
       {message && <p style={{ fontSize: 13 }}>{message}</p>}
+
+      {unpaidError && (
+        <p style={{ fontSize: 13, color: 'var(--danger)', fontWeight: 600, margin: '8px 0' }}>
+          ⚠ {unpaidError}
+        </p>
+      )}
 
       <section>
         <p>Belum Bayar ({unpaidShown.length})</p>
