@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { OUTLETS, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
+import { OUTLETS, OIL_SIZES, TREATMENT_CATEGORIES, PAYMENT_METHOD_LABEL, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
 import { listenTreatments } from '../lib/treatmentService';
 import { listenAllTherapists } from '../lib/therapistService';
 import { getDailyBookings } from '../lib/reportService';
-import { koreksiBooking, hapusBookingOffice } from '../lib/bookingService';
+import { koreksiBooking, hapusBookingOffice, koreksiPembayaran } from '../lib/bookingService';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -26,6 +26,20 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
   const [selSize, setSelSize] = useState(booking.oilSize);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [paySaving, setPaySaving] = useState(false);
+
+  async function savePayment(paid, method) {
+    setPaySaving(true);
+    setError('');
+    try {
+      await koreksiPembayaran(booking.id, { paid, paymentMethod: method });
+      onSave();
+    } catch (e) {
+      setError('Gagal ubah pembayaran: ' + e.message);
+    } finally {
+      setPaySaving(false);
+    }
+  }
 
   const treatmentsInCategory = treatments.filter((t) => t.category === category);
   const activeTreatment = selTreatment || treatments.find((tt) => tt.id === booking.treatmentId) || null;
@@ -140,6 +154,37 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
             <option key={t.id} value={t.id}>{t.name}{t.homeOutletId ? ` (${t.homeOutletId})` : ''}</option>
           ))}
         </select>
+      </div>
+
+      <div style={{ marginBottom: 8, border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+        <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>
+          Pembayaran — sekarang: {booking.paid
+            ? <strong style={{ color: 'var(--primary-dark)' }}>✓ Lunas via {PAYMENT_METHOD_LABEL[booking.paymentMethod] || booking.paymentMethod || '-'}</strong>
+            : <strong style={{ color: 'var(--danger)' }}>Belum bayar</strong>}
+        </p>
+        {!booking.paid ? (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button style={{ width: 'auto', padding: '8px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} disabled={paySaving} onClick={() => savePayment(true, 'cash')}>
+              Tandai Lunas (Cash)
+            </button>
+            <button style={{ width: 'auto', padding: '8px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} disabled={paySaving} onClick={() => savePayment(true, 'cardless')}>
+              Tandai Lunas (Cardless)
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Ganti metode:</span>
+            <button style={{ width: 'auto', padding: '8px 12px', fontSize: 12, boxShadow: 'none' }} disabled={paySaving} onClick={() => savePayment(true, 'cash')}>
+              Cash
+            </button>
+            <button style={{ width: 'auto', padding: '8px 12px', fontSize: 12, boxShadow: 'none' }} disabled={paySaving} onClick={() => savePayment(true, 'cardless')}>
+              Cardless
+            </button>
+            <button style={{ width: 'auto', padding: '8px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--busy)', color: '#fff' }} disabled={paySaving} onClick={() => savePayment(false)}>
+              Batalkan lunas
+            </button>
+          </div>
+        )}
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -280,6 +325,7 @@ export default function KoreksiBookingPage({ active, isOffice }) {
                     {b.originalPrice != null && b.originalPrice > b.treatmentPrice
                       ? ` (dari ${rp(b.originalPrice)}${b.discountPct ? `, potong ${b.discountPct}%` : ''}${b.discountReason ? ` — ${b.discountReason}` : ''})`
                       : ''} · Komisi {b.commissionPercent ?? 0}% ({rp(b.commissionAmount)}) · {STATUS_LABEL[b.status] || b.status}
+                      · {b.paid ? `Lunas${b.paymentMethod ? ` (${PAYMENT_METHOD_LABEL[b.paymentMethod] || b.paymentMethod})` : ''}` : 'Belum bayar'}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>

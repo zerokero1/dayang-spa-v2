@@ -200,6 +200,18 @@ export async function hapusBookingOffice(bookingId) {
   if (error) throw error;
 }
 
+// Ubah status bayar & metode pembayaran sebuah booking — khusus office.
+// Dipakai di halaman Koreksi Booking untuk melunasi kasir yang lupa
+// menandai bayar, atau membetulkan metode (cash/cardless).
+export async function koreksiPembayaran(bookingId, { paid, paymentMethod }) {
+  const { error } = await supabase.rpc('koreksi_pembayaran', {
+    p_booking_id: bookingId,
+    p_paid: !!paid,
+    p_payment_method: paid ? (paymentMethod || null) : null
+  });
+  if (error) throw error;
+}
+
 function bookingIdsOf(t) {
   if (Array.isArray(t.currentBookingIds) && t.currentBookingIds.length) return t.currentBookingIds;
   return t.currentBookingId ? [t.currentBookingId] : [];
