@@ -493,11 +493,13 @@ section > button {
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
-  background: #7A1F1F;
+  background: rgba(255, 255, 255, 0.16);
   color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
 }
 .nav-badge.overdue {
   background: var(--danger);
+  border-color: var(--danger);
   animation: nav-badge-pulse 1.2s ease-in-out infinite;
 }
 @keyframes nav-badge-pulse {
