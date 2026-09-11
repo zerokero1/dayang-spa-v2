@@ -36,12 +36,9 @@ export function useUnpaid(outletId, enabled) {
         .limit(600)
         .then(({ data, error }) => {
           if (error || !alive) return;
-          const rows = data || [];
-          const now = Date.now();
-          setSummary({
-            count: rows.length,
-            overdue: rows.filter((b) => b.end_at != null && Number(b.end_at) <= now).length
-          });
+          const rows = (data || []).filter((b) => b.end_at != null && Number(b.end_at) <= Date.now());
+          // Badge = hanya transaksi yang JAM TREATMENT-nya SUDAH LEWAT & belum bayar.
+          setSummary({ count: rows.length, overdue: rows.length });
         });
     }
 

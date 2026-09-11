@@ -740,7 +740,10 @@ export default function StatusTerapisPage({ active, profile }) {
   // "Ambil Tamu", dan hanya terapis dengan homeOutletId itu untuk Free/Break/Libur
   const outletsToShow = outletFilter === 'semua' ? viewOutlets : OUTLETS.filter((o) => o.id === outletFilter);
   const filteredFree = outletFilter === 'semua' ? free : free.filter((t) => t.homeOutletId === outletFilter);
-  const unpaidShown = outletFilter === 'semua' ? unpaidList : unpaidList.filter((b) => b.outlet_id === outletFilter);
+  // Belum Bayar yang DITAMPILKAN hanya yang jam treatment-nya sudah lewat &
+  // masih belum dibayar. Yang masih berjalan ditagihkan lewat kartu sibuk.
+  const overdueUnpaid = unpaidList.filter((b) => b.end_at != null && Number(b.end_at) <= Date.now());
+  const unpaidShown = outletFilter === 'semua' ? overdueUnpaid : overdueUnpaid.filter((b) => b.outlet_id === outletFilter);
   const filteredOthers = outletFilter === 'semua' ? others : others.filter((t) => t.homeOutletId === outletFilter);
   const filteredBusyCount = outletFilter === 'semua'
     ? (isKasir ? viewOutlets.reduce((s, o) => s + (busyByOutlet[o.id]?.length || 0), 0) : busy.length)
@@ -798,9 +801,9 @@ export default function StatusTerapisPage({ active, profile }) {
       )}
 
       <section>
-        <p>Belum Bayar ({unpaidShown.length})</p>
+        <p>Belum Bayar — Lewat Jam ({unpaidShown.length})</p>
         {unpaidShown.length === 0 && (
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Semua sudah lunas.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Tidak ada tagihan yang lewat jam.</p>
         )}
         {unpaidShown.map((b) => (
           <div key={b.id} className="oil-card" style={{ margin: 0, marginBottom: 8, padding: '10px 12px', textAlign: 'left' }}>
@@ -911,7 +914,7 @@ export default function StatusTerapisPage({ active, profile }) {
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Tidak ada terapis yang free saat ini.</p>
         )}
         {filteredFree.map((t) => (
-          <TherapistCard key={t.id} t={t} dailyTotal={dailyTotals[t.id]} unpaid={unpaidList.filter((u) => u.therapist_id === t.id)} {...cardProps} />
+          <TherapistCard key={t.id} t={t} dailyTotal={dailyTotals[t.id]} unpaid={overdueUnpaid.filter((u) => u.therapist_id === t.id)} {...cardProps} />
         ))}
       </section>
 
