@@ -474,7 +474,7 @@ export default function StatusTerapisPage({ active, profile }) {
       .gte('start_at', start)
       .lte('start_at', end)
       .eq('paid', false)
-      .in('status', ['berjalan', 'selesai', 'lunas'])
+      .in('status', ['berjalan', 'selesai'])
       .order('start_at', { ascending: false })
       .limit(200)
       .then(({ data, error }) => {
