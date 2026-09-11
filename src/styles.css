@@ -566,12 +566,19 @@ section > button {
   border: 1px solid rgba(255,255,255,0.2);
   color: #B7CCC4;
   border-radius: 8px;
-  width: 34px; height: 34px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 12px;
   font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   flex-shrink: 0;
   box-shadow: none;
   cursor: pointer;
 }
+.logout-label { font-size: 12px; font-weight: 600; }
 .logout-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
 
 /* ---------- Area utama ---------- */
@@ -667,9 +674,10 @@ section > button {
   }
   .nav-item { white-space: nowrap; width: auto; padding: 8px 11px; }
   .nav-item .nav-label { /* keep on mobile */ }
-  .sidebar-user { padding: 6px 8px; border-top: none; }
+  .sidebar-user { padding: 6px 8px; border-top: none; position: sticky; right: 0; z-index: 2; }
   .sidebar-user-text { display: none; }
-  .logout-btn { width: 32px; height: 32px; }
+  .logout-label { display: none; }
+  .logout-btn { min-width: 32px; height: 32px; padding: 0; }
   .content { padding: 14px; }
   .topbar { padding: 10px 14px; }
   .content .pos-layout { height: auto; }

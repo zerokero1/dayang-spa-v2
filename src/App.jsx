@@ -163,7 +163,7 @@ export default function App() {
             <strong>{userName}</strong>
             <small>{roleLabel}</small>
           </div>
-          <button className="logout-btn" onClick={logout} title="Keluar">⎋</button>
+          <button className="logout-btn" onClick={logout} title="Keluar">⎋ <span className="logout-label">Keluar</span></button>
         </div>
       </aside>
 
