@@ -103,10 +103,11 @@ function buildUnpaidReminderText(list) {
   return text;
 }
 
-function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh, onBatalSebagian, onTandaiLunas, onContinue, onUnpaidPaid, unpaid }) {
+function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh, onBatalSebagian, onTandaiLunas, onContinue, onUnpaidPaid, unpaid, payTotal }) {
   const status = t.status || 'free';
   const busy = status === 'ambil_tamu';
   const isOncall = busy && (t.currentGroupId || '').startsWith('oncall:');
+  const pIds = bookingIdsOf(t);
   const multi = busy && bookingIdsOf(t).length > 1;
   const unpaidRows = unpaid || [];
   const [showDiscount, setShowDiscount] = useState(false);
@@ -115,7 +116,9 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
   const [showPartial, setShowPartial] = useState(false);
   const [payDisc, setPayDisc] = useState(0);
   const [payReason, setPayReason] = useState('');
-  const basePrice = t.currentPrice || 0;
+  // Hitung total BELUM BAYAR dari tabel bookings untuk SESI INI (booking yang
+  // sedang aktif di kartu), bukan dari current_price yang mudah basi/menumpuk.
+  const basePrice = busy && payTotal ? (payTotal(pIds) ?? (t.currentPrice || 0)) : (t.currentPrice || 0);
   const payEffective = basePrice - (payDisc ? Math.round(basePrice * payDisc / 100) : 0);
 
   function submitDiscount() {
@@ -139,7 +142,6 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
   }
 
   const pNames = multi ? (t.currentTreatmentNames || []) : [];
-  const pIds = bookingIdsOf(t);
 
   return (
     <div
@@ -338,7 +340,12 @@ function GroupCard({ members, onCompleteGroup, onPayGroup, cardProps }) {
   const [busy, setBusy] = useState(false);
   const [payDisc, setPayDisc] = useState(0);
   const [payReason, setPayReason] = useState('');
-  const total = members.reduce((sum, m) => sum + (m.currentPrice || 0), 0);
+  const memberPrice = (m) => {
+    const ids = bookingIdsOf(m);
+    const v = cardProps.payTotal ? cardProps.payTotal(ids) : null;
+    return v != null ? v : (m.currentPrice || 0);
+  };
+  const total = members.reduce((sum, m) => sum + memberPrice(m), 0);
   const totalEffective = total - (payDisc ? Math.round(total * payDisc / 100) : 0);
   const allPaid = members.every((m) => m.currentPaid);
   const earliestEnd = Math.min(...members.map((m) => m.endAt || Infinity));
@@ -369,7 +376,7 @@ function GroupCard({ members, onCompleteGroup, onPayGroup, cardProps }) {
       {members.map((m) => (
         <div key={m.id} style={{ fontSize: 13, marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
           <span>{m.name} — {m.currentTreatmentName}</span>
-          <span>{rp(m.currentPrice)}</span>
+          <span>{rp(memberPrice(m))}</span>
         </div>
       ))}
 
@@ -442,6 +449,7 @@ export default function StatusTerapisPage({ active, profile }) {
   const [outletFilter, setOutletFilter] = useState(isKasir ? (ownOutlet || 'semua') : 'semua');
   const [unpaidList, setUnpaidList] = useState([]);
   const [unpaidError, setUnpaidError] = useState('');
+  const [paidMap, setPaidMap] = useState({});
 
   const [treatments, setTreatments] = useState([]);
   const [continueTarget, setContinueTarget] = useState(null);
@@ -492,9 +500,38 @@ export default function StatusTerapisPage({ active, profile }) {
   useEffect(() => {
     if (!active) return;
     loadUnpaid();
-    const iv = setInterval(loadUnpaid, 30000);
+    loadPaymentBookings();
+    const iv = setInterval(() => { loadUnpaid(); loadPaymentBookings(); }, 30000);
     return () => clearInterval(iv);
   }, [active]);
+
+  // Muat harga & status bayar SEMUA booking hari ini (semua status aktif) supaya
+  // kartu sibuk bisa menghitung tagihan sesi saat ini langsung dari tabel bookings.
+  function loadPaymentBookings() {
+    const { start, end } = todayBoundsMs();
+    supabase
+      .from('bookings')
+      .select('id, treatment_price, paid')
+      .gte('start_at', start)
+      .lte('start_at', end)
+      .in('status', ['berjalan', 'selesai'])
+      .limit(2000)
+      .then(({ data, error }) => {
+        if (error || !data) return;
+        const map = {};
+        data.forEach((b) => { map[b.id] = { price: Number(b.treatment_price) || 0, paid: !!b.paid }; });
+        setPaidMap(map);
+      });
+  }
+
+  // Total BELUM BAYAR untuk satu set booking (sesi). Kembali null bila data
+  // booking cara masih belum lengkap, supaya kartu memakai cadangan current_price.
+  function payTotal(ids) {
+    if (!ids || ids.length === 0) return null;
+    const allKnown = ids.every((id) => paidMap[id] !== undefined);
+    if (!allKnown) return null;
+    return ids.reduce((s, id) => s + (paidMap[id].paid ? 0 : paidMap[id].price), 0);
+  }
 
   async function handleUnpaidPaid(b, method) {
     try {
@@ -716,7 +753,8 @@ export default function StatusTerapisPage({ active, profile }) {
     onBatalSebagian: handleBatalSebagian,
     onTandaiLunas: handleTandaiLunas,
     onContinue: openContinue,
-    onUnpaidPaid: handleUnpaidPaid
+    onUnpaidPaid: handleUnpaidPaid,
+    payTotal
   };
 
   // Ringkasan per outlet: jumlah terapis sedang ambil tamu vs total terapis di outlet itu
