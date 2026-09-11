@@ -7,10 +7,10 @@ import { koreksiBooking, hapusBookingOffice, koreksiPembayaran } from '../lib/bo
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
-// Amankan label metode: jangan pernah tampilkan objek/JSON pertalan apa pun.
+// Amankan label metode: hanya tampilkan Cash/Cardless, sisanya '-'.
 function methodLabel(m) {
   if (!m || typeof m !== 'string') return '-';
-  return PAYMENT_METHOD_LABEL[m] || m;
+  return PAYMENT_METHOD_LABEL[m] || '-';
 }
 
 function todayId() {
