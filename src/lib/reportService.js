@@ -254,7 +254,7 @@ export async function getCommissionStaffReport(startDate, endDate) {
     .sort((a, b) => b.commissionTotal - a.commissionTotal);
 }
 
-// Ukuran botol: Kecil = 10ml, Besar = 30ml (dipakai laporan produksi).
+// Ukuran botol: Kecil = 10ml, Besar = 30ml (keterangan saja; dipakai laporan produksi).
 export const OIL_BOTTLE_ML = { Kecil: 10, Besar: 30 };
 
 // Ambil semua booking non-batal dalam rentang tanggal (semua outlet),
@@ -311,20 +311,20 @@ export function buildProductionReport(rows, outletIds) {
 
     if (b.oilType) {
       const key = b.oilSize ? `${b.oilType} (${b.oilSize})` : b.oilType;
-      const ml = b.oilSize ? (OIL_BOTTLE_ML[b.oilSize] || 0) : 0;
-      bump(byOil, key, b.outletId, ml);
-      bump(byDateOil, b.date, b.outletId, ml);
+      // 1 treatment memakai minyak = 1 botol (Kecil 10ml / Besar 30ml).
+      bump(byOil, key, b.outletId, 1);
+      bump(byDateOil, b.date, b.outletId, 1);
     }
   });
 
-  const rowsOf = (map, sortKey) =>
+  const rowsOf = (map) =>
     Object.entries(map)
       .map(([label, perOutlet]) => ({
         label,
         perOutlet,
         total: outletIds.reduce((s, oid) => s + (perOutlet[oid] || 0), 0)
       }))
-      .sort((a, b) => (sortKey === 'ml' ? b.total - a.total : b.total - a.total));
+      .sort((a, b) => b.total - a.total);
 
   const dates = Object.keys(byDateTreatment).sort();
 
@@ -339,7 +339,7 @@ export function buildProductionReport(rows, outletIds) {
       oilPerOutlet: byDateOil[date] || {}
     })),
     totalTreatment: rows.length,
-    totalOilMl: outletIds.reduce((s, oid) => {
+    totalOilBottles: outletIds.reduce((s, oid) => {
       let sum = 0;
       for (const o of Object.values(byOil)) sum += o[oid] || 0;
       return s + sum;

@@ -8,8 +8,6 @@ function todayId() {
   return now.toISOString().slice(0, 10);
 }
 
-const fmtMl = (n) => (n || 0).toLocaleString('id-ID');
-
 export default function LaporanProduksiPage({ profile }) {
   const isKasir = profile?.role === 'kasir';
   const cols = isKasir ? OUTLETS.filter((o) => o.id === profile.outletId) : OUTLETS;
@@ -51,8 +49,8 @@ export default function LaporanProduksiPage({ profile }) {
   ]);
   const oilRows = (report?.byOil || []).map((r) => [
     r.label,
-    ...cols.map((o) => fmtMl(r.perOutlet[o.id] || 0)),
-    fmtMl(r.total)
+    ...cols.map((o) => r.perOutlet[o.id] || 0),
+    r.total
   ]);
   const dateTreatmentRows = (report?.dateRows || []).map((d) => [
     d.date,
@@ -61,8 +59,8 @@ export default function LaporanProduksiPage({ profile }) {
   ]);
   const dateOilRows = (report?.dateRows || []).map((d) => [
     d.date,
-    ...cols.map((o) => fmtMl(d.oilPerOutlet[o.id] || 0)),
-    fmtMl(d.oilTotal)
+    ...cols.map((o) => d.oilPerOutlet[o.id] || 0),
+    d.oilTotal
   ]);
 
   function renderTable(title, h, rows, totalIdx) {
@@ -129,9 +127,9 @@ export default function LaporanProduksiPage({ profile }) {
     const numCols = cols.map((_, i) => i + 1); // semua kolom outlet + TOTAL
 
     addSheet('Treatment', 'Jumlah Treatment per Jenis', treatmentRows.map((r) => [r[0], ...r.slice(1).map(cleanNum)]), numCols);
-    addSheet('Minyak', 'Pemakaian Minyak (ml)', oilRows.map((r) => [r[0], ...r.slice(1).map(cleanNum)]), numCols);
+    addSheet('Minyak', 'Pemakaian Minyak (botol)', oilRows.map((r) => [r[0], ...r.slice(1).map(cleanNum)]), numCols);
     addSheet('perTanggal', 'Treatment per Tanggal', dateTreatmentRows.map((r) => [r[0], ...r.slice(1).map(cleanNum)]), numCols);
-    addSheet('perTanggalMinyak', 'Minyak per Tanggal (ml)', dateOilRows.map((r) => [r[0], ...r.slice(1).map(cleanNum)]), numCols);
+    addSheet('perTanggalMinyak', 'Minyak per Tanggal (botol)', dateOilRows.map((r) => [r[0], ...r.slice(1).map(cleanNum)]), numCols);
 
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -179,15 +177,15 @@ export default function LaporanProduksiPage({ profile }) {
               <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Total Treatment</div>
             </div>
             <div className="oil-card" style={{ textAlign: 'center', padding: 14 }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--busy)' }}>{fmtMl(report.totalOilMl)} ml</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--busy)' }}>{report.totalOilBottles} botol</div>
               <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Total Minyak Terpakai</div>
             </div>
           </div>
 
           {renderTable('Jumlah Treatment per Jenis', headers, treatmentRows, -1)}
-          {renderTable('Pemakaian Minyak per Jenis (ml)', headers, oilRows, -1)}
+          {renderTable('Pemakaian Minyak per Jenis (botol)', headers, oilRows, -1)}
           {renderTable('Rincian per Tanggal — Jumlah Treatment', headers, dateTreatmentRows, -1)}
-          {renderTable('Rincian per Tanggal — Minyak (ml)', headers, dateOilRows, -1)}
+          {renderTable('Rincian per Tanggal — Minyak (botol)', headers, dateOilRows, -1)}
         </>
       )}
     </div>
