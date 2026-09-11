@@ -191,7 +191,7 @@ export default function App() {
           )}
         </header>
 
-        <main className="content">
+        <main className={overdueCount > 0 ? 'content has-banner' : 'content'}>
           <Suspense fallback={<div style={{ padding: 24, fontSize: 14, color: 'var(--text-secondary)' }}>Memuat…</div>}>
             {currentPage && currentPage.Component && (
               <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} />
