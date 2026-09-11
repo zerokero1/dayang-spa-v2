@@ -103,11 +103,12 @@ function buildUnpaidReminderText(list) {
   return text;
 }
 
-function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh, onBatalSebagian, onTandaiLunas, onContinue }) {
+function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh, onBatalSebagian, onTandaiLunas, onContinue, onUnpaidPaid, unpaid }) {
   const status = t.status || 'free';
   const busy = status === 'ambil_tamu';
   const isOncall = busy && (t.currentGroupId || '').startsWith('oncall:');
   const multi = busy && bookingIdsOf(t).length > 1;
+  const unpaidRows = unpaid || [];
   const [showDiscount, setShowDiscount] = useState(false);
   const [discountPrice, setDiscountPrice] = useState('');
   const [partialIdx, setPartialIdx] = useState(0);
@@ -301,6 +302,30 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
               className={status === s ? 'active' : ''} onClick={() => onManualStatus(t.id, s)}>
               {STATUS_LABEL[s]}
             </button>
+          ))}
+        </div>
+      )}
+
+      {!busy && unpaidRows.length > 0 && (
+        <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: 'var(--busy-bg)', border: '1px solid var(--busy)' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--busy)', letterSpacing: 0.5 }}>
+            ⚠ BELUM BAYAR ({unpaidRows.length}) — jam selesai sudah lewat
+          </div>
+          {unpaidRows.map((u) => (
+            <div key={u.id} style={{ fontSize: 12, marginTop: 8, borderTop: '1px dashed var(--border)', paddingTop: 6 }}>
+              <div>
+                <strong>{u.treatment_name}</strong> · {rp(u.treatment_price)}
+                {u.customer_name ? ` · ${u.customer_name}` : ''}
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <button style={{ width: 'auto', padding: '7px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => onUnpaidPaid(u, 'cash')}>
+                  Lunas (Cash)
+                </button>
+                <button style={{ width: 'auto', padding: '7px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => onUnpaidPaid(u, 'cardless')}>
+                  Lunas (Cardless)
+                </button>
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -680,7 +705,8 @@ export default function StatusTerapisPage({ active, profile }) {
     onBatalPenuh: handleBatalPenuh,
     onBatalSebagian: handleBatalSebagian,
     onTandaiLunas: handleTandaiLunas,
-    onContinue: openContinue
+    onContinue: openContinue,
+    onUnpaidPaid: handleUnpaidPaid
   };
 
   // Ringkasan per outlet: jumlah terapis sedang ambil tamu vs total terapis di outlet itu
@@ -831,7 +857,7 @@ export default function StatusTerapisPage({ active, profile }) {
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Tidak ada terapis yang free saat ini.</p>
         )}
         {filteredFree.map((t) => (
-          <TherapistCard key={t.id} t={t} dailyTotal={dailyTotals[t.id]} {...cardProps} />
+          <TherapistCard key={t.id} t={t} dailyTotal={dailyTotals[t.id]} unpaid={unpaidList.filter((u) => u.therapist_id === t.id)} {...cardProps} />
         ))}
       </section>
 
