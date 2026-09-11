@@ -743,6 +743,37 @@ export default function StatusTerapisPage({ active, profile }) {
 
       {message && <p style={{ fontSize: 13 }}>{message}</p>}
 
+      <section>
+        <p>Belum Bayar ({unpaidShown.length})</p>
+        {unpaidShown.length === 0 && (
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Semua sudah lunas.</p>
+        )}
+        {unpaidShown.map((b) => (
+          <div key={b.id} className="oil-card" style={{ margin: 0, marginBottom: 8, padding: '10px 12px', textAlign: 'left' }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>
+              {b.treatment_name}{b.customer_name ? ` · ${b.customer_name}` : ''}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+              {b.therapist_name} · {OUTLET_NAME[b.outlet_id] || b.outlet_id} · {rp(b.treatment_price)}
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+              <button
+                style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }}
+                onClick={() => handleUnpaidPaid(b, 'cash')}
+              >
+                Lunas (Cash)
+              </button>
+              <button
+                style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }}
+                onClick={() => handleUnpaidPaid(b, 'cardless')}
+              >
+                Lunas (Cardless)
+              </button>
+            </div>
+          </div>
+        ))}
+      </section>
+
       <div className="grid-2" style={{ marginBottom: 12 }}>
         {outletSummary.map(({ outlet, total, busy, free }) => (
           <div key={outlet.id} className="oil-card" style={{ textAlign: 'left', padding: '8px 12px', margin: 0, cursor: 'pointer' }}
@@ -818,37 +849,6 @@ export default function StatusTerapisPage({ active, profile }) {
             </div>
           );
         })}
-      </section>
-
-      <section>
-        <p>Belum Bayar ({unpaidShown.length})</p>
-        {unpaidShown.length === 0 && (
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Semua sudah lunas.</p>
-        )}
-        {unpaidShown.map((b) => (
-          <div key={b.id} className="oil-card" style={{ margin: 0, marginBottom: 8, padding: '10px 12px', textAlign: 'left' }}>
-            <div style={{ fontSize: 13, fontWeight: 700 }}>
-              {b.treatment_name}{b.customer_name ? ` · ${b.customer_name}` : ''}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-              {b.therapist_name} · {OUTLET_NAME[b.outlet_id] || b.outlet_id} · {rp(b.treatment_price)}
-            </div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-              <button
-                style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }}
-                onClick={() => handleUnpaidPaid(b, 'cash')}
-              >
-                Lunas (Cash)
-              </button>
-              <button
-                style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }}
-                onClick={() => handleUnpaidPaid(b, 'cardless')}
-              >
-                Lunas (Cardless)
-              </button>
-            </div>
-          </div>
-        ))}
       </section>
 
       <section>
