@@ -87,6 +87,22 @@ function buildAndSendTherapistList({ therapists, dailyCommissions }) {
   openWhatsAppMessage(text);
 }
 
+/** Susun teks daftar transaksi BELUM BAYAR untuk dikirim sebagai pengingat ke WhatsApp. */
+function buildUnpaidReminderText(list) {
+  const today = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  let total = 0;
+  let text = `PENGINGAT PEMBAYARAN ${today}\n\n`;
+  text += `Belum dibayar (${list.length} transaksi):\n`;
+  list.forEach((b, i) => {
+    total += b.treatment_price || 0;
+    text += `${i + 1}. ${b.therapist_name || '-'} — ${b.treatment_name || '-'}\n`;
+    if (b.customer_name) text += `   Tamu: ${b.customer_name}\n`;
+    text += `   ${rp(b.treatment_price || 0)} · ${OUTLET_NAME[b.outlet_id] || b.outlet_id}\n`;
+  });
+  text += `\nTotal belum dibayar: ${rp(total)}`;
+  return text;
+}
+
 function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh, onBatalSebagian, onTandaiLunas, onContinue }) {
   const status = t.status || 'free';
   const busy = status === 'ambil_tamu';
@@ -428,7 +444,7 @@ export default function StatusTerapisPage({ active, profile }) {
     const { start, end } = todayBoundsMs();
     supabase
       .from('bookings')
-      .select('id, outlet_id, therapist_id, therapist_name, treatment_name, customer_name, treatment_price, status, start_at')
+      .select('id, outlet_id, therapist_id, therapist_name, treatment_name, customer_name, treatment_price, status, start_at, end_at')
       .gte('start_at', start)
       .lte('start_at', end)
       .eq('paid', false)
@@ -682,12 +698,22 @@ export default function StatusTerapisPage({ active, profile }) {
         Dikelompokkan per outlet — otomatis kembali Free saat waktu treatment habis
       </p>
 
-      <button
-        style={{ marginBottom: 16 }}
-        onClick={handleSendList}
-      >
-        Kirim daftar lengkap ke WhatsApp
-      </button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button style={{ width: 'auto', fontSize: 13, padding: '10px 14px' }} onClick={handleSendList}>
+          Kirim daftar lengkap ke WhatsApp
+        </button>
+        <button
+          style={{
+            width: 'auto', fontSize: 13, padding: '10px 14px', boxShadow: 'none',
+            background: unpaidShown.filter((b) => b.end_at && Number(b.end_at) <= Date.now()).length > 0 ? 'var(--danger)' : 'var(--primary-dark)',
+            color: '#fff', opacity: unpaidShown.length === 0 ? 0.5 : 1
+          }}
+          disabled={unpaidShown.length === 0}
+          onClick={() => openWhatsAppMessage(buildUnpaidReminderText(unpaidShown))}
+        >
+          ⚠ Kirim pengingat bayar ke WhatsApp
+        </button>
+      </div>
 
       {message && <p style={{ fontSize: 13 }}>{message}</p>}
 

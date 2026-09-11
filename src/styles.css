@@ -482,6 +482,59 @@ section > button {
   box-shadow: var(--shadow);
 }
 .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+.nav-badge {
+  margin-left: auto;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #7A1F1F;
+  color: #fff;
+}
+.nav-badge.overdue {
+  background: var(--danger);
+  animation: nav-badge-pulse 1.2s ease-in-out infinite;
+}
+@keyframes nav-badge-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.85; }
+}
+
+/* ---------- Banner pengingat tagihan belum bayar ---------- */
+.unpaid-banner {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  background: #7A1F1F;
+  color: #fff;
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.25);
+}
+.unpaid-banner-text { display: flex; flex-direction: column; gap: 2px; line-height: 1.25; }
+.unpaid-banner-text strong { font-size: 13.5px; }
+.unpaid-banner-text span { font-size: 12px; opacity: 0.9; }
+.unpaid-banner-btn {
+  width: auto;
+  flex-shrink: 0;
+  padding: 9px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  box-shadow: none;
+  background: #fff;
+  color: #7A1F1F;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
 
 .sidebar-user {
   display: flex;

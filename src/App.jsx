@@ -4,7 +4,9 @@ import { listenAuthState, logout } from './lib/authService';
 import { startAutoFreeTicker, stopAutoFreeTicker } from './lib/autoFreeService';
 import { logOfficeLogin, OFFICE_EMAIL } from './lib/logActivityService';
 import { completeBooking } from './lib/bookingService';
+import { useUnpaid } from './lib/useUnpaid';
 import ReservationReminder from './components/ReservationReminder';
+import UnpaidReminder from './components/UnpaidReminder';
 import LoginPage from './pages/LoginPage';
 import './styles.css';
 
@@ -109,6 +111,8 @@ export default function App() {
   const isAdminPusat = profile.role === 'admin_pusat';
   const isOffice = (user.email || '').trim().toLowerCase() === 'office.op@dayang.com';
   const visibleOutlets = isAdminPusat ? OUTLETS : OUTLETS.filter((o) => o.id === profile.outletId);
+  const unpaidScopeOutlet = isAdminPusat ? null : (profile.outletId || activeOutlet || null);
+  const { count: unpaidCount, overdue: overdueCount } = useUnpaid(unpaidScopeOutlet, !!profile);
   const currentPage = PAGES[activePage];
   const allowedKeys = RESTRICTED_ROLE_PAGES[profile.role] || null;
   const visiblePageEntries = Object.entries(PAGES).filter(([key, p]) => {
@@ -143,6 +147,11 @@ export default function App() {
             >
               <span className="nav-icon">{p.icon}</span>
               <span className="nav-label">{p.label}</span>
+              {key === 'status' && unpaidCount > 0 && (
+                <span className={overdueCount > 0 ? 'nav-badge overdue' : 'nav-badge'}>
+                  {unpaidCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -189,6 +198,7 @@ export default function App() {
         </main>
       </div>
 
+      <UnpaidReminder count={unpaidCount} overdue={overdueCount} onOpen={() => setActivePage('status')} />
       <ReservationReminder outletId={activeOutlet} onOpen={() => setActivePage('reservasi')} />
     </div>
   );
