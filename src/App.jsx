@@ -97,6 +97,10 @@ export default function App() {
     if (user && (user.email || '').trim().toLowerCase() === OFFICE_EMAIL) logOfficeLogin();
   }, [user]);
 
+  // Dipanggil SELALU (di atas semua return bersyarat) demi aturan hooks React.
+  const unpaidScopeOutlet = user && profile && profile.role !== 'admin_pusat' ? (profile.outletId || activeOutlet || null) : null;
+  const { count: unpaidCount, overdue: overdueCount } = useUnpaid(unpaidScopeOutlet, !!(user && profile));
+
   if (authLoading) return <div className="app"><p>Memuat...</p></div>;
   if (!user) return <LoginPage />;
   if (!profile) {
@@ -111,8 +115,6 @@ export default function App() {
   const isAdminPusat = profile.role === 'admin_pusat';
   const isOffice = (user.email || '').trim().toLowerCase() === 'office.op@dayang.com';
   const visibleOutlets = isAdminPusat ? OUTLETS : OUTLETS.filter((o) => o.id === profile.outletId);
-  const unpaidScopeOutlet = isAdminPusat ? null : (profile.outletId || activeOutlet || null);
-  const { count: unpaidCount, overdue: overdueCount } = useUnpaid(unpaidScopeOutlet, !!profile);
   const currentPage = PAGES[activePage];
   const allowedKeys = RESTRICTED_ROLE_PAGES[profile.role] || null;
   const visiblePageEntries = Object.entries(PAGES).filter(([key, p]) => {
