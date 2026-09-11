@@ -236,7 +236,7 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
           )}
           {t.currentPaid && t.currentPaymentMethod && (
             <span style={{ fontSize: 12, color: 'var(--text-secondary)', alignSelf: 'center', marginTop: 8 }}>
-              ✓ Dibayar via {PAYMENT_METHOD_LABEL[t.currentPaymentMethod]}
+              ✓ Dibayar via {PAYMENT_METHOD_LABEL[t.currentPaymentMethod] || (typeof t.currentPaymentMethod === 'string' ? t.currentPaymentMethod : '-')}
             </span>
           )}
 

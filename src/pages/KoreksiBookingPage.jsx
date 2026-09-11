@@ -7,6 +7,12 @@ import { koreksiBooking, hapusBookingOffice, koreksiPembayaran } from '../lib/bo
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
+// Amankan label metode: jangan pernah tampilkan objek/JSON pertalan apa pun.
+function methodLabel(m) {
+  if (!m || typeof m !== 'string') return '-';
+  return PAYMENT_METHOD_LABEL[m] || m;
+}
+
 function todayId() {
   const now = new Date(Date.now() + 7 * 3600000);
   return now.toISOString().slice(0, 10);
@@ -159,7 +165,7 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
       <div style={{ marginBottom: 8, border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
         <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>
           Pembayaran — sekarang: {booking.paid
-            ? <strong style={{ color: 'var(--primary-dark)' }}>✓ Lunas via {PAYMENT_METHOD_LABEL[booking.paymentMethod] || booking.paymentMethod || '-'}</strong>
+            ? <strong style={{ color: 'var(--primary-dark)' }}>✓ Lunas via {methodLabel(booking.paymentMethod)}</strong>
             : <strong style={{ color: 'var(--danger)' }}>Belum bayar</strong>}
         </p>
         {!booking.paid ? (
@@ -325,7 +331,7 @@ export default function KoreksiBookingPage({ active, isOffice }) {
                     {b.originalPrice != null && b.originalPrice > b.treatmentPrice
                       ? ` (dari ${rp(b.originalPrice)}${b.discountPct ? `, potong ${b.discountPct}%` : ''}${b.discountReason ? ` — ${b.discountReason}` : ''})`
                       : ''} · Komisi {b.commissionPercent ?? 0}% ({rp(b.commissionAmount)}) · {STATUS_LABEL[b.status] || b.status}
-                      · {b.paid ? `Lunas${b.paymentMethod ? ` (${PAYMENT_METHOD_LABEL[b.paymentMethod] || b.paymentMethod})` : ''}` : 'Belum bayar'}
+                      · {b.paid ? `Lunas (${methodLabel(b.paymentMethod)})` : 'Belum bayar'}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
