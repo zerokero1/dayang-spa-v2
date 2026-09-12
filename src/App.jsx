@@ -30,6 +30,7 @@ const LaporanPemakaianStokPage = lazy(() => import('./pages/LaporanPemakaianStok
 const LogAktivitasPage = lazy(() => import('./pages/LogAktivitasPage'));
 const OncallPage = lazy(() => import('./pages/OncallPage'));
 const LaporanProduksiPage = lazy(() => import('./pages/LaporanProduksiPage'));
+const OrderStockPage = lazy(() => import('./pages/OrderStockPage'));
 
 const PAGES = {
   kasir: { label: 'Kasir', icon: '🧾', Component: KasirPage },
@@ -43,6 +44,7 @@ const PAGES = {
   absensi: { label: 'Absensi', icon: '✅', Component: AbsensiPage },
   inventory: { label: 'Inventory', icon: '📦', Component: InventoryPage },
   minyak: { label: 'Stok Minyak', icon: '🫗', Component: StokMinyakPage },
+  orderStock: { label: 'Order Stok', icon: '📦', Component: OrderStockPage, global: true },
   laporan: { label: 'Laporan Keuangan', icon: '💰', Component: LaporanPage },
   laporanAbsensi: { label: 'Laporan Absensi', icon: '📋', Component: LaporanAbsensiPage, global: true },
   laporanInventory: { label: 'Laporan Inventory', icon: '📦', Component: LaporanInventoryPage, global: true },
