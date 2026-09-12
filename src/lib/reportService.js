@@ -63,7 +63,7 @@ async function getAllDailyBookings(dateStr) {
   const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
   const { data, error } = await supabase
     .from('bookings')
-    .select('outlet_id, therapist_id, therapist_name, treatment_price, commission_amount, status, paid, payment_method, original_price, booking_source, hotel_commission')
+    .select('outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, commission_percent, commission_amount, status, paid, payment_method, original_price, booking_source, hotel_commission, booking_source, created_at')
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString());
   if (error) throw error;
@@ -226,6 +226,41 @@ export async function getCombinedDailyReport(startDate, endDate) {
     grandTotalDiscount,
     therapistCommissions
   };
+}
+
+// Audit komisi: bandingkan commission_amount (yang dibayar) terhadap
+// nilai yang seharusnya = round(commission_percent/100 * treatment_price).
+// Baris dengan selisih != 0 atau komisi tercatat tanpa persen ditandai mismatch.
+export async function getCommissionAudit(startDate, endDate) {
+  const bookings = await getAllBookingsRange(startDate, endDate);
+  return bookings
+    .filter((b) => b.status !== 'batal')
+    .map((b) => {
+      const percent = b.commissionPercent;
+      const price = b.treatmentPrice || 0;
+      const expected = percent != null ? Math.round((percent / 100) * price) : 0;
+      const recorded = b.commissionAmount || 0;
+      let reason = '';
+      if (percent == null) {
+        if (recorded !== 0) reason = 'komisi tercatat tanpa %';
+      } else if (Math.abs(recorded - expected) > 1) {
+        reason = `${percent}% x ${price} harusnya ${expected}, tercatat ${recorded}`;
+      }
+      return {
+        id: b.id,
+        outletId: b.outletId,
+        therapistId: b.therapistId,
+        therapistName: b.therapistName || '-',
+        treatmentName: b.treatmentName || '-',
+        date: wibDateStr(b.createdAt),
+        status: b.status,
+        commissionPercent: percent,
+        treatmentPrice: price,
+        expected,
+        recorded,
+        mismatch: reason !== ''
+      };
+    });
 }
 
 export async function getCommissionStaffReport(startDate, endDate) {
