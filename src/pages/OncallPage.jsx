@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ONCALL_PACKAGES, DEFAULT_ONCALL_COMMISSION_PCT, PAYMENT_METHOD_LABEL } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
-import { createOncallBooking, getTodayOncall } from '../lib/oncallService';
+import { createOncallBooking, editOncallBooking, getTodayOncall } from '../lib/oncallService';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -31,6 +31,11 @@ export default function OncallPage({ outletId, active }) {
   const [message, setMessage] = useState('');
   const [oncallList, setOncallList] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
+
+  const [editTarget, setEditTarget] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [editError, setEditError] = useState('');
 
   useEffect(() => {
     if (!active) return;
@@ -115,6 +120,67 @@ export default function OncallPage({ outletId, active }) {
     }
   }
 
+  function openEdit(b) {
+    setEditTarget(b);
+    setEditForm({
+      therapistId: b.therapistId || '',
+      packageName: b.treatmentName || '',
+      durationMinutes: b.durationMinutes || 60,
+      price: b.treatmentPrice || 0,
+      commissionPercent: b.commissionPercent || DEFAULT_ONCALL_COMMISSION_PCT,
+      hotelCommission: b.hotelCommission || 0,
+      customerName: b.customerName || '',
+      method: b.paymentMethod || 'cash'
+    });
+    setEditError('');
+  }
+
+  function closeEdit() {
+    setEditTarget(null);
+    setEditForm(null);
+    setEditError('');
+  }
+
+  function setEF(key, val) {
+    setEditForm((f) => ({ ...f, [key]: val }));
+  }
+
+  async function handleEditSave() {
+    if (!editTarget || !editForm) return;
+    const comm = Number.isFinite(parseFloat(editForm.commissionPercent))
+      ? parseFloat(editForm.commissionPercent) : null;
+    if (!editForm.therapistId || !editForm.packageName.trim() ||
+        !editForm.customerName.trim() || !editForm.method ||
+        comm == null || comm < 0 || comm > 100) {
+      setEditError('Lengkapi terapis, nama paket, nama tamu, metode bayar, dan komisi (0–100).');
+      return;
+    }
+    const th = therapists.find((t) => t.id === editForm.therapistId);
+    setEditing(true);
+    setEditError('');
+    try {
+      await editOncallBooking({
+        bookingId: editTarget.id,
+        therapistId: editForm.therapistId,
+        therapistName: th ? th.name : editTarget.therapistName,
+        packageName: editForm.packageName.trim(),
+        durationMinutes: Math.round(Number(editForm.durationMinutes) || 0),
+        price: Number(editForm.price) || 0,
+        commissionPercent: comm,
+        hotelCommission: Number(editForm.hotelCommission) || 0,
+        customerName: editForm.customerName.trim(),
+        paymentMethod: editForm.method
+      });
+      setMessage('Transaksi oncall berhasil diubah.');
+      closeEdit();
+      await loadList();
+    } catch (e) {
+      setEditError(e.message || 'Gagal menyimpan perubahan oncall.');
+    } finally {
+      setEditing(false);
+    }
+  }
+
   return (
     <div className="kasir-page">
       <h2>Oncall Full Body Massage</h2>
@@ -158,25 +224,29 @@ export default function OncallPage({ outletId, active }) {
 
       <section>
         <p>Terapis</p>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', maxHeight: 180, overflowY: 'auto' }}>
-          {therapistOptions.length === 0 && (
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Tidak ada terapis tersedia saat ini (semua sedang bertugas / data kosong).</p>
-          )}
-          {therapistOptions.map((t) => {
-            const busyT = (t.status || 'free') === 'ambil_tamu';
-            return (
-              <button
-                key={t.id}
-                type="button"
-                className={busyT ? 'pos-chip pos-chip-busy' : therapistId === t.id ? 'pos-chip active' : 'pos-chip'}
-                disabled={busyT}
-                onClick={() => setTherapistId(t.id)}
-              >
-                {t.name}{t.homeOutletId && t.homeOutletId !== outletId ? ` · ${t.homeOutletId}` : ''}{busyT ? ' 🔴 Ambil Tamu' : ''}
-              </button>
-            );
-          })}
-        </div>
+        <select
+          value={therapistId || ''}
+          onChange={(e) => setTherapistId(e.target.value)}
+          style={{ width: '100%' }}
+        >
+          <option value="">Pilih terapis…</option>
+          {therapistOptions.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}{t.homeOutletId && t.homeOutletId !== outletId ? ` · ${t.homeOutletId}` : ''}
+            </option>
+          ))}
+        </select>
+        {therapistId && therapists.find((t) => t.id === therapistId) && (
+          <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 4 }}>
+            ✓ Terpilih: {therapists.find((t) => t.id === therapistId).name}
+            ({therapists.find((t) => t.id === therapistId).homeOutletId || outletId})
+          </div>
+        )}
+        {therapistOptions.length === 0 && (
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
+            Tidak ada terapis tersedia saat ini (semua sedang bertugas / belum ada data terapis).
+          </p>
+        )}
       </section>
 
       <section>
@@ -239,7 +309,7 @@ export default function OncallPage({ outletId, active }) {
         ) : (
           oncallList.map((b) => (
             <div key={b.id} className="oil-card" style={{ marginBottom: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
                 <strong>{b.treatmentName}</strong>
                 <span>{rp(b.treatmentPrice)}</span>
               </div>
@@ -248,12 +318,138 @@ export default function OncallPage({ outletId, active }) {
                 {b.paymentMethod === 'cardless' ? 'Cardless' : 'Cash'}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                Komisi hotel {rp(b.hotelCommission)} · Komisi terapis {rp(b.commissionAmount)}
+                Komisi hotel {rp(b.hotelCommission)} · Komisi terapis {rp(b.commissionAmount)} · {b.durationMinutes || '-'} mnt
               </div>
+              <button
+                type="button"
+                className="pos-chip"
+                style={{ marginTop: 6 }}
+                onClick={() => openEdit(b)}
+              >
+                ✏️ Edit
+              </button>
             </div>
           ))
         )}
       </section>
+
+      {editTarget && editForm && (
+        <div style={styles.overlay}>
+          <div className="oil-card" style={styles.modal}>
+            <h3 style={{ marginTop: 0 }}>✏️ Edit Transaksi Oncall</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: -8 }}>
+              {editTarget.therapistName} · {editTarget.customerName || '-'} · {fmtWib(editTarget.createdAt)} WIB
+            </p>
+
+            <p style={{ fontSize: 13, marginBottom: 4 }}>Terapis</p>
+            <select value={editForm.therapistId || ''} onChange={(e) => setEF('therapistId', e.target.value)}>
+              <option value="">Pilih terapis…</option>
+              {therapists
+                .filter((t) => (t.status || 'free') !== 'ambil_tamu')
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}{t.homeOutletId ? ` · ${t.homeOutletId}` : ''}
+                  </option>
+                ))}
+            </select>
+
+            <p style={{ fontSize: 13, marginBottom: 4 }}>Nama paket</p>
+            <input
+              type="text"
+              value={editForm.packageName}
+              onChange={(e) => setEF('packageName', e.target.value)}
+              placeholder="cth: Balinese Full Body 90 mnt"
+            />
+
+            <p style={{ fontSize: 13, marginBottom: 4 }}>Durasi (menit)</p>
+            <input
+              type="number"
+              value={editForm.durationMinutes}
+              onChange={(e) => setEF('durationMinutes', e.target.value)}
+              style={{ maxWidth: 160 }}
+            />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+              <div>
+                <p style={{ fontSize: 13, marginBottom: 4 }}>Harga (Rp)</p>
+                <input
+                  type="number"
+                  value={editForm.price}
+                  onChange={(e) => setEF('price', e.target.value)}
+                />
+              </div>
+              <div>
+                <p style={{ fontSize: 13, marginBottom: 4 }}>Komisi hotel (Rp)</p>
+                <input
+                  type="number"
+                  value={editForm.hotelCommission}
+                  onChange={(e) => setEF('hotelCommission', e.target.value)}
+                />
+              </div>
+            </div>
+
+            <p style={{ fontSize: 13, marginBottom: 4 }}>Komisi terapis (%)</p>
+            <input
+              type="number"
+              value={editForm.commissionPercent}
+              onChange={(e) => setEF('commissionPercent', e.target.value)}
+              style={{ maxWidth: 160 }}
+            />
+
+            <p style={{ fontSize: 13, marginBottom: 4 }}>Nama tamu / hotel</p>
+            <input
+              type="text"
+              value={editForm.customerName}
+              onChange={(e) => setEF('customerName', e.target.value)}
+              placeholder="cth: Hotel xxx / Ms. yyy"
+            />
+
+            <p style={{ fontSize: 13, marginBottom: 4 }}>Metode pembayaran</p>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {Object.entries(PAYMENT_METHOD_LABEL).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  className={editForm.method === val ? 'pos-chip active' : 'pos-chip'}
+                  onClick={() => setEF('method', val)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {editError && <p className="error">{editError}</p>}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button type="button" onClick={handleEditSave} disabled={editing}>
+                {editing ? 'Menyimpan...' : '💾 Simpan'}
+              </button>
+              <button type="button" className="btn-secondary" onClick={closeEdit} disabled={editing}>
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+const styles = {
+  overlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.45)',
+    zIndex: 90,
+    display: 'grid',
+    placeItems: 'center',
+    padding: 12
+  },
+  modal: {
+    width: '100%',
+    maxWidth: 460,
+    maxHeight: '90vh',
+    overflowY: 'auto'
+  }
+};

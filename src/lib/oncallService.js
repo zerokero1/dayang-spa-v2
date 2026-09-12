@@ -20,6 +20,26 @@ export async function createOncallBooking({
   return data;
 }
 
+export async function editOncallBooking({
+  bookingId, therapistId, therapistName, packageName, durationMinutes,
+  price, commissionPercent, hotelCommission, customerName, paymentMethod
+}) {
+  const { data, error } = await supabase.rpc('edit_oncall_booking', {
+    p_booking_id: bookingId,
+    p_therapist_id: therapistId,
+    p_therapist_name: therapistName,
+    p_package_name: packageName,
+    p_duration_minutes: durationMinutes,
+    p_price: price,
+    p_commission_percent: commissionPercent,
+    p_hotel_commission: hotelCommission,
+    p_customer_name: customerName,
+    p_payment_method: paymentMethod
+  });
+  if (error) throw error;
+  return data;
+}
+
 // Booking oncall outlet pada satu hari WIB (konsisten dengan reportService).
 function wibDayBoundsUtc(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -40,14 +60,16 @@ export async function getTodayOncall(outletId, dateStr) {
   if (error) throw error;
   return (data || []).map((r) => ({
     id: r.id,
+    therapistId: r.therapist_id,
     therapistName: r.therapist_name,
     treatmentName: r.treatment_name,
     treatmentPrice: r.treatment_price != null ? Number(r.treatment_price) : 0,
     hotelCommission: r.hotel_commission != null ? Number(r.hotel_commission) : 0,
     commissionAmount: r.commission_amount != null ? Number(r.commission_amount) : 0,
+    commissionPercent: r.commission_percent != null ? Number(r.commission_percent) : 0,
+    durationMinutes: r.duration_minutes,
     customerName: r.customer_name,
     paymentMethod: r.payment_method,
-    durationMinutes: r.duration_minutes,
     createdAt: r.created_at
   }));
 }
