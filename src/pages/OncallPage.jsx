@@ -167,6 +167,7 @@ export default function OncallPage({ outletId, active }) {
             return (
               <button
                 key={t.id}
+                type="button"
                 className={busyT ? 'pos-chip pos-chip-busy' : therapistId === t.id ? 'pos-chip active' : 'pos-chip'}
                 disabled={busyT}
                 onClick={() => setTherapistId(t.id)}
