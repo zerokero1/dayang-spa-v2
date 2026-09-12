@@ -61,8 +61,13 @@ export default function OncallPage({ outletId, active }) {
   const dur = pkg ? pkg.durations.find((d) => d.minutes === selDur) || null : null;
   const price = dur ? dur.price : 0;
   const therapistOptions = therapists
-    .filter((t) => t.home_outlet_id === outletId)
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .filter((t) => (t.status || 'free') !== 'ambil_tamu')
+    .sort((a, b) => {
+      const ao = a.homeOutletId === outletId ? 0 : 1;
+      const bo = b.homeOutletId === outletId ? 0 : 1;
+      if (ao !== bo) return ao - bo;
+      return a.name.localeCompare(b.name);
+    });
   const commissionVal = Number.isFinite(parseFloat(commissionPct)) ? parseFloat(commissionPct) : null;
   const therapistCommissionRp = commissionVal != null && price ? Math.round((commissionVal / 100) * price) : 0;
 
@@ -155,7 +160,7 @@ export default function OncallPage({ outletId, active }) {
         <p>Terapis</p>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', maxHeight: 180, overflowY: 'auto' }}>
           {therapistOptions.length === 0 && (
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Belum ada terapis untuk outlet {outletId}.</p>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Tidak ada terapis tersedia saat ini (semua sedang bertugas / data kosong).</p>
           )}
           {therapistOptions.map((t) => {
             const busyT = (t.status || 'free') === 'ambil_tamu';
@@ -166,7 +171,7 @@ export default function OncallPage({ outletId, active }) {
                 disabled={busyT}
                 onClick={() => setTherapistId(t.id)}
               >
-                {t.name}{busyT ? ' 🔴 Ambil Tamu' : ''}
+                {t.name}{t.homeOutletId && t.homeOutletId !== outletId ? ` · ${t.homeOutletId}` : ''}{busyT ? ' 🔴 Ambil Tamu' : ''}
               </button>
             );
           })}
