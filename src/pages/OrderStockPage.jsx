@@ -227,29 +227,20 @@ export default function OrderStockPage({ outletId, active, isOffice, profile }) 
           </div>
         )}
 
-        {!isAdmin && (
-          <>
-            <p style={{ fontSize: 13, marginTop: 12, marginBottom: 4 }}>Catatan (opsional)</p>
-            <input
-              type="text"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="cth: butuh minggu ini / sekalian refill"
-            />
-            <div style={{ marginTop: 10 }}>
-              <button onClick={handleSubmit} disabled={saving || !hasDraft}>
-                {saving ? 'Mengirim...' : '📦 Kirim Order Stok'}
-              </button>
-            </div>
-            {error && <p className="error">{error}</p>}
-            {message && <p style={{ color: 'var(--success)' }}>{message}</p>}
-          </>
-        )}
-        {isAdmin && (
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 10 }}>
-            Ketika kasir membuka halaman ini di outlet-nya, mereka bisa mengisi jumlah & mengirim permintaan.
-          </p>
-        )}
+        <p style={{ fontSize: 13, marginTop: 12, marginBottom: 4 }}>Catatan (opsional)</p>
+        <input
+          type="text"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="cth: butuh minggu ini / sekalian refill"
+        />
+        <div style={{ marginTop: 10 }}>
+          <button onClick={handleSubmit} disabled={saving || !hasDraft}>
+            {saving ? 'Mengirim...' : '📦 Kirim Order Stok'}
+          </button>
+        </div>
+        {error && <p className="error">{error}</p>}
+        {message && <p style={{ color: 'var(--success)' }}>{message}</p>}
       </section>
 
       <section>
