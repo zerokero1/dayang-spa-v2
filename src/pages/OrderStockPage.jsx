@@ -34,16 +34,17 @@ export default function OrderStockPage({ outletId, active, isOffice, profile }) 
   const [error, setError] = useState('');
   const [filterOutlet, setFilterOutlet] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [selOutlet, setSelOutlet] = useState(outletId);
 
   useEffect(() => {
     if (!active) return;
-    return listenOilInventory(outletId, setOils);
-  }, [active, outletId]);
+    return listenOilInventory(selOutlet, setOils);
+  }, [active, selOutlet]);
 
   useEffect(() => {
     if (!active) return;
-    return listenInventory(outletId, setItems);
-  }, [active, outletId]);
+    return listenInventory(selOutlet, setItems);
+  }, [active, selOutlet]);
 
   async function reloadRequests() {
     try {
@@ -105,7 +106,7 @@ export default function OrderStockPage({ outletId, active, isOffice, profile }) 
     setMessage('');
     try {
       await submitStockRequests({
-        outletId,
+        outletId: selOutlet,
         createdBy: (profile && profile.name) || '',
         items: rows.map((r) => ({ ...r, note: note.trim() }))
       });
@@ -133,7 +134,7 @@ export default function OrderStockPage({ outletId, active, isOffice, profile }) 
     if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
     if (isAdmin && filterOutlet === 'ALL') return true;
     if (isAdmin) return r.outletId === filterOutlet;
-    return r.outletId === outletId;
+    return r.outletId === selOutlet;
   });
 
   return (
@@ -147,14 +148,22 @@ export default function OrderStockPage({ outletId, active, isOffice, profile }) 
 
       <section>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-          <p style={{ margin: 0, fontWeight: 600 }}>Stok saat ini — {outletName(outletId)}</p>
-          {isAdmin && (
-            <select value={filterOutlet} onChange={(e) => setFilterOutlet(e.target.value)} style={{ maxWidth: 220 }}>
-              <option value="ALL">Semua outlet (admin)</option>
+          <p style={{ margin: 0, fontWeight: 600 }}>Stok saat ini</p>
+          {isAdmin ? (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {OUTLETS.map((o) => (
-                <option key={o.id} value={o.id}>{o.name}</option>
+                <button
+                  key={o.id}
+                  type="button"
+                  className={selOutlet === o.id ? 'chip active' : 'chip'}
+                  onClick={() => setSelOutlet(o.id)}
+                >
+                  {o.name}
+                </button>
               ))}
-            </select>
+            </div>
+          ) : (
+            <span className="topbar-outlet-label">Outlet: {outletName(selOutlet)}</span>
           )}
         </div>
 
