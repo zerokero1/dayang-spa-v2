@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ONCALL_PACKAGES, DEFAULT_ONCALL_COMMISSION_PCT, PAYMENT_METHOD_LABEL } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
-import { createOncallBooking, editOncallBooking, getTodayOncall } from '../lib/oncallService';
+import { createOncallBookingMulti, editOncallBooking, getTodayOncall } from '../lib/oncallService';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -22,7 +22,7 @@ export default function OncallPage({ outletId, active }) {
   const [therapists, setTherapists] = useState([]);
   const [selPkg, setSelPkg] = useState(null);
   const [selDur, setSelDur] = useState(null);
-  const [therapistId, setTherapistId] = useState(null);
+  const [selTherapists, setSelTherapists] = useState({});
   const [customerName, setCustomerName] = useState('');
   const [commissionPct, setCommissionPct] = useState(String(DEFAULT_ONCALL_COMMISSION_PCT));
   const [method, setMethod] = useState('');
@@ -73,44 +73,67 @@ export default function OncallPage({ outletId, active }) {
       if (ao !== bo) return ao - bo;
       return a.name.localeCompare(b.name);
     });
+  const selEntries = therapistOptions
+    .filter((t) => selTherapists[t.id] !== undefined)
+    .map((t) => ({ id: t.id, name: t.name, homeOutletId: t.homeOutletId, time: selTherapists[t.id] || '' }));
   const commissionVal = Number.isFinite(parseFloat(commissionPct)) ? parseFloat(commissionPct) : null;
   const therapistCommissionRp = commissionVal != null && price ? Math.round((commissionVal / 100) * price) : 0;
+  const totalPrice = price * selEntries.length;
 
   const canSubmit =
-    pkg && dur && therapistId && customerName.trim() &&
+    pkg && dur && selEntries.length > 0 &&
+    selEntries.every((e) => /^\d{2}:\d{2}$/.test(e.time)) &&
+    customerName.trim() &&
     method && commissionVal != null && commissionVal >= 0 && commissionVal <= 100;
 
   function resetForm() {
     setSelPkg(null);
     setSelDur(null);
-    setTherapistId(null);
+    setSelTherapists({});
     setCustomerName('');
     setCommissionPct(String(DEFAULT_ONCALL_COMMISSION_PCT));
     setMethod('');
     setError('');
   }
 
+  function toggleTherapist(id) {
+    setSelTherapists((prev) => {
+      const next = { ...prev };
+      if (next[id] !== undefined) delete next[id];
+      else next[id] = '';
+      return next;
+    });
+  }
+
+  function setTherapistTime(id, time) {
+    setSelTherapists((prev) => ({ ...prev, [id]: time }));
+  }
+
   async function handleSubmit() {
     if (!canSubmit) {
-      setError('Lengkapi paket, durasi, terapis, nama tamu/hotel, dan metode pembayaran.');
+      setError('Lengkapi paket, durasi, minimal satu terapis dengan waktu mulai, nama tamu/hotel, dan metode pembayaran.');
       return;
     }
+    const entries = selEntries.map((e) => {
+      const [h, m] = e.time.split(':').map(Number);
+      return { therapist_id: e.id, start_hour: h, start_minute: m };
+    });
     setSaving(true);
     setError('');
     setMessage('');
     try {
-      await createOncallBooking({
+      await createOncallBookingMulti({
         outletId,
-        therapistId,
+        customerName: customerName.trim(),
+        paymentMethod: method,
         packageName: `${pkg.name} (Full Body ${dur.minutes} mnt)`,
         durationMinutes: dur.minutes,
         price,
         commissionPercent: commissionVal,
-        customerName: customerName.trim(),
-        paymentMethod: method,
-        hotelCommission: pkg.hotelCommission
+        hotelCommission: pkg.hotelCommission,
+        entries
       });
-      setMessage('Order oncall berhasil dicatat dan langsung lunas.');
+      setMessage(`Order oncall ${selEntries.length} terapis berhasil dicatat dan langsung lunas.`);
       resetForm();
       await loadList();
     } catch (e) {
@@ -223,29 +246,48 @@ export default function OncallPage({ outletId, active }) {
       )}
 
       <section>
-        <p>Terapis</p>
-        <select
-          value={therapistId || ''}
-          onChange={(e) => setTherapistId(e.target.value)}
-          style={{ width: '100%' }}
-        >
-          <option value="">Pilih terapis…</option>
+        <p>Terapis (bisa pilih lebih dari satu)</p>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {therapistOptions.length === 0 && (
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+              Tidak ada terapis tersedia saat ini (semua sedang bertugas / belum ada data terapis).
+            </p>
+          )}
           {therapistOptions.map((t) => (
-            <option key={t.id} value={t.id}>
+            <label
+              key={t.id}
+              className={'pos-chip' + (selTherapists[t.id] !== undefined ? ' active' : '')}
+              style={{ cursor: 'pointer' }}
+            >
+              <input
+                type="checkbox"
+                checked={selTherapists[t.id] !== undefined}
+                onChange={() => toggleTherapist(t.id)}
+                style={{ marginRight: 5, accentColor: 'var(--accent)' }}
+              />
               {t.name}{t.homeOutletId && t.homeOutletId !== outletId ? ` · ${t.homeOutletId}` : ''}
-            </option>
+            </label>
           ))}
-        </select>
-        {therapistId && therapists.find((t) => t.id === therapistId) && (
-          <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 4 }}>
-            ✓ Terpilih: {therapists.find((t) => t.id === therapistId).name}
-            ({therapists.find((t) => t.id === therapistId).homeOutletId || outletId})
+        </div>
+
+        {selEntries.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <p style={{ fontSize: 13, marginBottom: 4 }}>Atur waktu mulai (boleh beda per terapis)</p>
+            {selEntries.map((e) => (
+              <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 13, flex: 1 }}>{e.name}{e.homeOutletId && e.homeOutletId !== outletId ? ` · ${e.homeOutletId}` : ''}</span>
+                <input
+                  type="time"
+                  value={e.time}
+                  onChange={(ev) => setTherapistTime(e.id, ev.target.value)}
+                  style={{ maxWidth: 120 }}
+                />
+                <button type="button" className="pos-chip" onClick={() => toggleTherapist(e.id)}>
+                  ✕
+                </button>
+              </div>
+            ))}
           </div>
-        )}
-        {therapistOptions.length === 0 && (
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
-            Tidak ada terapis tersedia saat ini (semua sedang bertugas / belum ada data terapis).
-          </p>
         )}
       </section>
 
@@ -285,9 +327,11 @@ export default function OncallPage({ outletId, active }) {
           <strong>Ringkasan</strong>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 13, marginTop: 6, color: 'var(--text-secondary)' }}>
             <div>Paket: {pkg.name} ({dur.minutes} mnt)</div>
-            <div>Harga: {rp(price)}</div>
-            <div>Komisi hotel: {rp(pkg.hotelCommission)}</div>
-            <div>Komisi terapis ({commissionVal ?? 0}%): {rp(therapistCommissionRp)}</div>
+            <div>Harga: {rp(price)} / terapis</div>
+            <div>Terapis: {selEntries.length || 0}</div>
+            <div>Total: {rp(totalPrice)}</div>
+            <div>Komisi hotel: {rp(pkg.hotelCommission)} / terapis</div>
+            <div>Komisi terapis ({commissionVal ?? 0}%): {rp(therapistCommissionRp)} / terapis</div>
           </div>
         </div>
       )}

@@ -20,6 +20,25 @@ export async function createOncallBooking({
   return data;
 }
 
+export async function createOncallBookingMulti({
+  outletId, customerName, paymentMethod, packageName, durationMinutes,
+  price, commissionPercent, hotelCommission, entries
+}) {
+  const { data, error } = await supabase.rpc('create_oncall_booking_multi', {
+    p_outlet_id: outletId,
+    p_customer_name: customerName,
+    p_payment_method: paymentMethod,
+    p_package_name: packageName,
+    p_duration_minutes: durationMinutes,
+    p_treatment_price: price,
+    p_commission_percent: commissionPercent,
+    p_hotel_commission: hotelCommission,
+    p_entries: entries
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function editOncallBooking({
   bookingId, therapistId, therapistName, packageName, durationMinutes,
   price, commissionPercent, hotelCommission, customerName, paymentMethod
