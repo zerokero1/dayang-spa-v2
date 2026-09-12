@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ONCALL_PACKAGES, DEFAULT_ONCALL_COMMISSION_PCT, PAYMENT_METHOD_LABEL } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
-import { createOncallBookingMulti, editOncallBooking, getTodayOncall } from '../lib/oncallService';
+import { createOncallBookingMulti, editOncallBooking, cancelOncallBooking, getTodayOncall } from '../lib/oncallService';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -166,6 +166,17 @@ export default function OncallPage({ outletId, active }) {
 
   function setEF(key, val) {
     setEditForm((f) => ({ ...f, [key]: val }));
+  }
+
+  async function handleCancel(b) {
+    if (!window.confirm(`Batalkan transaksi "${b.treatmentName}" untuk ${b.therapistName}? Komisi tidak lagi dihitung dan terapis dibebaskan.`)) return;
+    try {
+      await cancelOncallBooking(b.id);
+      setMessage('Transaksi oncall dibatalkan.');
+      await loadList();
+    } catch (e) {
+      setError(e.message || 'Gagal membatalkan transaksi oncall.');
+    }
   }
 
   async function handleEditSave() {
@@ -352,10 +363,10 @@ export default function OncallPage({ outletId, active }) {
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Belum ada transaksi oncall hari ini.</p>
         ) : (
           oncallList.map((b) => (
-            <div key={b.id} className="oil-card" style={{ marginBottom: 8 }}>
+            <div key={b.id} className="oil-card" style={{ marginBottom: 8, opacity: b.status === 'batal' ? 0.55 : 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
                 <strong>{b.treatmentName}</strong>
-                <span>{rp(b.treatmentPrice)}</span>
+                <span>{b.status === 'batal' ? '❌' : ''} {rp(b.treatmentPrice)}</span>
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
                 {b.therapistName} · {b.customerName || '-'} · {fmtWib(b.createdAt)} WIB ·{' '}
@@ -364,14 +375,26 @@ export default function OncallPage({ outletId, active }) {
               <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                 Komisi hotel {rp(b.hotelCommission)} · Komisi terapis {rp(b.commissionAmount)} · {b.durationMinutes || '-'} mnt
               </div>
-              <button
-                type="button"
-                className="pos-chip"
-                style={{ marginTop: 6 }}
-                onClick={() => openEdit(b)}
-              >
-                ✏️ Edit
-              </button>
+              {b.status === 'batal' ? (
+                <div style={{ fontSize: 12, color: 'var(--warning)', marginTop: 6, fontWeight: 600 }}>Transaksi dibatalkan</div>
+              ) : (
+                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <button
+                    type="button"
+                    className="pos-chip"
+                    onClick={() => openEdit(b)}
+                  >
+                    ✏️ Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="pos-chip"
+                    onClick={() => handleCancel(b)}
+                  >
+                    🗑️ Hapus
+                  </button>
+                </div>
+              )}
             </div>
           ))
         )}
