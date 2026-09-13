@@ -11,6 +11,52 @@ const SHIFT_END_MINUTES = {
   [SHIFTS.ST]: 16 * 60
 };
 
+// Ambil penyesuaian overtime manual dalam rentang tanggal.
+// Dipakai getOvertimeReport untuk MENIMPA hasil hitung otomatis.
+export async function getOvertimeAdjustments(startDate, endDate) {
+  const { data, error } = await supabase
+    .from('overtime_adjustments')
+    .select('therapist_id, work_date, adjusted_minutes, reason')
+    .gte('work_date', startDate)
+    .lte('work_date', endDate);
+  if (error) throw error;
+  const map = {};
+  (data || []).forEach((r) => {
+    map[`${r.therapist_id}|${r.work_date}`] = {
+      adjustedMinutes: Number(r.adjusted_minutes) || 0,
+      reason: r.reason || ''
+    };
+  });
+  return map;
+}
+
+// Set/simpan koreksi overtime (upsert per terapis + tanggal).
+export async function setOvertimeAdjustment({ therapistId, date, adjustedMinutes, reason, createdBy = '' }) {
+  const { error } = await supabase
+    .from('overtime_adjustments')
+    .upsert(
+      {
+        therapist_id: therapistId,
+        work_date: date,
+        adjusted_minutes: Math.max(0, Math.round(Number(adjustedMinutes) || 0)),
+        reason: reason || '',
+        created_by: createdBy
+      },
+      { onConflict: 'therapist_id,work_date' }
+    );
+  if (error) throw error;
+}
+
+// Hapus koreksi -> kembali ke hitung otomatis.
+export async function removeOvertimeAdjustment(therapistId, date) {
+  const { error } = await supabase
+    .from('overtime_adjustments')
+    .delete()
+    .eq('therapist_id', therapistId)
+    .eq('work_date', date);
+  if (error) throw error;
+}
+
 function toMinutes(ms) {
   return Math.max(0, Math.floor(ms / 60000));
 }
@@ -93,6 +139,8 @@ export async function getOvertimeReport(startDate, endDate) {
     }
   });
 
+  const adjustments = await getOvertimeAdjustments(startDate, endDate);
+
   const result = Object.values(rows).map((row) => {
     const therapist = therapistById[row.therapistId] || null;
     const shift = therapist ? therapist.shift : null;
@@ -104,6 +152,15 @@ export async function getOvertimeReport(startDate, endDate) {
       overtimeMinutes = Math.max(0, toMinutes(row.maxEndAt - shiftEndMs));
     }
 
+    // Penyesuaian manual MENIMPA nilai otomatis (0 = boleh).
+    const adjKey = `${row.therapistId}|${row.date}`;
+    const adj = adjustments[adjKey];
+    let corrected = false;
+    if (adj) {
+      overtimeMinutes = adj.adjustedMinutes;
+      corrected = true;
+    }
+
     return {
       therapistId: row.therapistId,
       therapistName: row.therapistName,
@@ -113,7 +170,9 @@ export async function getOvertimeReport(startDate, endDate) {
       treatmentCount: row.treatmentCount,
       shift,
       overtimeMinutes,
-      maxEndAt: row.maxEndAt
+      maxEndAt: row.maxEndAt,
+      corrected,
+      correctionReason: adj ? adj.reason : ''
     };
   });
 
