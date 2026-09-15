@@ -2,7 +2,8 @@ import { supabase } from './supabase';
 import { ATTENDANCE_TYPES } from './constants';
 
 function todayId(date = new Date()) {
-  return date.toISOString().slice(0, 10);
+  // WIB = UTC+7: label "hari" harus pakai tanggal WIB, bukan UTC.
+  return new Date(date.getTime() + 7 * 3600000).toISOString().slice(0, 10);
 }
 
 export async function recordAttendance({

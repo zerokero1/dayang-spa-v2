@@ -10,7 +10,9 @@ function eachDay(startDate, endDate) {
   const start = dayStrUtc(startDate);
   const end = dayStrUtc(endDate);
   for (let t = start; t <= end; t += 24 * 3600000) {
-    days.push(new Date(t).toISOString().slice(0, 10));
+    // label hari harus WIB (instant 00:00 WIB + 7 jam = tanggal WIB yang benar),
+    // bukan tanggal UTC dari instant tsb (yang mundur sehari).
+    days.push(new Date(t + 7 * 3600000).toISOString().slice(0, 10));
   }
   return days;
 }
