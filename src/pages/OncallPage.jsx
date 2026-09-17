@@ -79,7 +79,8 @@ export default function OncallPage({ outletId, active }) {
     .filter((t) => selTherapists[t.id] !== undefined)
     .map((t) => ({ id: t.id, name: t.name, homeOutletId: t.homeOutletId, time: selTherapists[t.id] || '' }));
   const commissionVal = Number.isFinite(parseFloat(commissionPct)) ? parseFloat(commissionPct) : null;
-  const therapistCommissionRp = commissionVal != null && price ? Math.round((commissionVal / 100) * price) : 0;
+  const therapistCommissionRp = commissionVal != null && price > hotelComm
+    ? Math.round((commissionVal / 100) * (price - hotelComm)) : 0;
   const totalPrice = price * selEntries.length;
   const totalHotel = hotelComm * selEntries.length;
 

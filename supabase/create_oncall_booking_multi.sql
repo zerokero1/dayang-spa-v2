@@ -43,7 +43,7 @@ begin
     raise exception 'Minimal satu terapis harus dipilih dengan waktu mulai';
   end if;
 
-  select round(p_commission_percent/100.0 * p_treatment_price) into v_commission;
+  select round(p_commission_percent/100.0 * (p_treatment_price - coalesce(p_hotel_commission, 0))) into v_commission;
   v_wib := (now() at time zone 'utc' + interval '7 hours')::date;
 
   for v_e in select value from jsonb_array_elements(p_entries) loop

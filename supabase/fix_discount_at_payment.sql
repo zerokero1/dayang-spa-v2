@@ -31,8 +31,8 @@ begin
             else treatment_price
          end,
          commission_amount = case
-            when p_new_price is not null then round(commission_percent / 100.0 * p_new_price)
-            else commission_amount
+when p_new_price is not null then round(commission_percent / 100.0 * (p_new_price - coalesce(hotel_commission, 0)))
+             else commission_amount
          end
    where id = p_booking_id and outlet_id = p_outlet_id;
 

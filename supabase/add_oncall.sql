@@ -50,7 +50,7 @@ begin
     raise exception 'Terapis sedang sibuk (Ambil Tamu), tidak bisa dijadwalkan oncall';
   end if;
 
-  select round(p_commission_percent/100.0 * p_treatment_price) into v_commission;
+  select round(p_commission_percent/100.0 * (p_treatment_price - coalesce(p_hotel_commission, 0))) into v_commission;
   v_start_at := (extract(epoch from now())::bigint * 1000);
   v_end_at := v_start_at + (p_duration_minutes * 60000);
 

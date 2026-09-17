@@ -38,7 +38,7 @@ begin
          treatment_price = p_price,
          original_price = null,
          commission_percent = p_commission_percent,
-         commission_amount = round(p_commission_percent / 100.0 * p_price),
+         commission_amount = round(p_commission_percent / 100.0 * (p_price - coalesce(p_hotel_commission, 0))),
          hotel_commission = p_hotel_commission,
          customer_name = coalesce(p_customer_name, ''),
          payment_method = p_payment_method
