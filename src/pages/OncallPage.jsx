@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ONCALL_PACKAGES, DEFAULT_ONCALL_COMMISSION_PCT, PAYMENT_METHOD_LABEL } from '../lib/constants';
+import { DEFAULT_ONCALL_COMMISSION_PCT, PAYMENT_METHOD_LABEL } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { createOncallBookingMulti, editOncallBooking, cancelOncallBooking, getTodayOncall } from '../lib/oncallService';
 
@@ -20,9 +20,11 @@ function fmtWib(iso) {
 
 export default function OncallPage({ outletId, active }) {
   const [therapists, setTherapists] = useState([]);
-  const [selPkg, setSelPkg] = useState(null);
-  const [selDur, setSelDur] = useState(null);
   const [selTherapists, setSelTherapists] = useState({});
+  const [treatName, setTreatName] = useState('');
+  const [durStr, setDurStr] = useState('60');
+  const [priceStr, setPriceStr] = useState('');
+  const [hotelCommStr, setHotelCommStr] = useState('0');
   const [customerName, setCustomerName] = useState('');
   const [commissionPct, setCommissionPct] = useState(String(DEFAULT_ONCALL_COMMISSION_PCT));
   const [method, setMethod] = useState('');
@@ -62,9 +64,9 @@ export default function OncallPage({ outletId, active }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, outletId]);
 
-  const pkg = ONCALL_PACKAGES.find((p) => p.id === selPkg) || null;
-  const dur = pkg ? pkg.durations.find((d) => d.minutes === selDur) || null : null;
-  const price = dur ? dur.price : 0;
+  const price = Number.isFinite(parseFloat(priceStr)) ? parseFloat(priceStr) : 0;
+  const durMinutes = Number.isFinite(parseFloat(durStr)) ? parseFloat(durStr) : 0;
+  const hotelComm = Number.isFinite(parseFloat(hotelCommStr)) ? parseFloat(hotelCommStr) : 0;
   const therapistOptions = therapists
     .filter((t) => (t.status || 'free') !== 'ambil_tamu')
     .sort((a, b) => {
@@ -79,17 +81,22 @@ export default function OncallPage({ outletId, active }) {
   const commissionVal = Number.isFinite(parseFloat(commissionPct)) ? parseFloat(commissionPct) : null;
   const therapistCommissionRp = commissionVal != null && price ? Math.round((commissionVal / 100) * price) : 0;
   const totalPrice = price * selEntries.length;
+  const totalHotel = hotelComm * selEntries.length;
 
   const canSubmit =
-    pkg && dur && selEntries.length > 0 &&
+    selEntries.length > 0 &&
     selEntries.every((e) => /^\d{2}:\d{2}$/.test(e.time)) &&
+    price > 0 && durMinutes > 0 &&
     customerName.trim() &&
-    method && commissionVal != null && commissionVal >= 0 && commissionVal <= 100;
+    method && commissionVal != null && commissionVal >= 0 && commissionVal <= 100 &&
+    hotelComm >= 0;
 
   function resetForm() {
-    setSelPkg(null);
-    setSelDur(null);
     setSelTherapists({});
+    setTreatName('');
+    setDurStr('60');
+    setPriceStr('');
+    setHotelCommStr('0');
     setCustomerName('');
     setCommissionPct(String(DEFAULT_ONCALL_COMMISSION_PCT));
     setMethod('');
@@ -111,7 +118,7 @@ export default function OncallPage({ outletId, active }) {
 
   async function handleSubmit() {
     if (!canSubmit) {
-      setError('Lengkapi paket, durasi, minimal satu terapis dengan waktu mulai, nama tamu/hotel, dan metode pembayaran.');
+      setError('Lengkapi minimal satu terapis dengan waktu mulai, nama tamu/hotel, harga, durasi, dan metode pembayaran.');
       return;
     }
     const entries = selEntries.map((e) => {
@@ -126,11 +133,11 @@ export default function OncallPage({ outletId, active }) {
         outletId,
         customerName: customerName.trim(),
         paymentMethod: method,
-        packageName: `${pkg.name} (Full Body ${dur.minutes} mnt)`,
-        durationMinutes: dur.minutes,
+        packageName: treatName.trim() || 'Oncall (Full Body Massage)',
+        durationMinutes: durMinutes,
         price,
         commissionPercent: commissionVal,
-        hotelCommission: pkg.hotelCommission,
+        hotelCommission: hotelComm,
         entries
       });
       setMessage(`Order oncall ${selEntries.length} terapis berhasil dicatat dan langsung lunas.`);
@@ -223,40 +230,6 @@ export default function OncallPage({ outletId, active }) {
       </p>
 
       <section>
-        <p>Pilih menu</p>
-        <div className="grid-2">
-          {ONCALL_PACKAGES.map((p) => (
-            <button
-              key={p.id}
-              className={selPkg === p.id ? 'active' : ''}
-              onClick={() => { setSelPkg(p.id); setSelDur(null); }}
-            >
-              <strong>{p.name}</strong>
-              <span style={{ display: 'block', fontSize: 12 }}>Komisi hotel {rp(p.hotelCommission)}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {pkg && (
-        <section>
-          <p>Durasi</p>
-          <div className="grid-2">
-            {pkg.durations.map((d) => (
-              <button
-                key={d.minutes}
-                className={selDur === d.minutes ? 'active' : ''}
-                onClick={() => setSelDur(d.minutes)}
-              >
-                <strong>{d.minutes} menit</strong>
-                <span style={{ display: 'block', fontSize: 12 }}>{rp(d.price)}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section>
         <p>Terapis (bisa pilih lebih dari satu)</p>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {therapistOptions.length === 0 && (
@@ -313,12 +286,58 @@ export default function OncallPage({ outletId, active }) {
       </section>
 
       <section>
+        <p>Nama treatment / paket (opsional)</p>
+        <input
+          type="text"
+          value={treatName}
+          onChange={(e) => setTreatName(e.target.value)}
+          placeholder="cth: Balinese Full Body 90 mnt"
+        />
+      </section>
+
+      <section>
+        <p>Durasi treatment (menit)</p>
+        <input
+          type="number"
+          min="1"
+          value={durStr}
+          onChange={(e) => setDurStr(e.target.value)}
+          style={{ maxWidth: 160 }}
+        />
+      </section>
+
+      <section>
+        <p>Total harga treatment per terapis (Rp)</p>
+        <input
+          type="number"
+          min="0"
+          value={priceStr}
+          onChange={(e) => setPriceStr(e.target.value)}
+          placeholder="cth: 450000"
+          style={{ maxWidth: 200 }}
+        />
+      </section>
+
+      <section>
         <p>Komisi terapis (%)</p>
         <input
           type="number"
+          min="0"
+          max="100"
           value={commissionPct}
           onChange={(e) => setCommissionPct(e.target.value)}
           style={{ maxWidth: 160 }}
+        />
+      </section>
+
+      <section>
+        <p>Komisi hotel (Rp, per terapis)</p>
+        <input
+          type="number"
+          min="0"
+          value={hotelCommStr}
+          onChange={(e) => setHotelCommStr(e.target.value)}
+          style={{ maxWidth: 200 }}
         />
       </section>
 
@@ -333,16 +352,18 @@ export default function OncallPage({ outletId, active }) {
         </div>
       </section>
 
-      {pkg && dur && (
+      {selEntries.length > 0 && price > 0 && durMinutes > 0 && (
         <div className="oil-card" style={{ marginTop: 8 }}>
           <strong>Ringkasan</strong>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 13, marginTop: 6, color: 'var(--text-secondary)' }}>
-            <div>Paket: {pkg.name} ({dur.minutes} mnt)</div>
-            <div>Harga: {rp(price)} / terapis</div>
+            <div>Treatment: {treatName.trim() || 'Oncall'}</div>
+            <div>Durasi: {durMinutes} mnt</div>
+            <div>Harga / terapis: {rp(price)}</div>
             <div>Terapis: {selEntries.length || 0}</div>
             <div>Total: {rp(totalPrice)}</div>
-            <div>Komisi hotel: {rp(pkg.hotelCommission)} / terapis</div>
+            <div>Komisi hotel: {rp(totalHotel)}</div>
             <div>Komisi terapis ({commissionVal ?? 0}%): {rp(therapistCommissionRp)} / terapis</div>
+            <div>Status blokir: terapis langsung terblok di Payment &amp; List</div>
           </div>
         </div>
       )}
