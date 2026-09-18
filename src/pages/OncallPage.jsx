@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { DEFAULT_ONCALL_COMMISSION_PCT, PAYMENT_METHOD_LABEL } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
+import { listenTreatments } from '../lib/treatmentService';
 import { createOncallBookingMulti, editOncallBooking, cancelOncallBooking, getTodayOncall } from '../lib/oncallService';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
@@ -20,6 +21,8 @@ function fmtWib(iso) {
 
 export default function OncallPage({ outletId, active }) {
   const [therapists, setTherapists] = useState([]);
+  const [treatments, setTreatments] = useState([]);
+  const [treatId, setTreatId] = useState(null);
   const [selTherapists, setSelTherapists] = useState({});
   const [treatName, setTreatName] = useState('');
   const [durStr, setDurStr] = useState('60');
@@ -45,6 +48,15 @@ export default function OncallPage({ outletId, active }) {
     return () => unsub();
   }, [active]);
 
+  useEffect(() => {
+    if (!active) return;
+    const unsub = listenTreatments((list) => {
+      setTreatments(list);
+      if (list && list.length === 0) setTreatId(null);
+    });
+    return () => unsub();
+  }, [active]);
+
   async function loadList() {
     setLoadingList(true);
     try {
@@ -67,6 +79,10 @@ export default function OncallPage({ outletId, active }) {
   const price = Number.isFinite(parseFloat(priceStr)) ? parseFloat(priceStr) : 0;
   const durMinutes = Number.isFinite(parseFloat(durStr)) ? parseFloat(durStr) : 0;
   const hotelComm = Number.isFinite(parseFloat(hotelCommStr)) ? parseFloat(hotelCommStr) : 0;
+  const fbTreatments = treatments
+    .filter((t) => t.category === 'Massage' && t.usesOil && /full\s?body/i.test(t.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const selTreat = fbTreatments.find((t) => t.id === treatId) || null;
   const therapistOptions = therapists
     .filter((t) => (t.status || 'free') !== 'ambil_tamu')
     .sort((a, b) => {
@@ -85,6 +101,7 @@ export default function OncallPage({ outletId, active }) {
   const totalHotel = hotelComm * selEntries.length;
 
   const canSubmit =
+    (fbTreatments.length === 0 || treatId) &&
     selEntries.length > 0 &&
     selEntries.every((e) => /^\d{2}:\d{2}$/.test(e.time)) &&
     price > 0 && durMinutes > 0 &&
@@ -93,6 +110,7 @@ export default function OncallPage({ outletId, active }) {
     hotelComm >= 0;
 
   function resetForm() {
+    setTreatId(null);
     setSelTherapists({});
     setTreatName('');
     setDurStr('60');
@@ -115,6 +133,13 @@ export default function OncallPage({ outletId, active }) {
 
   function setTherapistTime(id, time) {
     setSelTherapists((prev) => ({ ...prev, [id]: time }));
+  }
+
+  function setTreat(t) {
+    setTreatId(t.id);
+    setTreatName(t.name);
+    setPriceStr(String(t.price));
+    setDurStr(String(t.durationMinutes || 60));
   }
 
   async function handleSubmit() {
@@ -231,6 +256,33 @@ export default function OncallPage({ outletId, active }) {
       </p>
 
       <section>
+        <p>Pilih treatment (Full Body Massage)</p>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {fbTreatments.length === 0 && (
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+              Tidak ada treatment full body massage di daftar. {treatments.length === 0 ? 'Data treatment belum masuk.' : 'Harga bisa diinput manual di bawah.'}
+            </p>
+          )}
+          {fbTreatments.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={'pos-chip' + (treatId === t.id ? ' active' : '')}
+              onClick={() => setTreat(t)}
+            >
+              <strong>{t.name}</strong>
+              <span style={{ display: 'block', fontSize: 12 }}>{rp(t.price)}</span>
+            </button>
+          ))}
+          {fbTreatments.length > 0 && selTreat === null && (
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+              harga & durasi otomatis terisi saat treatment dipilih, tetap bisa diubah manual.
+            </p>
+          )}
+        </div>
+      </section>
+
+      <section>
         <p>Terapis (bisa pilih lebih dari satu)</p>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {therapistOptions.length === 0 && (
@@ -250,7 +302,7 @@ export default function OncallPage({ outletId, active }) {
                 onChange={() => toggleTherapist(t.id)}
                 style={{ marginRight: 5, accentColor: 'var(--accent)' }}
               />
-              {t.name}{t.homeOutletId && t.homeOutletId !== outletId ? ` · ${t.homeOutletId}` : ''}
+              {t.name}{t.homeOutletId && t.homeOutletId !== outletId ? ` · ${t.homeOutletId}` : ''}{selTreat && price > 0 ? ` · ${rp(price)}` : ''}
             </label>
           ))}
         </div>
@@ -260,7 +312,7 @@ export default function OncallPage({ outletId, active }) {
             <p style={{ fontSize: 13, marginBottom: 4 }}>Atur waktu mulai (boleh beda per terapis)</p>
             {selEntries.map((e) => (
               <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <span style={{ fontSize: 13, flex: 1 }}>{e.name}{e.homeOutletId && e.homeOutletId !== outletId ? ` · ${e.homeOutletId}` : ''}</span>
+                <span style={{ fontSize: 13, flex: 1 }}>{e.name}{e.homeOutletId && e.homeOutletId !== outletId ? ` · ${e.homeOutletId}` : ''}{selTreat ? ` · ${rp(price)}` : ''}</span>
                 <input
                   type="time"
                   value={e.time}
@@ -287,7 +339,7 @@ export default function OncallPage({ outletId, active }) {
       </section>
 
       <section>
-        <p>Nama treatment / paket (opsional)</p>
+        <p>Nama treatment tampil (otomatis dari pilihan, bisa ganti)</p>
         <input
           type="text"
           value={treatName}
