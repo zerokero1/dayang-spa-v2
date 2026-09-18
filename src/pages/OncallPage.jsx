@@ -80,7 +80,7 @@ export default function OncallPage({ outletId, active }) {
   const durMinutes = Number.isFinite(parseFloat(durStr)) ? parseFloat(durStr) : 0;
   const hotelComm = Number.isFinite(parseFloat(hotelCommStr)) ? parseFloat(hotelCommStr) : 0;
   const fbTreatments = treatments
-    .filter((t) => t.category === 'Massage' && t.usesOil && /full\s?body/i.test(t.name))
+    .filter((t) => t.category === 'Massage' && t.usesOil && /full\s?body|^\s*body\s?massage/i.test(t.name))
     .sort((a, b) => a.name.localeCompare(b.name));
   const selTreat = fbTreatments.find((t) => t.id === treatId) || null;
   const therapistOptions = therapists
