@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { DEFAULT_ONCALL_COMMISSION_PCT, PAYMENT_METHOD_LABEL } from '../lib/constants';
+import { PAYMENT_METHOD_LABEL } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createOncallBookingMulti, editOncallBooking, cancelOncallBooking, getTodayOncall } from '../lib/oncallService';
+
+const THERAPIST_COMMISSION = 10;
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -29,7 +31,6 @@ export default function OncallPage({ outletId, active }) {
   const [priceStr, setPriceStr] = useState('');
   const [hotelCommStr, setHotelCommStr] = useState('0');
   const [customerName, setCustomerName] = useState('');
-  const [commissionPct, setCommissionPct] = useState(String(DEFAULT_ONCALL_COMMISSION_PCT));
   const [method, setMethod] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -100,8 +101,8 @@ export default function OncallPage({ outletId, active }) {
   const selEntries = therapistOptions
     .filter((t) => selTherapists[t.id] !== undefined)
     .map((t) => ({ id: t.id, name: t.name, homeOutletId: t.homeOutletId, time: selTherapists[t.id] || '' }));
-  const commissionVal = Number.isFinite(parseFloat(commissionPct)) ? parseFloat(commissionPct) : null;
-  const therapistCommissionRp = commissionVal != null && price > hotelComm
+  const commissionVal = THERAPIST_COMMISSION;
+  const therapistCommissionRp = price > hotelComm
     ? Math.round((commissionVal / 100) * (price - hotelComm)) : 0;
   const totalPrice = price * selEntries.length;
   const totalHotel = hotelComm * selEntries.length;
@@ -112,7 +113,7 @@ export default function OncallPage({ outletId, active }) {
     selEntries.every((e) => /^\d{2}:\d{2}$/.test(e.time)) &&
     price > 0 && durMinutes > 0 &&
     customerName.trim() &&
-    method && commissionVal != null && commissionVal >= 0 && commissionVal <= 100 &&
+    method &&
     hotelComm >= 0;
 
   function resetForm() {
@@ -123,7 +124,6 @@ export default function OncallPage({ outletId, active }) {
     setPriceStr('');
     setHotelCommStr('0');
     setCustomerName('');
-    setCommissionPct(String(DEFAULT_ONCALL_COMMISSION_PCT));
     setMethod('');
     setError('');
   }
@@ -144,7 +144,6 @@ export default function OncallPage({ outletId, active }) {
   function setTreat(t) {
     setTreatId(t.id);
     setTreatName(t.name);
-    setPriceStr(String(t.price));
     setDurStr(String(t.durationMinutes || 60));
   }
 
@@ -168,7 +167,7 @@ export default function OncallPage({ outletId, active }) {
         packageName: treatName.trim() || 'Oncall (Full Body Massage)',
         durationMinutes: durMinutes,
         price,
-        commissionPercent: commissionVal,
+        commissionPercent: THERAPIST_COMMISSION,
         hotelCommission: hotelComm,
         entries
       });
@@ -189,7 +188,6 @@ export default function OncallPage({ outletId, active }) {
       packageName: b.treatmentName || '',
       durationMinutes: b.durationMinutes || 60,
       price: b.treatmentPrice || 0,
-      commissionPercent: b.commissionPercent || DEFAULT_ONCALL_COMMISSION_PCT,
       hotelCommission: b.hotelCommission || 0,
       customerName: b.customerName || '',
       method: b.paymentMethod || 'cash'
@@ -220,12 +218,9 @@ export default function OncallPage({ outletId, active }) {
 
   async function handleEditSave() {
     if (!editTarget || !editForm) return;
-    const comm = Number.isFinite(parseFloat(editForm.commissionPercent))
-      ? parseFloat(editForm.commissionPercent) : null;
     if (!editForm.therapistId || !editForm.packageName.trim() ||
-        !editForm.customerName.trim() || !editForm.method ||
-        comm == null || comm < 0 || comm > 100) {
-      setEditError('Lengkapi terapis, nama paket, nama tamu, metode bayar, dan komisi (0–100).');
+        !editForm.customerName.trim() || !editForm.method) {
+      setEditError('Lengkapi terapis, nama paket, nama tamu, dan metode bayar.');
       return;
     }
     const th = therapists.find((t) => t.id === editForm.therapistId);
@@ -239,7 +234,7 @@ export default function OncallPage({ outletId, active }) {
         packageName: editForm.packageName.trim(),
         durationMinutes: Math.round(Number(editForm.durationMinutes) || 0),
         price: Number(editForm.price) || 0,
-        commissionPercent: comm,
+        commissionPercent: THERAPIST_COMMISSION,
         hotelCommission: Number(editForm.hotelCommission) || 0,
         customerName: editForm.customerName.trim(),
         paymentMethod: editForm.method
@@ -277,12 +272,12 @@ export default function OncallPage({ outletId, active }) {
               onClick={() => setTreat(t)}
             >
               <strong>{t.name}</strong>
-              <span style={{ display: 'block', fontSize: 12 }}>{rp(t.price)}</span>
+              <span style={{ display: 'block', fontSize: 12 }}>{t.durationMinutes || '-'} mnt</span>
             </button>
           ))}
           {fbTreatments.length > 0 && selTreat === null && (
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-              harga & durasi otomatis terisi saat treatment dipilih, tetap bisa diubah manual.
+              nama & durasi otomatis terisi saat dipilih; harga diinput manual di bawah.
             </p>
           )}
         </div>
@@ -366,7 +361,7 @@ export default function OncallPage({ outletId, active }) {
       </section>
 
       <section>
-        <p>Total harga treatment per terapis (Rp)</p>
+        <p>Total harga treatment per terapis (Rp, input manual oleh kasir)</p>
         <input
           type="number"
           min="0"
@@ -374,18 +369,6 @@ export default function OncallPage({ outletId, active }) {
           onChange={(e) => setPriceStr(e.target.value)}
           placeholder="cth: 450000"
           style={{ maxWidth: 200 }}
-        />
-      </section>
-
-      <section>
-        <p>Komisi terapis (%)</p>
-        <input
-          type="number"
-          min="0"
-          max="100"
-          value={commissionPct}
-          onChange={(e) => setCommissionPct(e.target.value)}
-          style={{ maxWidth: 160 }}
         />
       </section>
 
@@ -421,7 +404,7 @@ export default function OncallPage({ outletId, active }) {
             <div>Terapis: {selEntries.length || 0}</div>
             <div>Total: {rp(totalPrice)}</div>
             <div>Komisi hotel: {rp(totalHotel)}</div>
-            <div>Komisi terapis ({commissionVal ?? 0}%): {rp(therapistCommissionRp)} / terapis</div>
+            <div>Komisi terapis (10%): {rp(therapistCommissionRp)} / terapis (10% × (harga − komisi hotel))</div>
             <div>Status blokir: terapis langsung terblok di Payment &amp; List</div>
           </div>
         </div>
@@ -535,14 +518,6 @@ export default function OncallPage({ outletId, active }) {
                 />
               </div>
             </div>
-
-            <p style={{ fontSize: 13, marginBottom: 4 }}>Komisi terapis (%)</p>
-            <input
-              type="number"
-              value={editForm.commissionPercent}
-              onChange={(e) => setEF('commissionPercent', e.target.value)}
-              style={{ maxWidth: 160 }}
-            />
 
             <p style={{ fontSize: 13, marginBottom: 4 }}>Nama tamu / hotel</p>
             <input
