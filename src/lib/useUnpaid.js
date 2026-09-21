@@ -43,7 +43,7 @@ export function useUnpaid(outletId, enabled) {
     }
 
     load();
-    const iv = setInterval(load, 30000);
+    const iv = setInterval(load, 120000);
     return () => { alive = false; clearInterval(iv); };
   }, [outletId, enabled]);
 

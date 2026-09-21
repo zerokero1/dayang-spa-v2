@@ -72,7 +72,7 @@ export default function OncallPage({ outletId, active }) {
   useEffect(() => {
     if (!active) return;
     loadList();
-    const timer = setInterval(loadList, 60000);
+    const timer = setInterval(loadList, 120000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, outletId]);

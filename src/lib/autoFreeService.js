@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 
 let timer = null;
 
-export function startAutoFreeTicker(intervalMs = 30000) {
+export function startAutoFreeTicker(intervalMs = 60000) {
   stopAutoFreeTicker();
   timer = setInterval(() => {
     supabase.rpc('auto_free_expired_therapists').then(({ error }) => {
