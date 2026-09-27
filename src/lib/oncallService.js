@@ -67,6 +67,14 @@ export async function cancelOncallBooking(bookingId) {
   return data;
 }
 
+export async function selesaiOncallBooking(bookingId) {
+  const { data, error } = await supabase.rpc('selesai_oncall_booking_office', {
+    p_booking_id: bookingId
+  });
+  if (error) throw error;
+  return data;
+}
+
 // Booking oncall outlet pada satu hari WIB (konsisten dengan reportService).
 function wibDayBoundsUtc(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);

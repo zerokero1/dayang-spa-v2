@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { PAYMENT_METHOD_LABEL } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
-import { createOncallBookingMulti, editOncallBooking, cancelOncallBooking, getTodayOncall } from '../lib/oncallService';
+import { createOncallBookingMulti, editOncallBooking, cancelOncallBooking, selesaiOncallBooking, getTodayOncall } from '../lib/oncallService';
 
 const THERAPIST_COMMISSION = 10;
 
@@ -21,7 +21,7 @@ function fmtWib(iso) {
   return `${h}:${m}`;
 }
 
-export default function OncallPage({ outletId, active }) {
+export default function OncallPage({ outletId, active, isOffice }) {
   const [therapists, setTherapists] = useState([]);
   const [treatments, setTreatments] = useState([]);
   const [treatId, setTreatId] = useState(null);
@@ -222,6 +222,17 @@ export default function OncallPage({ outletId, active }) {
       await loadList();
     } catch (e) {
       setError(e.message || 'Gagal membatalkan transaksi oncall.');
+    }
+  }
+
+  async function handleSelesai(b) {
+    if (!window.confirm(`Selesaikan oncall "${b.treatmentName}" untuk ${b.therapistName} SEKARANG? Transaksi & komisi tetap dicatat, tetapi terapis langsung bebas (tanpa menunggu jam selesai).`)) return;
+    try {
+      await selesaiOncallBooking(b.id);
+      setMessage(`Oncall ${b.therapistName} diselesaikan, terapis dibebaskan.`);
+      await loadList();
+    } catch (e) {
+      setError(e.message || 'Gagal menyelesaikan oncall.');
     }
   }
 
@@ -451,6 +462,16 @@ export default function OncallPage({ outletId, active }) {
                 <div style={{ fontSize: 12, color: 'var(--warning)', marginTop: 6, fontWeight: 600 }}>Transaksi dibatalkan</div>
               ) : (
                 <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  {isOffice && (
+                    <button
+                      type="button"
+                      className="pos-chip"
+                      style={{ background: 'var(--primary)', color: 'white' }}
+                      onClick={() => handleSelesai(b)}
+                    >
+                      ✅ Selesaikan
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="pos-chip"
