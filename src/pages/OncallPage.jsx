@@ -148,7 +148,17 @@ export default function OncallPage({ outletId, active }) {
 
   async function handleSubmit() {
     if (!canSubmit) {
-      setError('Lengkapi minimal satu terapis dengan waktu mulai, nama tamu/hotel, harga, durasi, dan metode pembayaran.');
+      const misses = [];
+      if (fbTreatments.length > 0 && !treatId) misses.push('pilih nama paket treatment');
+      if (selEntries.length === 0) misses.push('pilih minimal satu terapis');
+      else selEntries.forEach((e) => {
+        if (!/^\d{2}:\d{2}$/.test(e.time)) misses.push(`atur waktu mulai HH:MM untuk ${e.name} (contoh 07:30)`);
+      });
+      if (!(price > 0)) misses.push('isi harga (lebih dari 0)');
+      if (!(durMinutes > 0)) misses.push('isi durasi (lebih dari 0 menit)');
+      if (!customerName.trim()) misses.push('isi nama tamu/hotel');
+      if (!method) misses.push('pilih metode pembayaran (Cash/Cardless)');
+      setError('Lengkapi: ' + misses.join('; ') + ' — padahal "lengkap" tercatat, salah satu di atas yang belum terisi/format tidak sesuai.');
       return;
     }
     const entries = selEntries.map((e) => {
