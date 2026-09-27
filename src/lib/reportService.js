@@ -115,9 +115,11 @@ export async function getDailyBookingsRange(outletId, startDate, endDate) {
 
 export function summarizeDailyBookings(bookings) {
   const counted = bookings.filter((b) => b.status !== 'batal');
+  const oncallRows = counted.filter((b) => b.bookingSource === 'oncall');
+  const regularRows = counted.filter((b) => b.bookingSource !== 'oncall');
 
   const summary = {
-    totalTreatment: counted.length,
+    totalTreatment: 0,
     totalCommission: 0,
     totalHotelCommission: 0,
     totalRevenue: 0,
@@ -127,12 +129,16 @@ export function summarizeDailyBookings(bookings) {
     cardlessRevenue: 0,
     unpaidRevenue: 0,
     unpaidCount: 0,
+    oncallCount: 0,
+    oncallRevenue: 0,
+    oncallCommission: 0,
     byTherapist: {}
   };
 
-  counted.forEach((b) => {
+  // Omzet REGULER (selain oncall) — oncall dihitung terpisah.
+  regularRows.forEach((b) => {
+    summary.totalTreatment += 1;
     summary.totalCommission += b.commissionAmount || 0;
-    summary.totalHotelCommission += b.bookingSource === 'oncall' ? (b.hotelCommission || 0) : 0;
     summary.totalRevenue += b.treatmentPrice || 0;
 
     if (b.originalPrice != null && Number(b.originalPrice) > Number(b.treatmentPrice)) {
@@ -146,6 +152,26 @@ export function summarizeDailyBookings(bookings) {
       summary.unpaidRevenue += b.treatmentPrice || 0;
       summary.unpaidCount += 1;
     }
+
+    if (!summary.byTherapist[b.therapistId]) {
+      summary.byTherapist[b.therapistId] = {
+        therapistName: b.therapistName,
+        treatmentCount: 0,
+        commissionTotal: 0
+      };
+    }
+    const t = summary.byTherapist[b.therapistId];
+    t.treatmentCount += 1;
+    t.commissionTotal += b.commissionAmount || 0;
+  });
+
+  // Oncall: omzet tersendiri; komisi oncall & byTherapist tetap ikut
+  // dihitung agar gaji staff lengkap.
+  oncallRows.forEach((b) => {
+    summary.oncallCount += 1;
+    summary.oncallRevenue += b.treatmentPrice || 0;
+    summary.oncallCommission += b.commissionAmount || 0;
+    summary.totalHotelCommission += b.hotelCommission || 0;
 
     if (!summary.byTherapist[b.therapistId]) {
       summary.byTherapist[b.therapistId] = {
@@ -193,6 +219,9 @@ export async function getCombinedDailyReport(startDate, endDate) {
   let grandTotalHotelCommission = 0;
   let grandTotalRevenue = 0;
   let grandTotalDiscount = 0;
+  let grandOncallRevenue = 0;
+  let grandOncallCount = 0;
+  let grandOncallCommission = 0;
   const therapistCommissions = {};
 
   const bookingsAll = endDate ? await getAllBookingsRange(startDate, endDate) : await getAllDailyBookings(startDate);
@@ -205,6 +234,9 @@ export async function getCombinedDailyReport(startDate, endDate) {
     grandTotalHotelCommission += summary.totalHotelCommission;
     grandTotalRevenue += summary.totalRevenue;
     grandTotalDiscount += summary.totalDiscount;
+    grandOncallRevenue += summary.oncallRevenue || 0;
+    grandOncallCount += summary.oncallCount || 0;
+    grandOncallCommission += summary.oncallCommission || 0;
 
     // Gabungkan komisi per terapis lintas outlet (nama terapis + jumlah)
     for (const oId of Object.keys(summary.byTherapist)) {
@@ -224,6 +256,9 @@ export async function getCombinedDailyReport(startDate, endDate) {
     grandTotalHotelCommission,
     grandTotalRevenue,
     grandTotalDiscount,
+    grandOncallRevenue,
+    grandOncallCount,
+    grandOncallCommission,
     therapistCommissions
   };
 }

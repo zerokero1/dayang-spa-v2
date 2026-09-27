@@ -44,7 +44,7 @@ export default function DashboardPage({ active }) {
     return () => clearInterval(iv);
   }, [active]);
 
-  const grand = report || { grandTotalRevenue: 0, grandTotalCommission: 0, grandTotalTreatment: 0, grandTotalDiscount: 0 };
+  const grand = report || { grandTotalRevenue: 0, grandTotalCommission: 0, grandTotalTreatment: 0, grandTotalDiscount: 0, grandOncallRevenue: 0, grandOncallCount: 0 };
   const perOutlet = report?.perOutlet || {};
 
   return (
@@ -59,8 +59,13 @@ export default function DashboardPage({ active }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
         <div className="oil-card" style={{ textAlign: 'center', padding: 14 }}>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Omzet Hari Ini</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Omzet Outlet</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary-dark)', marginTop: 4 }}>{rp(grand.grandTotalRevenue)}</div>
+        </div>
+        <div className="oil-card" style={{ textAlign: 'center', padding: 14 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Omzet Oncall</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary)', marginTop: 4 }}>{rp(grand.grandOncallRevenue)}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{grand.grandOncallCount || 0} transaksi</div>
         </div>
         <div className="oil-card" style={{ textAlign: 'center', padding: 14 }}>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Komisi Terapis</div>
@@ -85,6 +90,7 @@ export default function DashboardPage({ active }) {
                   <th style={{ textAlign: 'left', padding: 8 }}>Outlet</th>
                   <th style={{ padding: 8 }}>Treatment</th>
                   <th style={{ padding: 8 }}>Omzet</th>
+                  <th style={{ padding: 8 }}>Oncall</th>
                   <th style={{ padding: 8 }}>Cash</th>
                   <th style={{ padding: 8 }}>Cardless</th>
                   <th style={{ padding: 8 }}>Belum Bayar</th>
@@ -100,6 +106,7 @@ export default function DashboardPage({ active }) {
                       <td style={{ textAlign: 'left', padding: 8 }}>{o.name}</td>
                       <td style={{ padding: 8 }}>{s.totalTreatment}</td>
                       <td style={{ padding: 8 }}>{rp(s.totalRevenue)}</td>
+                      <td style={{ padding: 8, color: 'var(--primary)' }}>{rp(s.oncallRevenue)}</td>
                       <td style={{ padding: 8 }}>{rp(s.cashRevenue)}</td>
                       <td style={{ padding: 8 }}>{rp(s.cardlessRevenue)}</td>
                       <td style={{ padding: 8, color: 'var(--busy)' }}>{rp(s.unpaidRevenue)}</td>

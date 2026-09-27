@@ -80,28 +80,32 @@ export default function LaporanPage({ outletId, profile }) {
       b.customerName || '-'
     ]);
     rows.push(['', 'TOTAL', outletSummary.totalRevenue, '', outletSummary.totalCommission, outletSummary.totalHotelCommission, '', '', '']);
+    const totalRowIndex = rows.length - 1;
+    if (outletSummary.oncallRevenue) {
+      rows.push(['', 'OMZET ONCALL (tersendiri)', outletSummary.oncallRevenue, '', outletSummary.oncallCommission, '', '', '', '']);
+    }
     await exportExcelReport({
       filename: `Laporan-Keuangan-${outletId}-${startDate}_${endDate}`,
       title: 'Laporan Keuangan — Dayang Spa',
       subtitle: `Outlet ${outletId} · ${rangeLabel}`,
       headers, rows,
       currencyColumns: [2, 4, 5],
-      totalRowIndex: rows.length - 1
+      totalRowIndex
     });
   }
 
   async function handleDownloadCombined() {
-    const headers = ['Outlet', 'Jumlah Treatment', 'Total Omzet', 'Total Komisi', 'Komisi Hotel'];
+    const headers = ['Outlet', 'Jumlah Treatment', 'Total Omzet', 'Total Komisi', 'Komisi Hotel', 'Omzet Oncall'];
     const rows = Object.values(combined.perOutlet).map((o) => [
-      o.outletName, o.totalTreatment, o.totalRevenue, o.totalCommission, o.totalHotelCommission
+      o.outletName, o.totalTreatment, o.totalRevenue, o.totalCommission, o.totalHotelCommission, o.oncallRevenue
     ]);
-    rows.push(['GRAND TOTAL', combined.grandTotalTreatment, combined.grandTotalRevenue, combined.grandTotalCommission, combined.grandTotalHotelCommission]);
+    rows.push(['GRAND TOTAL', combined.grandTotalTreatment, combined.grandTotalRevenue, combined.grandTotalCommission, combined.grandTotalHotelCommission, combined.grandOncallRevenue]);
     await exportExcelReport({
       filename: `Laporan-Keuangan-Gabungan-${startDate}_${endDate}`,
       title: 'Laporan Keuangan Gabungan — Dayang Spa',
       subtitle: `Semua Outlet · ${rangeLabel}`,
       headers, rows,
-      currencyColumns: [2, 3, 4],
+      currencyColumns: [2, 3, 4, 5],
       totalRowIndex: rows.length - 1
     });
   }
@@ -180,7 +184,10 @@ export default function LaporanPage({ outletId, profile }) {
           {outletSummary.totalBatal > 0 && (
             <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Dibatalkan: {outletSummary.totalBatal}</p>
           )}
-          <p>Total omzet: {rp(outletSummary.totalRevenue)}</p>
+          <p>Omzet outlet (tanpa oncall): {rp(outletSummary.totalRevenue)}</p>
+          {outletSummary.oncallCount > 0 && (
+            <p>Omzet oncall (tersendiri): {rp(outletSummary.oncallRevenue)} ({outletSummary.oncallCount} transaksi)</p>
+          )}
           <p>Total komisi: {rp(outletSummary.totalCommission)}</p>
           {outletSummary.totalHotelCommission > 0 && (
             <p>Total komisi hotel (oncall): {rp(outletSummary.totalHotelCommission)}</p>
@@ -210,7 +217,10 @@ export default function LaporanPage({ outletId, profile }) {
             </button>
           </div>
           <p>Total treatment: {combined.grandTotalTreatment}</p>
-          <p>Total omzet: {rp(combined.grandTotalRevenue)}</p>
+          <p>Omzet outlet (tanpa oncall): {rp(combined.grandTotalRevenue)}</p>
+          {combined.grandOncallCount > 0 && (
+            <p>Omzet oncall (tersendiri): {rp(combined.grandOncallRevenue)} ({combined.grandOncallCount} transaksi)</p>
+          )}
           <p>Total komisi: {rp(combined.grandTotalCommission)}</p>
           {combined.grandTotalHotelCommission > 0 && (
             <p>Total komisi hotel (oncall): {rp(combined.grandTotalHotelCommission)}</p>
