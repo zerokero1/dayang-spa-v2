@@ -91,7 +91,6 @@ export default function OncallPage({ outletId, active }) {
     .sort((a, b) => a.name.localeCompare(b.name));
   const selTreat = fbTreatments.find((t) => t.id === treatId) || null;
   const therapistOptions = therapists
-    .filter((t) => (t.status || 'free') !== 'ambil_tamu')
     .sort((a, b) => {
       const ao = a.homeOutletId === outletId ? 0 : 1;
       const bo = b.homeOutletId === outletId ? 0 : 1;
@@ -475,7 +474,6 @@ export default function OncallPage({ outletId, active }) {
             <select value={editForm.therapistId || ''} onChange={(e) => setEF('therapistId', e.target.value)}>
               <option value="">Pilih terapis…</option>
               {therapists
-                .filter((t) => (t.status || 'free') !== 'ambil_tamu')
                 .sort((a, b) => a.name.localeCompare(b.name))
                 .map((t) => (
                   <option key={t.id} value={t.id}>
