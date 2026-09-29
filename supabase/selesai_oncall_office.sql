@@ -97,6 +97,8 @@ grant execute on function public.selesai_oncall_booking_office(uuid) to anon;
 create or replace function auto_free_expired_therapists()
 returns int
 language plpgsql
+security definer
+set search_path to public
 as $fn$
 declare
   v_now bigint;
@@ -144,6 +146,10 @@ begin
   --     DIUBAH: hanya oncall yang MASIH TERIKAT di terapis
   --     (current_group_id / current_booking_ids) yang memblok. Oncall yang
   --     sudah diselesaikan office tidak akan memblok ulang.
+  --     PENTING: therapists.current_booking_ids bertipe jsonb, JADI pakai
+  --     operator '@>' (jsonb array contains). Dulu pakai '??' yang tidak
+  --     eksis untuk jsonb -> fungsi ini selalu error dan tidak pernah
+  --     membebaskan terapis sama sekali.
   for r in
     select b.therapist_id as tid,
            b.outlet_id,
@@ -165,7 +171,7 @@ begin
         where t.id = b.therapist_id
           and (
             t.current_group_id = 'oncall:' || b.id::text
-            or t.current_booking_ids ?? b.id::text
+            or coalesce(t.current_booking_ids, '[]'::jsonb) @> jsonb_build_array(b.id::text)
           )
       )
   loop

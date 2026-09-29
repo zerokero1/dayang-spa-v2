@@ -690,3 +690,236 @@ section > button {
   .topbar { padding: 10px 14px; }
   .content .pos-layout { height: auto; }
 }
+
+/* ============================================================
+   MODE KASIR: layar sederhana — tombol besar + tab bawah
+   ============================================================ */
+.kasir-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+/* ---------- Header ---------- */
+.kasir-top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--primary);
+  color: #fff;
+}
+.kasir-top-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.kasir-top-logo {
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  font-size: 18px;
+}
+.kasir-top-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.kasir-top-text strong { font-size: 15px; }
+.kasir-top-text small {
+  font-size: 11px; opacity: 0.9;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.kasir-top-right { display: flex; align-items: center; gap: 8px; }
+.kasir-user {
+  font-size: 12px; opacity: 0.95;
+  max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.kasir-logout {
+  background: rgba(255, 255, 255, 0.16);
+  border: none;
+  color: #fff;
+  border-radius: 8px;
+  min-width: 34px; height: 34px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.kasir-logout:hover { background: rgba(255, 255, 255, 0.28); }
+
+/* ---------- Konten ---------- */
+.kasir-content { flex: 1; padding: 14px 14px 18px; width: 100%; }
+.kasir-content.has-banner { padding-bottom: 100px; }
+.kasir-content .kasir-page { max-width: 860px; margin: 0 auto; }
+
+/* ---------- Judul halaman + tombol kembali ---------- */
+.kasir-subhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.kasir-back {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-width: 38px; height: 38px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary);
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.kasir-back:hover { background: var(--primary-light); }
+
+.kasir-greet { font-size: 16px; font-weight: 700; margin: 2px 0 14px; }.kasir-greet small {
+  display: block; font-weight: 400; font-size: 12px;
+  color: var(--text-secondary); margin-top: 4px;
+}
+
+/* ---------- Tombol besar ---------- */
+.kasir-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kasir-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 14px;
+  min-height: 96px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.kasir-tile:active { transform: scale(0.99); }
+.kasir-tile .ic { font-size: 26px; line-height: 1; }
+.kasir-tile b { font-size: 15px; }
+.kasir-tile .sub { font-size: 11px; color: var(--text-secondary); line-height: 1.3; }
+.kasir-tile.primary {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  min-height: auto;
+  padding: 18px 16px;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.kasir-tile.primary .ic { font-size: 32px; }
+.kasir-tile.primary .sub { color: rgba(255, 255, 255, 0.85); }
+.kasir-pill {
+  margin-left: auto;
+  background: var(--danger);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+}
+.kasir-pill.overdue { animation: nav-badge-pulse 1.2s ease-in-out infinite; }
+
+.kasir-alert {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  text-align: left;
+  background: #7A1F1F;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.kasir-home-note {
+  margin-top: 16px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  line-height: 1.5;
+}
+
+/* ---------- Tab bawah ---------- */
+.kasir-nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+.kasir-nav button {
+  position: relative;
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 9px 4px 11px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.kasir-nav button .ni { font-size: 20px; line-height: 1; }
+.kasir-nav button.active { color: var(--primary); }
+.kasir-nav .dot {
+  position: absolute;
+  top: 5px;
+  right: calc(50% - 26px);
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+.kasir-nav .dot.overdue { animation: nav-badge-pulse 1.2s ease-in-out infinite; }
+
+/* Banner pengingat tidak menutupi tab bawah */
+.kasir-shell .unpaid-banner { bottom: 62px; }
+
+/* ---------- Panel "Lainnya" ---------- */
+.kasir-more-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); z-index: 25; }
+.kasir-more {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 30;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.18);
+  padding: 14px 14px 74px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.kasir-more h3 { margin: 0 0 10px; font-size: 13px; color: var(--text-secondary); }
+.kasir-more-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.kasir-more-grid button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---------- Layar lebar ---------- */
+@media (min-width: 700px) {
+  .kasir-content { max-width: 860px; margin: 0 auto; }
+  .kasir-tiles { grid-template-columns: repeat(3, 1fr); }
+  .kasir-more { left: 50%; right: auto; transform: translateX(-50%); width: 520px; border-radius: 14px 14px 0 0; }
+}

@@ -7,6 +7,7 @@ import { completeBooking } from './lib/bookingService';
 import { useUnpaid } from './lib/useUnpaid';
 import ReservationReminder from './components/ReservationReminder';
 import UnpaidReminder from './components/UnpaidReminder';
+import KasirBeranda from './components/KasirBeranda';
 import LoginPage from './pages/LoginPage';
 import './styles.css';
 
@@ -71,12 +72,29 @@ const ROLE_LABEL = {
   order_taker: 'Order Taker'
 };
 
+/* ============================================================
+   MODE KASIR (layar sederhana)
+   Akun kasir tidak lagi melihat sidebar panjang berisi banyak
+   menu. Mereka mendapat Beranda berisi tombol besar + 4 tab bawah.
+   Semua halaman tetap memakai komponen yang sama, jadi functionality
+   tidak berubah sama sekali.
+   ============================================================ */
+const KASIR_HOME_TILES = [
+  { key: 'kasir', icon: '➕', title: 'Catat Pesanan Baru', sub: 'Tamu datang / jalan', primary: true },
+  { key: 'status', icon: '💳', title: 'Bayar & Terapis', sub: 'Tagihan belum lunas · status terapis', badge: true },
+  { key: 'oncall', icon: '🏨', title: 'Oncall', sub: 'Massage ke hotel' },
+  { key: 'reservasi', icon: '🗓️', title: 'Reservasi', sub: 'Check-in tamu' },
+  { key: 'struk', icon: '🧾', title: 'Struk', sub: 'Cetak / ulang struk' },
+  { key: 'absensi', icon: '✅', title: 'Absensi', sub: 'Hadir / izin terapis' }
+];
+
 export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [activeOutlet, setActiveOutlet] = useState(null);
   const [activePage, setActivePage] = useState('kasir');
+  const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
     const unsub = listenAuthState((u, p) => {
@@ -85,7 +103,8 @@ export default function App() {
       setAuthLoading(false);
       if (p) {
         setActiveOutlet(p.role === 'kasir' ? p.outletId : OUTLETS[0].id);
-        if (RESTRICTED_ROLE_PAGES[p.role]) {
+        if (p.role === 'kasir') setActivePage('beranda');
+        else if (RESTRICTED_ROLE_PAGES[p.role]) {
           setActivePage(RESTRICTED_ROLE_PAGES[p.role][0]);
         }
       }
@@ -134,6 +153,99 @@ export default function App() {
   const userName = profile.name || user.email || 'Pengguna';
   const roleLabel = ROLE_LABEL[profile.role] || profile.role;
   const activeOutletName = OUTLETS.find((o) => o.id === activeOutlet)?.name || activeOutlet;
+
+  // ===== Akun kasir: layar sederhana (tombol besar + tab bawah) =====
+  if (profile.role === 'kasir') {
+    const homeKeys = KASIR_HOME_TILES.map((t) => t.key);
+    const morePages = visiblePageEntries
+      .filter(([key]) => !homeKeys.includes(key))
+      .map(([key, p]) => ({ key, icon: p.icon, label: p.label }));
+
+    const openPage = (key) => {
+      setActivePage(key);
+      setMoreOpen(false);
+      window.scrollTo({ top: 0 });
+    };
+
+    return (
+      <div className="kasir-shell">
+        <header className="kasir-top">
+          <div className="kasir-top-left">
+            <span className="kasir-top-logo">🫧</span>
+            <span className="kasir-top-text">
+              <strong>Dayang Spa</strong>
+              <small>Mode Kasir · {activeOutletName}</small>
+            </span>
+          </div>
+          <div className="kasir-top-right">
+            <span className="kasir-user">{userName}</span>
+            <button className="kasir-logout" onClick={logout} title="Keluar">⎋</button>
+          </div>
+        </header>
+
+        <main className={overdueCount > 0 ? 'kasir-content has-banner' : 'kasir-content'}>
+          {activePage === 'beranda' ? (
+            <KasirBeranda
+              userName={userName}
+              outletName={activeOutletName}
+              tiles={KASIR_HOME_TILES}
+              unpaidCount={unpaidCount}
+              overdueCount={overdueCount}
+              onOpen={openPage}
+            />
+          ) : (
+            <Suspense fallback={<div style={{ padding: 24, fontSize: 14, color: 'var(--text-secondary)' }}>Memuat…</div>}>
+              <div className="kasir-subhead">
+                <button className="kasir-back" onClick={() => openPage('beranda')} title="Kembali ke Beranda">←</button>
+                <span>{currentPage ? currentPage.label : ''}</span>
+              </div>
+              {currentPage && currentPage.Component && (
+                <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} />
+              )}
+            </Suspense>
+          )}
+        </main>
+
+        <nav className="kasir-nav">
+          <button className={activePage === 'beranda' ? 'active' : ''} onClick={() => openPage('beranda')}>
+            <span className="ni">🏠</span>Beranda
+          </button>
+          <button className={activePage === 'kasir' ? 'active' : ''} onClick={() => openPage('kasir')}>
+            <span className="ni">➕</span>Pesanan
+          </button>
+          <button className={activePage === 'status' ? 'active' : ''} onClick={() => openPage('status')}>
+            <span className="ni">💳</span>Bayar
+            {unpaidCount > 0 && (
+              <span className={overdueCount > 0 ? 'dot overdue' : 'dot'}>{unpaidCount}</span>
+            )}
+          </button>
+          <button className={moreOpen ? 'active' : ''} onClick={() => setMoreOpen(!moreOpen)}>
+            <span className="ni">☰</span>Lainnya
+          </button>
+        </nav>
+
+        {moreOpen && (
+          <>
+            <div className="kasir-more-backdrop" onClick={() => setMoreOpen(false)} />
+            <div className="kasir-more">
+              <h3>Menu lainnya</h3>
+              <div className="kasir-more-grid">
+                {morePages.map((p) => (
+                  <button key={p.key} onClick={() => openPage(p.key)}>
+                    <span>{p.icon}</span>
+                    <span>{p.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        <UnpaidReminder count={unpaidCount} overdue={overdueCount} onOpen={() => openPage('status')} />
+        <ReservationReminder outletId={activeOutlet} onOpen={() => openPage('reservasi')} />
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">
