@@ -273,7 +273,7 @@ section > button {
   padding: 12px;
   margin-bottom: 10px;
   box-shadow: var(--shadow);
-  max-height: 220px;
+  max-height: 300px;
   overflow-y: auto;
 }
 .pos-chip-list {
@@ -300,6 +300,84 @@ section > button {
   border-color: var(--busy);
   color: var(--busy);
   font-weight: 600;
+}
+.pos-chip-nooil {
+  background: var(--busy-bg);
+  border-color: var(--busy);
+  color: var(--busy);
+  font-weight: 600;
+}
+.pos-chip-fast {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 12px;
+}
+.pos-chip-fast small { font-size: 11px; color: var(--text-secondary); font-weight: 500; }
+.pos-chip-fast:hover { border-color: var(--primary); background: var(--primary-light); }
+
+/* Baris treatment cepat (sering dipakai) */
+.pos-quick-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--primary-light);
+}
+.pos-quick-label { font-size: 11px; font-weight: 700; color: var(--primary-dark); text-transform: uppercase; letter-spacing: 0.04em; }
+.pos-quick-bar .pos-chip-fast { background: #fff; }
+.pos-quick-bar .pos-chip-fast small { color: var(--primary-dark); }
+
+/* Judul panel pilihan */
+.pos-picker-title { font-size: 14px; font-weight: 700; margin: 0 0 8px; }
+
+/* Tombol "pakai lagi" */
+.pos-quick {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--primary);
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: none;
+  cursor: pointer;
+}
+.pos-quick:hover { background: var(--primary-dark); }
+
+.pos-quick-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.pos-toggle {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  box-shadow: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pos-toggle.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+.pos-cancel {
+  width: auto;
+  margin-top: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  box-shadow: none;
+  background: var(--text-secondary);
+  color: #fff;
+  cursor: pointer;
 }
 
 .pos-product-table {

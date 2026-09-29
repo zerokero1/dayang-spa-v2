@@ -3,14 +3,43 @@ import { OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, PAYMENT_METHODS, PAYMENT_ME
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createBooking, createBookingsBatch } from '../lib/bookingService';
+import { supabase } from '../lib/supabase';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
+
+/* ============================================================
+   MEMORI CEPAT (localStorage per perangkat)
+   Gunanya supaya kasir tidak mengetik/mengetuk hal yang sama
+   berulang-ulang: treatment terakhir, minyak terakhir, terapis
+   terakhir, nama pelanggan & metode pembayaran.
+   ============================================================ */
+const LS_RECENT = 'ds_recent_treatments';
+const LS_OIL = 'ds_last_oil';
+const LS_THERAPIST = 'ds_last_therapist';
+const LS_FORM = 'ds_kasir_form';
+
+function loadLS(key, fallback) {
+  try {
+    const v = JSON.parse(localStorage.getItem(key));
+    return v == null ? fallback : v;
+  } catch {
+    return fallback;
+  }
+}
+function saveLS(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage penuh / ditolak — abaikan, tidak boleh menggagalkan transaksi */
+  }
+}
 
 export default function KasirPage({ outletId, active }) {
   const [therapists, setTherapists] = useState([]);
   const [treatments, setTreatments] = useState([]);
   const [category, setCategory] = useState('Semua');
   const [productSearch, setProductSearch] = useState('');
+  const [popularNames, setPopularNames] = useState([]);
 
   // Alur: pilih treatment -> pilih minyak -> pilih terapis (yang free)
   const [pendingTreatment, setPendingTreatment] = useState(null);
@@ -19,13 +48,27 @@ export default function KasirPage({ outletId, active }) {
   const [pendingNoOil, setPendingNoOil] = useState(false);
   const [step, setStep] = useState(null); // null | 'oil' | 'therapist'
   const [therapistSearch, setTherapistSearch] = useState('');
+  const [freeOnly, setFreeOnly] = useState(true);
 
-  const [customerName, setCustomerName] = useState('');
+  // Memori cepat
+  const [recentIds, setRecentIds] = useState(() => loadLS(LS_RECENT, []));
+  const [oilMap, setOilMap] = useState(() => loadLS(LS_OIL, {}));
+  const [therapistMap, setTherapistMap] = useState(() => loadLS(LS_THERAPIST, {}));
+  const savedForm = loadLS(LS_FORM, {});
+  const [customerName, setCustomerName] = useState(savedForm.customerName || '');
+  const [markPaidNow, setMarkPaidNow] = useState(!!savedForm.markPaidNow);
+  const [paymentMethod, setPaymentMethod] = useState(savedForm.paymentMethod || '');
+
   const [cart, setCart] = useState([]);
-  const [markPaidNow, setMarkPaidNow] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Simpan form + pilihan terakhir setiap berubah.
+  useEffect(() => { saveLS(LS_FORM, { customerName, markPaidNow, paymentMethod }); },
+    [customerName, markPaidNow, paymentMethod]);
+  useEffect(() => { saveLS(LS_OIL, oilMap); }, [oilMap]);
+  useEffect(() => { saveLS(LS_THERAPIST, therapistMap); }, [therapistMap]);
+  useEffect(() => { saveLS(LS_RECENT, recentIds); }, [recentIds]);
 
   useEffect(() => {
     if (!active) return;
@@ -34,15 +77,62 @@ export default function KasirPage({ outletId, active }) {
     return () => { unsub1(); unsub2(); };
   }, [active]);
 
+  // Treatment yang paling sering dipakai di outlet ini (30 hari terakhir),
+  // supaya kasir bisa 1 ketuk treatment yang biasanya.
+  useEffect(() => {
+    if (!active || !outletId) return;
+    let alive = true;
+    const sejak = new Date(Date.now() - 30 * 864e5).toISOString();
+    supabase
+      .from('bookings')
+      .select('treatment_name')
+      .eq('outlet_id', outletId)
+      .neq('status', 'batal')
+      .gte('created_at', sejak)
+      .limit(1000)
+      .then(({ data }) => {
+        if (!alive || !data) return;
+        const hitung = {};
+        data.forEach((r) => {
+          if (r.treatment_name) hitung[r.treatment_name] = (hitung[r.treatment_name] || 0) + 1;
+        });
+        setPopularNames(
+          Object.entries(hitung)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6)
+            .map(([nama]) => nama)
+        );
+      });
+    return () => { alive = false; };
+  }, [active, outletId]);
+
   const cartTherapistIds = new Set(cart.map((c) => c.therapist.id));
   const cartCountByTherapist = {};
   cart.forEach((c) => { cartCountByTherapist[c.therapist.id] = (cartCountByTherapist[c.therapist.id] || 0) + 1; });
   const filteredTherapists = therapists
-    .filter((t) => t.name.toLowerCase().includes(therapistSearch.toLowerCase()));
+    .filter((t) => t.name.toLowerCase().includes(therapistSearch.toLowerCase()))
+    .filter((t) => !freeOnly || (t.status || 'free') !== 'ambil_tamu')
+    .sort((a, b) => {
+      const ab = (a.status || 'free') === 'ambil_tamu' ? 1 : 0;
+      const bb = (b.status || 'free') === 'ambil_tamu' ? 1 : 0;
+      return ab - bb || a.name.localeCompare(b.name);
+    });
 
   const productList = treatments
     .filter((t) => category === 'Semua' || t.category === category)
     .filter((t) => t.name.toLowerCase().includes(productSearch.toLowerCase()));
+
+  // Treatment yang bisa dipilih lewat 1 ketuk: sering dipakai + terakhir dipakai.
+  const quickTreatments = [
+    ...recentIds.map((id) => treatments.find((t) => t.id === id)).filter(Boolean),
+    ...treatments.filter((t) => popularNames.includes(t.name))
+  ].filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i).slice(0, 8);
+
+  const lastOil = pendingTreatment ? oilMap[pendingTreatment.id] : null;
+  const lastTherapistId = outletId ? therapistMap[outletId] : null;
+  const lastTherapist = lastTherapistId
+    ? therapists.find((t) => t.id === lastTherapistId && (t.status || 'free') !== 'ambil_tamu')
+    : null;
 
   const cartTotal = cart.reduce((sum, l) => sum + discountedPrice(l), 0);
 
@@ -77,6 +167,9 @@ export default function KasirPage({ outletId, active }) {
     setPendingOil(oil);
     setPendingSize(size);
     setPendingNoOil(false);
+    if (pendingTreatment) {
+      setOilMap((m) => ({ ...m, [pendingTreatment.id]: { oil, size } }));
+    }
     setStep('therapist');
   }
 
@@ -84,18 +177,63 @@ export default function KasirPage({ outletId, active }) {
     setPendingOil(null);
     setPendingSize(null);
     setPendingNoOil(true);
+    if (pendingTreatment) {
+      setOilMap((m) => ({ ...m, [pendingTreatment.id]: { noOil: true } }));
+    }
     setStep('therapist');
+  }
+
+  /** 1 ketuk: pakai kombinasi minyak terakhir untuk treatment ini. */
+  function handleUseLastOil() {
+    if (!pendingTreatment || !lastOil) return;
+    if (lastOil.noOil) {
+      setPendingOil(null);
+      setPendingSize(null);
+      setPendingNoOil(true);
+    } else {
+      setPendingOil(lastOil.oil);
+      setPendingSize(lastOil.size);
+      setPendingNoOil(false);
+    }
+    setStep('therapist');
+  }
+
+  function addLine(t, tera, opts = {}) {
+    const pakaiMinyak = usesOil(t) && !opts.noOil && !opts.noOilChosen;
+    setCart((c) => [...c, {
+      therapist: tera,
+      treatment: t,
+      oil: pakaiMinyak ? (opts.oil || null) : null,
+      size: pakaiMinyak ? (opts.size || null) : null,
+      noOil: !!opts.noOilChosen,
+      discountPct: 0,
+      discountReason: ''
+    }]);
+    setRecentIds((ids) => [t.id, ...ids.filter((x) => x !== t.id)].slice(0, 10));
+    if (outletId) setTherapistMap((m) => ({ ...m, [outletId]: tera.id }));
   }
 
   function handlePickTherapist(t) {
     const busy = (t.status || 'free') === 'ambil_tamu';
     // Terapis yang sibuk tidak bisa dipilih. Satu terapis boleh mengambil
     // beberapa treatment sekaligus (double treatment), baik Massage maupun bukan.
-    if (busy) return;
+    if (busy || !pendingTreatment) return;
 
-    setCart((c) => [...c, { therapist: t, treatment: pendingTreatment, oil: (usesOil(pendingTreatment) && !pendingNoOil) ? pendingOil : null, size: (usesOil(pendingTreatment) && !pendingNoOil) ? pendingSize : null, noOil: pendingNoOil, discountPct: 0, discountReason: '' }]);
+    addLine(pendingTreatment, t, { oil: pendingOil, size: pendingSize, noOilChosen: pendingNoOil });
     setPendingTreatment(null); setPendingOil(null); setPendingSize(null); setPendingNoOil(false);
     setStep(null);
+    setError('');
+  }
+
+  /** 1 ketuk untuk treatment + minyak + terapis yang sama seperti terakhir. */
+  function handleQuickRepeat(t) {
+    const oil = oilMap[t.id];
+    if (!lastTherapist) return;
+    addLine(t, lastTherapist, {
+      oil: oil && !oil.noOil ? oil.oil : null,
+      size: oil && !oil.noOil ? oil.size : null,
+      noOilChosen: !!oil?.noOil
+    });
     setError('');
   }
 
@@ -166,10 +304,10 @@ export default function KasirPage({ outletId, active }) {
       } else {
         await createBookingsBatch(items);
       }
-      // Sukses: bersihkan form & aktifkan ulang tombol (aplikasi tetap
-      // terbuka di tab ini; WhatsApp sudah terbuka di tab terpisah).
+      // Sukses: bersihkan keranjang saja. Nama pelanggan, metode pembayaran,
+      // dan status "sudah dibayar" sengaja DIKEEP supaya transaksi berikutnya
+      // tidak perlu diisi ulang.
       setCart([]);
-      setCustomerName('');
       setPendingTreatment(null); setPendingOil(null); setPendingSize(null);
       setStep(null);
       setSaving(false);
@@ -179,6 +317,18 @@ export default function KasirPage({ outletId, active }) {
       setSaving(false);
     }
   }
+
+  // Shortcut PC: Ctrl+Enter / Cmd+Enter = simpan pesanan.
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (cart.length > 0 && !saving) handlePay();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [cart, saving, customerName, paymentMethod, markPaidNow]);
 
   return (
     <div className="pos-layout">
@@ -198,41 +348,56 @@ export default function KasirPage({ outletId, active }) {
       <div className="pos-main">
         {step === 'oil' && (
           <div className="pos-picker-panel">
-            <p style={{ fontSize: 13, fontWeight: 600, marginTop: 0 }}>
-              {pendingTreatment.name} — pilih minyak & ukuran
+            <p className="pos-picker-title">
+              {pendingTreatment.name} — pilih minyak (1 ketuk langsung jadi)
             </p>
-            {oilChoicesFor(pendingTreatment).map((oil) => (
-              <div key={oil} style={{ marginBottom: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>{oil}</span>
-                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                  {OIL_SIZES.map((size) => (
-                    <button key={size} className="pos-chip" onClick={() => handlePickOil(oil, size)}>
-                      {size}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--busy)', color: '#fff', marginTop: 8, fontWeight: 600 }} onClick={handleNoOil}>
-              Tanpa Minyak
-            </button>
-            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff', marginTop: 6 }} onClick={cancelPicking}>
-              Batal
-            </button>
+            {lastOil && (
+              <button className="pos-quick" onClick={handleUseLastOil}>
+                ⚡ Pakai lagi: {lastOil.noOil ? 'Tanpa Minyak' : `${lastOil.oil} · ${lastOil.size}`}
+              </button>
+            )}
+            <div className="pos-chip-list">
+              {oilChoicesFor(pendingTreatment).flatMap((oil) =>
+                OIL_SIZES.map((size) => (
+                  <button key={`${oil}-${size}`} className="pos-chip" onClick={() => handlePickOil(oil, size)}>
+                    {oil} · {size}
+                  </button>
+                ))
+              )}
+              <button className="pos-chip pos-chip-nooil" onClick={handleNoOil}>
+                Tanpa Minyak
+              </button>
+            </div>
+            <button className="pos-cancel" onClick={cancelPicking}>Batal</button>
           </div>
         )}
 
         {step === 'therapist' && (
           <div className="pos-picker-panel">
-            <p style={{ fontSize: 13, fontWeight: 600, marginTop: 0 }}>
-              {pendingTreatment.name}{pendingOil ? ` · ${pendingOil} (${pendingSize})` : ''} — pilih terapis
+            <p className="pos-picker-title">
+              {pendingTreatment.name}{pendingOil ? ` · ${pendingOil} (${pendingSize})` : (pendingNoOil ? ' · tanpa minyak' : '')}
+              {' '}— pilih terapis
             </p>
-            <input
-              placeholder="Cari nama terapis..."
-              value={therapistSearch}
-              onChange={(e) => setTherapistSearch(e.target.value)}
-              style={{ marginBottom: 8 }}
-            />
+            <div className="pos-quick-row">
+              <input
+                placeholder="Cari nama terapis..."
+                value={therapistSearch}
+                onChange={(e) => setTherapistSearch(e.target.value)}
+                style={{ marginBottom: 0, flex: 1, minWidth: 140 }}
+              />
+              <button
+                className={freeOnly ? 'pos-toggle on' : 'pos-toggle'}
+                onClick={() => setFreeOnly(!freeOnly)}
+                title="Sembunyikan terapis yang sedang ambil tamu"
+              >
+                {freeOnly ? '✓ Bebas saja' : 'Semua terapis'}
+              </button>
+            </div>
+            {lastTherapist && !therapistSearch && (
+              <button className="pos-quick" onClick={() => handlePickTherapist(lastTherapist)}>
+                ⚡ Pakai lagi: {lastTherapist.name}
+              </button>
+            )}
             <div className="pos-chip-list">
               {filteredTherapists.map((t) => {
                 const busy = (t.status || 'free') === 'ambil_tamu';
@@ -246,23 +411,52 @@ export default function KasirPage({ outletId, active }) {
                   >
                     {t.name}{t.homeOutletId ? ` (${t.homeOutletId})` : ''}
                     {busy && ' 🔴 Ambil Tamu'}
-                    {!busy && alreadyInCart && ` · ${cartCountByTherapist[t.id]} treatment di keranjang`}
+                    {!busy && alreadyInCart && ` · ${cartCountByTherapist[t.id]} di keranjang`}
                   </button>
                 );
               })}
+              {filteredTherapists.length === 0 && (
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+                  Tidak ada terapis bebas. Matikan “Bebas saja” untuk melihat semua.
+                </p>
+              )}
             </div>
-            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff', marginTop: 8 }} onClick={cancelPicking}>
-              Batal
-            </button>
+            <button className="pos-cancel" onClick={cancelPicking}>Batal</button>
           </div>
         )}
 
         <input
-          placeholder="Cari treatment..."
+          placeholder="Cari treatment... (Ctrl+Enter = simpan)"
           value={productSearch}
           onChange={(e) => setProductSearch(e.target.value)}
           style={{ marginBottom: 10 }}
         />
+
+        {quickTreatments.length > 0 && productSearch === '' && (
+          <div className="pos-quick-bar">
+            <span className="pos-quick-label">⚡ Sering dipakai</span>
+            <div className="pos-chip-list">
+              {quickTreatments.map((t) => {
+                // Kalau sudah ada ingatan minyak + terapis untuk treatment ini,
+                // satu ketuk langsung masuk keranjang (tanpa pilih minyak/terapis).
+                const oil = oilMap[t.id];
+                const satuKetuk = !!lastTherapist && (!!oil || !treatmentUsesOil(t));
+                return (
+                  <button
+                    key={t.id}
+                    className="pos-chip pos-chip-fast"
+                    title={satuKetuk ? '1 ketuk langsung masuk keranjang' : 'Ketuk untuk pilih minyak & terapis'}
+                    onClick={() => (satuKetuk ? handleQuickRepeat(t) : handlePickTreatment(t))}
+                  >
+                    {satuKetuk && '⚡ '}
+                    {t.name}
+                    <small>{rp(t.price)}</small>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="pos-product-table">
           <div className="pos-product-header">
