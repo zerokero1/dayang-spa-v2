@@ -4,6 +4,9 @@ Tujuan: lepas dari Supabase cloud (lewat kuota egress & log), semua data & fungs
 tetap sama di server sendiri. Aplikasi (React PWA) **tidak perlu ditulis ulang** —
 self-host Supabase memakai SDK/fitur yang sama. Yang berubah hanya URL + anon key.
 
+> **STATUS: CUTOVER SELESAI (28 Sep 2026)** — semua outlet (RR, D1, D2, DP, DR, Y)
+> sudah aktif di server sendiri. Detail eksekusi di bagian **10. Hasil Eksekusi**.
+
 ---
 
 ## 1. Ringkasan & Biaya
@@ -138,3 +141,29 @@ Pemeliharaan rutin (jadwal):
 2. **Domain** untuk Supabase (mis. `db.xxx...` ) — atau sementara pakai IP + sertifikat.
 3. **Buka akses** untuk saya bantu setup (pasang SSH key atau beri user + password sekali pakai).
 4. **Konfirmasi password DB cloud** (sudah ada di `dburl.txt`) untuk `pg_dump` dari VPS.
+
+## 10. Hasil Eksekusi (cutover selesai 28 Sep 2026)
+
+| Item | Nilai aktual |
+|---|---|
+| VPS | `72.62.124.87` — Ubuntu 22.04, 8 GB RAM, Docker; UFW hanya 22/80/443 |
+| Domain & HTTPS | `https://lombokdayangspa.tech` — Caddy 2.11.4, Let's Encrypt (http-01) |
+| Stack | Supabase self-host `v1.24.05` (tritim: analytics/vector dihapus) |
+| Data | bookings ~4.0xx + auth, therapists 37, auth.users 8, realtime 7 tabel |
+| Frontend | `dayang-spa-v2.vercel.app` — bundle pakai URL baru, tanpa `supabase.co` |
+| Pembersihan data | 2.189 booking `berjalan` yang sudah lewat waktu → `selesai` (omzet/komisi tidak berubah) |
+| Sinkron terakhir | 12 booking + 2 absensi cloud-only dipindahkan (outlet DP & Y) |
+| Akses API | via HTTPS domain saja; **port 8000 ditutup** (iptables `DOCKER-USER` DROP; UFW tidak memblokir port Docker — lihat catatan) |
+| Supabase cloud | Dipertahankan sebagai cadangan read-only (tidak ada device yang menulis lagi) |
+
+### Catatan operasional
+- **Selesaikan sesi booking** (tombol selesai/bayar) supaya status `berjalan` tidak menumpuk.
+- Devais pindah/install ulang PWA: pastikan request mengarah `lombokdayangspa.tech`,
+  bukan `*.supabase.co` (click-clear site data / uji incognito).
+- Backup DB VPS tiap malam (`pg_dump`), pantau disk (`df -h`) & RAM (`free -h`).
+- **Penting (firewall Docker)**: `ufw delete allow 8000` tidak benar-benar menutup port
+  karena Docker-published ports melewati UFW (chain `DOCKER-USER`). Port 8000 diblokir via
+  `iptables -I DOCKER-USER -p tcp --dport 8000 -j DROP`. Agar permanen tanpa mengandalkan
+  iptables, ubah binding Kong di `docker-compose.yml` menjadi
+  `"127.0.0.1:${KONG_HTTP_PORT:-8000}:8000/tcp"` lalu `docker compose up -d kong`
+  (lakukan saat sepi — restart singkat).

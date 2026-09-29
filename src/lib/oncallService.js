@@ -85,16 +85,19 @@ function wibDayBoundsUtc(dateStr) {
 
 export async function getTodayOncall(outletId, dateStr) {
   const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
-  const { data, error } = await supabase
+  let query = supabase
     .from('bookings')
     .select('*')
-    .eq('outlet_id', outletId)
     .eq('booking_source', 'oncall')
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString());
+  // outletId = null → semua outlet (dipakai office/admin pusat).
+  if (outletId) query = query.eq('outlet_id', outletId);
+  const { data, error } = await query;
   if (error) throw error;
   return (data || []).map((r) => ({
     id: r.id,
+    outletId: r.outlet_id,
     therapistId: r.therapist_id,
     therapistName: r.therapist_name,
     treatmentName: r.treatment_name,

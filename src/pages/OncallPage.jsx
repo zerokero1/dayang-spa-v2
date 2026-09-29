@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { PAYMENT_METHOD_LABEL } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
-import { createOncallBookingMulti, editOncallBooking, cancelOncallBooking, selesaiOncallBooking, getTodayOncall } from '../lib/oncallService';
+import { createOncallBookingMulti, editOncallBooking, cancelOncallBooking, selesaiOncallBooking, getTodayOncall, outletNames } from '../lib/oncallService';
 
 const THERAPIST_COMMISSION = 10;
 
@@ -21,7 +21,7 @@ function fmtWib(iso) {
   return `${h}:${m}`;
 }
 
-export default function OncallPage({ outletId, active, isOffice }) {
+export default function OncallPage({ outletId, active, isOffice, profile }) {
   const [therapists, setTherapists] = useState([]);
   const [treatments, setTreatments] = useState([]);
   const [treatId, setTreatId] = useState(null);
@@ -43,6 +43,10 @@ export default function OncallPage({ outletId, active, isOffice }) {
   const [editing, setEditing] = useState(false);
   const [editError, setEditError] = useState('');
 
+  // Office / admin pusat melihat transaksi oncall semua outlet; kasir outletnya sendiri.
+  const showAllOutlets = isOffice || (profile && profile.role === 'admin_pusat');
+  const outletLabel = outletNames();
+
   useEffect(() => {
     if (!active) return;
     const unsub = listenAllTherapists(setTherapists);
@@ -61,7 +65,7 @@ export default function OncallPage({ outletId, active, isOffice }) {
   async function loadList() {
     setLoadingList(true);
     try {
-      setOncallList(await getTodayOncall(outletId, todayId()));
+      setOncallList(await getTodayOncall(showAllOutlets ? null : outletId, todayId()));
     } catch (e) {
       console.warn('oncall list', e);
     } finally {
@@ -75,7 +79,7 @@ export default function OncallPage({ outletId, active, isOffice }) {
     const timer = setInterval(loadList, 120000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, outletId]);
+  }, [active, outletId, showAllOutlets]);
 
   const price = Number.isFinite(parseFloat(priceStr)) ? parseFloat(priceStr) : 0;
   const durMinutes = Number.isFinite(parseFloat(durStr)) ? parseFloat(durStr) : 0;
@@ -439,7 +443,7 @@ export default function OncallPage({ outletId, active, isOffice }) {
 
       <section>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <h3 style={{ margin: 0 }}>Transaksi Oncall Hari Ini</h3>
+          <h3 style={{ margin: 0 }}>Transaksi Oncall Hari Ini{showAllOutlets ? ' (semua outlet)' : ''}</h3>
           {loadingList && <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>memuat...</span>}
         </div>
         {oncallList.length === 0 ? (
@@ -452,6 +456,7 @@ export default function OncallPage({ outletId, active, isOffice }) {
                 <span>{b.status === 'batal' ? '❌' : ''} {rp(b.treatmentPrice)}</span>
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                {showAllOutlets && b.outletId ? `${outletLabel[b.outletId] || b.outletId} · ` : ''}
                 {b.therapistName} · {b.customerName || '-'} · {fmtWib(b.createdAt)} WIB ·{' '}
                 {b.paymentMethod === 'cardless' ? 'Cardless' : 'Cash'}
               </div>

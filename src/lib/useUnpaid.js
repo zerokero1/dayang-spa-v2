@@ -36,14 +36,16 @@ export function useUnpaid(outletId, enabled) {
         .limit(600)
         .then(({ data, error }) => {
           if (error || !alive) return;
-          const rows = (data || []).filter((b) => b.end_at != null && Number(b.end_at) <= Date.now());
-          // Badge = hanya transaksi yang JAM TREATMENT-nya SUDAH LEWAT & belum bayar.
-          setSummary({ count: rows.length, overdue: rows.length });
+          // count = SEMUA transaksi belum bayar hari ini (berjalan/selesai).
+          // overdue = yang sudah lewat jam selesai treatment-nya tapi belum bayar.
+          const all = (data || []).filter((b) => b.end_at != null);
+          const overdue = all.filter((b) => Number(b.end_at) <= Date.now());
+          setSummary({ count: all.length, overdue: overdue.length });
         });
     }
 
     load();
-    const iv = setInterval(load, 120000);
+    const iv = setInterval(load, 30000);
     return () => { alive = false; clearInterval(iv); };
   }, [outletId, enabled]);
 

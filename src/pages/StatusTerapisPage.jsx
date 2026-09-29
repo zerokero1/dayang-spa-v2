@@ -311,13 +311,14 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
       {!busy && unpaidRows.length > 0 && (
         <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: 'var(--busy-bg)', border: '1px solid var(--busy)' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--busy)', letterSpacing: 0.5 }}>
-            ⚠ BELUM BAYAR ({unpaidRows.length}) — jam selesai sudah lewat
+            ⚠ BELUM BAYAR ({unpaidRows.length}) — menunggu pembayaran
           </div>
           {unpaidRows.map((u) => (
             <div key={u.id} style={{ fontSize: 12, marginTop: 8, borderTop: '1px dashed var(--border)', paddingTop: 6 }}>
               <div>
                 <strong>{u.treatment_name}</strong> · {rp(u.treatment_price)}
                 {u.customer_name ? ` · ${u.customer_name}` : ''}
+                {u.end_at != null && Number(u.end_at) <= Date.now() ? ' · Lewat jam' : ''}
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                 <button style={{ width: 'auto', padding: '7px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => onUnpaidPaid(u, 'cash')}>
@@ -748,10 +749,15 @@ export default function StatusTerapisPage({ active, profile }) {
   // "Ambil Tamu", dan hanya terapis dengan homeOutletId itu untuk Free/Break/Libur
   const outletsToShow = outletFilter === 'semua' ? viewOutlets : OUTLETS.filter((o) => o.id === outletFilter);
   const filteredFree = outletFilter === 'semua' ? free : free.filter((t) => t.homeOutletId === outletFilter);
-  // Belum Bayar yang DITAMPILKAN hanya yang jam treatment-nya sudah lewat &
-  // masih belum dibayar. Yang masih berjalan ditagihkan lewat kartu sibuk.
+  // Semua transaksi BELUM BAYAR hari ini tetap ditampilkan & bisa ditagih —
+  // baik yang jam treatment-nya sudah lewat maupun belum. Terapis boleh sudah
+  // bebas (dipilih untuk tamu baru), tapi tagihannya tetap mengikuti di sini
+  // sampai lunas; tidak ada yang "hilang" saat sesi ditandai selesai.
   const overdueUnpaid = unpaidList.filter((b) => b.end_at != null && Number(b.end_at) <= Date.now());
-  const unpaidShown = outletFilter === 'semua' ? overdueUnpaid : overdueUnpaid.filter((b) => b.outlet_id === outletFilter);
+  const overdueIds = new Set(overdueUnpaid.map((b) => b.id));
+  const unpaidShown = outletFilter === 'semua'
+    ? unpaidList
+    : unpaidList.filter((b) => b.outlet_id === outletFilter);
   const filteredOthers = outletFilter === 'semua' ? others : others.filter((t) => t.homeOutletId === outletFilter);
   const filteredBusyCount = outletFilter === 'semua'
     ? (isKasir ? viewOutlets.reduce((s, o) => s + (busyByOutlet[o.id]?.length || 0), 0) : busy.length)
@@ -809,9 +815,9 @@ export default function StatusTerapisPage({ active, profile }) {
       )}
 
       <section>
-        <p>Belum Bayar — Lewat Jam ({unpaidShown.length})</p>
+        <p>Belum Bayar ({unpaidShown.length})</p>
         {unpaidShown.length === 0 && (
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Tidak ada tagihan yang lewat jam.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Tidak ada tagihan yang belum dibayar.</p>
         )}
         {unpaidShown.map((b) => (
           <div key={b.id} className="oil-card" style={{ margin: 0, marginBottom: 8, padding: '10px 12px', textAlign: 'left' }}>
@@ -820,6 +826,7 @@ export default function StatusTerapisPage({ active, profile }) {
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
               {b.therapist_name} · {OUTLET_NAME[b.outlet_id] || b.outlet_id} · {rp(b.treatment_price)}
+              {overdueIds.has(b.id) ? ' · Lewat jam' : ''}
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
               <button
@@ -922,7 +929,7 @@ export default function StatusTerapisPage({ active, profile }) {
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Tidak ada terapis yang free saat ini.</p>
         )}
         {filteredFree.map((t) => (
-          <TherapistCard key={t.id} t={t} dailyTotal={dailyTotals[t.id]} unpaid={overdueUnpaid.filter((u) => u.therapist_id === t.id)} {...cardProps} />
+          <TherapistCard key={t.id} t={t} dailyTotal={dailyTotals[t.id]} unpaid={unpaidList.filter((u) => u.therapist_id === t.id)} {...cardProps} />
         ))}
       </section>
 
