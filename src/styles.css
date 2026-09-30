@@ -561,6 +561,8 @@ section > button {
 }
 
 /* ---------- Banner pengingat tagihan belum bayar ---------- */
+/* Tinggi banner dipublish dari UnpaidReminder lewat --unpaid-banner-h
+   supaya konten di bawahnya (tabel dashboard dsb) tidak pernah tertutup. */
 .unpaid-banner {
   position: fixed;
   left: 0; right: 0; bottom: 0;
@@ -568,8 +570,8 @@ section > button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 18px;
+  gap: 10px;
+  padding: 10px 14px;
   background: #7A1F1F;
   color: #fff;
   box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.25);
@@ -579,10 +581,39 @@ section > button {
 @media (min-width: 861px) {
   .unpaid-banner { left: 230px; }
 }
-.content.has-banner { padding-bottom: 92px; }
-.unpaid-banner-text { display: flex; flex-direction: column; gap: 2px; line-height: 1.25; }
+/* Banner yang diperkecil: jadi pil tipis, tidak menghalangi. */
+.unpaid-banner.is-min {
+  padding: 6px 10px;
+  background: #8C2626;
+  box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.22);
+}
+.unpaid-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.25;
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+  font-family: var(--font);
+  cursor: default;
+  min-width: 0;
+}
 .unpaid-banner-text strong { font-size: 13.5px; }
 .unpaid-banner-text span { font-size: 12px; opacity: 0.9; }
+.is-min .unpaid-banner-text {
+  cursor: pointer;
+  align-items: center;
+  padding: 4px 2px;
+}
+.is-min .unpaid-banner-text strong { font-size: 13px; }
+.unpaid-banner-min-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
 .unpaid-banner-btn {
   width: auto;
   flex-shrink: 0;
@@ -596,6 +627,23 @@ section > button {
   border-radius: 8px;
   cursor: pointer;
 }
+.is-min .unpaid-banner-btn { padding: 6px 12px; font-size: 12px; }
+.unpaid-banner-min-toggle {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.16);
+  border: none;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.unpaid-banner-min-toggle:hover { background: rgba(255, 255, 255, 0.3); }
+/* Ruang kosong di bawah konten = tinggi banner + jarak aman + tinggi tab bawah. */
+.content.has-banner { padding-bottom: calc(var(--unpaid-banner-h, 0px) + 24px); }
 
 .sidebar-user {
   display: flex;
@@ -799,7 +847,7 @@ section > button {
 
 /* ---------- Konten ---------- */
 .kasir-content { flex: 1; padding: 14px 14px 18px; width: 100%; }
-.kasir-content.has-banner { padding-bottom: 100px; }
+.kasir-content.has-banner { padding-bottom: calc(var(--unpaid-banner-h, 0px) + 84px); }
 .kasir-content .kasir-page { max-width: 860px; margin: 0 auto; }
 
 /* ---------- Judul halaman + tombol kembali ---------- */
@@ -940,6 +988,8 @@ section > button {
 
 /* Banner pengingat tidak menutupi tab bawah */
 .kasir-shell .unpaid-banner { bottom: 62px; }
+/* Ruam di bawah konten: tinggi banner + tinggi tab bawah + jarak aman. */
+.kasir-shell .kasir-content.has-banner { padding-bottom: calc(var(--unpaid-banner-h, 0px) + 84px); }
 
 /* ---------- Panel "Lainnya" ---------- */
 .kasir-more-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); z-index: 25; }
