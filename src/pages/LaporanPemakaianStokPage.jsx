@@ -4,7 +4,6 @@ import { getOilStockUsage, getItemStockUsage, getConsumableUsage } from '../lib/
 import { exportExcelReport } from '../lib/excelExport';
 
 const todayId = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
-const rp = (n) => 'Rp' + (Number(n) || 0).toLocaleString('id-ID');
 
 export default function LaporanPemakaianStokPage({ isOffice }) {
   const [outletId, setOutletId] = useState(OUTLETS[0].id);
@@ -33,14 +32,19 @@ export default function LaporanPemakaianStokPage({ isOffice }) {
 
   async function handleDownloadKonsum() {
     if (!konsum || !konsum.ok) return;
-    const headers = ['Barang', 'Satuan', 'Pemakaian', 'Harga Satuan', 'Estimasi Pengeluaran', 'Stok Sekarang'];
-    const rows = konsum.items.map((r) => [r.name, r.unit, r.qty, r.unitCost, r.estimatedCost, r.stock ?? '']);
-    rows.push(['', '', '', '', '', '']);
-    rows.push(['TOTAL', '', '', '', konsum.total, '']);
+    const headers = ['Tanggal', 'Treatment Full Body', ...konsum.itemNames, 'Total Item'];
+    const rows = konsum.days.map((d) => [
+      d.date,
+      d.treatmentCount,
+      ...konsum.itemNames.map((n) => d.perItem[n] || 0),
+      d.totalItem
+    ]);
+    rows.push([]);
+    rows.push(['TOTAL', konsum.totalCount, ...konsum.items.map((i) => i.keluar), konsum.totalItem]);
     await exportExcelReport({
-      filename: `Estimasi-Pengeluaran-FullBodyMassage-${outletId}-${startDate}_${endDate}`,
-      title: 'Estimasi Pengeluaran Full Body Massage — Dayang Spa',
-      subtitle: `Outlet ${outletId} · ${startDate} s/d ${endDate} · ${konsum.totalCount} treatment full body`,
+      filename: `Pemakaian-FullBodyMassage-${outletId}-${startDate}_${endDate}`,
+      title: 'Pemakaian Full Body Massage (Jumlah Item Keluar) — Dayang Spa',
+      subtitle: `Outlet ${outletId} · ${startDate} s/d ${endDate}`,
       headers, rows
     });
   }
@@ -97,6 +101,24 @@ export default function LaporanPemakaianStokPage({ isOffice }) {
           <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+          <button
+            style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }}
+            onClick={() => { const t = todayId(); setStartDate(t); setEndDate(t); }}
+          >
+            Hari ini
+          </button>
+          <button
+            style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }}
+            onClick={() => {
+              const end = todayId();
+              const start = new Date(Date.now() + 7 * 3600000 - 6 * 86400000).toISOString().slice(0, 10);
+              setStartDate(start); setEndDate(end);
+            }}
+          >
+            7 hari
+          </button>
+        </div>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
           Atur selama 1 minggu / 1 bulan untuk melihat pemakaian stok per hari.
         </p>
@@ -106,54 +128,69 @@ export default function LaporanPemakaianStokPage({ isOffice }) {
         {loading ? 'Memuat...' : 'Tampilkan laporan'}
       </button>
 
+      {konsum && konsum.ok && startDate === endDate && (
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+          Menampilkan pemakaian <strong>{startDate}</strong> · {outletId}.
+        </p>
+      )}
+
       {konsum && konsum.ok && (
         <section style={{ marginTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-            <h3 style={{ margin: 0 }}>
-              Estimasi Pengeluaran Full Body Massage
-            </h3>
+            <h3 style={{ margin: 0 }}>Full Body Massage — Berapa Item yang Keluar</h3>
             <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={handleDownloadKonsum}>
               ⬇ Download Excel
             </button>
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 10px' }}>
-            {konsum.totalCount} treatment full body di rentang ini. Aturan: 1 treatment = 1 Hole Sheet + 1 Single Sheet + 1 Face Cradle.
+            Aturan: 1 treatment full body = 1 Hole Sheet + 1 Single Sheet + 1 Face Cradle.
+            Dihitung otomatis dari booking yang tidak dibatalkan.
           </p>
 
-          {konsum.belumAdaHarga && (
-            <p style={{ fontSize: 12, color: 'var(--danger)', margin: '0 0 10px' }}>
-              ⚠️ Beberapa barang belum punya harga satuan, jadi estimasi rupiahnya belum lengkap. Isi di halaman Inventory → pilih barang → "Harga satuan".
-            </p>
-          )}
-
-          <div className="oil-card" style={{ textAlign: 'center', padding: 16, marginBottom: 12 }}>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Total Estimasi Pengeluaran</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--primary-dark)', marginTop: 4 }}>{rp(konsum.total)}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 14 }}>
+            {konsum.items.map((i) => (
+              <div key={i.name} className="oil-card" style={{ textAlign: 'center', padding: 14 }}>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{i.name}</div>
+                <div style={{ fontSize: 28, fontWeight: 800, color: i.keluar > 0 ? 'var(--busy)' : 'var(--text-secondary)', marginTop: 4 }}>
+                  {i.keluar}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                  {i.unit} keluar · stok {i.stock != null ? `${i.stock} ${i.unit}` : 'belum ada di Inventory'}
+                </div>
+              </div>
+            ))}
           </div>
 
-          {konsum.items.length === 0 ? (
+          <div className="oil-card" style={{ padding: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Total item keluar di rentang ini</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--primary-dark)', marginTop: 2 }}>
+              {konsum.totalItem} <span style={{ fontSize: 14, fontWeight: 600 }}>({konsum.totalCount} treatment full body)</span>
+            </div>
+          </div>
+
+          {konsum.days.length === 0 ? (
             <p>Tidak ada treatment full body massage di rentang ini.</p>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr>
-                  <th style={cellHead}>Barang</th>
-                  <th style={cellHead}>Satuan</th>
-                  <th style={cellHead}>Pemakaian</th>
-                  <th style={cellHead}>Harga Satuan</th>
-                  <th style={cellHead}>Estimasi</th>
-                  <th style={cellHead}>Stok</th>
+                  <th style={cellHead}>Tanggal</th>
+                  <th style={cellHead}>Treatment</th>
+                  {konsum.itemNames.map((n) => <th key={n} style={cellHead}>{n}</th>)}
+                  <th style={cellHead}>Total Item</th>
                 </tr>
               </thead>
               <tbody>
-                {konsum.items.map((r) => (
-                  <tr key={r.name}>
-                    <td style={cell}>{r.name}</td>
-                    <td style={cell}>{r.unit}</td>
-                    <td style={{ ...cell, fontWeight: 600 }}>{r.qty}</td>
-                    <td style={cell}>{r.unitCost > 0 ? rp(r.unitCost) : <span style={{ color: 'var(--danger)' }}>belum diisi</span>}</td>
-                    <td style={{ ...cell, fontWeight: 700, color: 'var(--primary-dark)' }}>{rp(r.estimatedCost)}</td>
-                    <td style={cell}>{r.stock ?? '-'}</td>
+                {konsum.days.map((d) => (
+                  <tr key={d.date}>
+                    <td style={{ ...cell, fontWeight: 600 }}>{d.date}</td>
+                    <td style={cell}>{d.treatmentCount}</td>
+                    {konsum.itemNames.map((n) => (
+                      <td key={n} style={{ ...cell, fontWeight: 600, color: d.perItem[n] > 0 ? 'var(--busy)' : undefined }}>
+                        {d.perItem[n] || 0}
+                      </td>
+                    ))}
+                    <td style={{ ...cell, fontWeight: 700 }}>{d.totalItem}</td>
                   </tr>
                 ))}
               </tbody>
@@ -168,7 +205,7 @@ export default function LaporanPemakaianStokPage({ isOffice }) {
                   <tr>
                     <th style={cellHead}>Treatment</th>
                     <th style={cellHead}>Jumlah</th>
-                    <th style={cellHead}>Kebutuhan</th>
+                    <th style={cellHead}>Item keluar</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -176,33 +213,7 @@ export default function LaporanPemakaianStokPage({ isOffice }) {
                     <tr key={t.treatmentId}>
                       <td style={cell}>{t.treatmentName}</td>
                       <td style={{ ...cell, fontWeight: 600 }}>{t.count}</td>
-                      <td style={cell}>{t.items.map((i) => `${i.qty} ${i.itemName}`).join(' · ')}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
-          )}
-
-          {konsum.days.length > 0 && (
-            <>
-              <p style={{ fontSize: 13, fontWeight: 700, margin: '16px 0 6px' }}>Rincian per hari</p>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead>
-                  <tr>
-                    <th style={cellHead}>Tanggal</th>
-                    <th style={cellHead}>Pemakaian</th>
-                    <th style={cellHead}>Estimasi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {konsum.days.map((d) => (
-                    <tr key={d.date}>
-                      <td style={cell}>{d.date}</td>
-                      <td style={cell}>
-                        {Object.entries(d.perItem).map(([n, q]) => `${n}: ${q}`).join(' · ')}
-                      </td>
-                      <td style={{ ...cell, fontWeight: 600 }}>{rp(d.estimatedCost)}</td>
+                      <td style={cell}>{t.items.map((i) => `${i.itemName} ${i.qty}`).join(' · ')}</td>
                     </tr>
                   ))}
                 </tbody>
