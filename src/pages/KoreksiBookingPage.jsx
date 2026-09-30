@@ -20,10 +20,13 @@ function todayId() {
 
 const STATUS_LABEL = { berjalan: 'Berjalan', selesai: 'Selesai', lunas: 'Lunas', batal_sebagian: 'Batal sebagian', batal: 'Batal' };
 
+const OUTLET_NAME = Object.fromEntries(OUTLETS.map((o) => [o.id, o.name]));
+
 function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
   const [category, setCategory] = useState(TREATMENT_CATEGORIES[0]);
   const [selTreatment, setSelTreatment] = useState(null);
   const [selTherapistId, setSelTherapistId] = useState(null);
+  const [selOutletId, setSelOutletId] = useState(booking.outletId);
   const [commission, setCommission] = useState(String(booking.commissionPercent ?? ''));
   const [discount, setDiscount] = useState(booking.discountPct != null ? String(booking.discountPct) : '');
   const [discountReason, setDiscountReason] = useState(booking.discountReason || '');
@@ -81,7 +84,8 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
         oilType: needsOil ? selOil : null,
         oilSize: needsOil ? selSize : null,
         discountPct: discountVal,
-        discountReason: discountVal != null && discountVal > 0 ? discountReason.trim() : null
+        discountReason: discountVal != null && discountVal > 0 ? discountReason.trim() : null,
+        newOutletId: selOutletId !== booking.outletId ? selOutletId : null
       });
       onSave();
     } catch (e) {
@@ -93,7 +97,9 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
 
   return (
     <div className="oil-card" style={{ marginBottom: 8, textAlign: 'left', borderLeft: '4px solid var(--primary)' }}>
-      <p style={{ fontSize: 12, fontWeight: 600, marginTop: 0, color: 'var(--primary-dark)' }}>Koreksi — {booking.therapistName}</p>
+      <p style={{ fontSize: 12, fontWeight: 600, marginTop: 0, color: 'var(--primary-dark)' }}>
+        Koreksi — {booking.therapistName} · {OUTLET_NAME[booking.outletId] || booking.outletId}
+      </p>
 
       <div style={{ marginBottom: 8 }}>
         <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Kategori treatment</p>
@@ -151,6 +157,26 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
           ))}
         </div>
       )}
+
+      <div style={{ marginBottom: 8 }}>
+        <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Pindah outlet (kasir salah pilih outlet)</p>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {OUTLETS.map((o) => (
+            <button
+              key={o.id}
+              className={selOutletId === o.id ? 'pos-chip active' : 'pos-chip'}
+              onClick={() => setSelOutletId(o.id)}
+            >
+              {o.name}{o.id === booking.outletId ? ' (sekarang)' : ''}
+            </button>
+          ))}
+        </div>
+        {selOutletId !== booking.outletId && (
+          <p style={{ fontSize: 11, color: 'var(--danger)', margin: '6px 0 0' }}>
+            Booking akan pindah ke <strong>{OUTLET_NAME[selOutletId]}</strong>. Laporan, omzet, komisi, dan stok minyak ikut outlet baru.
+          </p>
+        )}
+      </div>
 
       <div style={{ marginBottom: 8 }}>
         <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Ganti terapis (opsional — saat ini "{booking.therapistName}")</p>
@@ -282,7 +308,7 @@ export default function KoreksiBookingPage({ active, isOffice }) {
     <div className="kasir-page">
       <h2>Koreksi Booking</h2>
       <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: -8, marginBottom: 16 }}>
-        Koreksi treatment, komisi, terapis, minyak, atau diskon pada booking yang salah input (khusus Office).
+        Koreksi treatment, komisi, terapis, minyak, diskon, atau pindah outlet pada booking yang salah input (khusus Office).
       </p>
 
       <section>

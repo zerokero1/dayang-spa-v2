@@ -169,11 +169,11 @@ export async function editBookingDetails(outletId, bookingId, {
 }
 
 // Koreksi booking khusus akun office (office.op@dayang.com).
-// Bisa mengubah treatment, % komisi, terapis, minyak, dan diskon.
+// Bisa mengubah treatment, % komisi, terapis, minyak, diskon, dan pindah outlet.
 export async function koreksiBooking(bookingId, {
   treatmentId, treatmentName, treatmentPrice,
   commissionPercent, newTherapistId, usesOil, oilType, oilSize,
-  discountPct, discountReason
+  discountPct, discountReason, newOutletId
 }) {
   const { error } = await supabase.rpc('edit_booking_correction', {
     p_booking_id: bookingId,
@@ -186,7 +186,8 @@ export async function koreksiBooking(bookingId, {
     p_oil_type: oilType || null,
     p_oil_size: oilSize || null,
     p_discount_pct: discountPct ?? null,
-    p_discount_reason: discountReason || null
+    p_discount_reason: discountReason || null,
+    p_new_outlet_id: newOutletId || null
   });
   if (error) throw error;
 }
