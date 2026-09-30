@@ -96,23 +96,23 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
   }
 
   return (
-    <div className="oil-card" style={{ marginBottom: 8, textAlign: 'left', borderLeft: '4px solid var(--primary)' }}>
-      <p style={{ fontSize: 12, fontWeight: 600, marginTop: 0, color: 'var(--primary-dark)' }}>
+    <div className="oil-card koreksi-box" style={{ marginBottom: 12, textAlign: 'left', borderLeft: '5px solid var(--primary)' }}>
+      <p className="koreksi-head">
         Koreksi — {booking.therapistName} · {OUTLET_NAME[booking.outletId] || booking.outletId}
       </p>
 
-      <div style={{ marginBottom: 8 }}>
-        <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Kategori treatment</p>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      <div style={{ marginBottom: 14 }}>
+        <p className="koreksi-label">Kategori treatment</p>
+        <div className="koreksi-chips" style={{ display: 'flex', flexWrap: 'wrap' }}>
           {TREATMENT_CATEGORIES.map((c) => (
             <button key={c} className={category === c ? 'pos-chip active' : 'pos-chip'} onClick={() => setCategory(c)}>{c}</button>
           ))}
         </div>
       </div>
 
-      <div style={{ marginBottom: 8 }}>
-        <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Treatment (kosongkan = tetap "{booking.treatmentName}")</p>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxHeight: 140, overflowY: 'auto' }}>
+      <div style={{ marginBottom: 14 }}>
+        <p className="koreksi-label">Treatment (kosongkan = tetap "{booking.treatmentName}")</p>
+        <div className="koreksi-scroll">
           {treatmentsInCategory.map((t) => (
             <button key={t.id} className={selTreatment?.id === t.id ? 'pos-chip active' : 'pos-chip'} onClick={() => setSelTreatment(t)}>
               {t.name} - {rp(t.price)}
@@ -121,46 +121,47 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
         </div>
       </div>
 
-      <div style={{ marginBottom: 8 }}>
-        <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Komisi % (kosongkan = pakai % treatment/tersimpan)</p>
-        <input type="number" value={commission} onChange={(e) => setCommission(e.target.value)} placeholder={`${booking.commissionPercent ?? 0}%`} style={{ margin: 0, maxWidth: 120 }} />
+      <div style={{ marginBottom: 14 }}>
+        <p className="koreksi-label">Komisi % (kosongkan = pakai % treatment/tersimpan)</p>
+        <input type="number" value={commission} onChange={(e) => setCommission(e.target.value)} placeholder={`${booking.commissionPercent ?? 0}%`} style={{ margin: 0 }} />
       </div>
 
-      <div style={{ marginBottom: 8, border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
-        <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Diskon % (kosongkan = tidak diubah · 0 = hapus diskon)</p>
+      <div className="koreksi-box">
+        <p className="koreksi-label">Diskon % (kosongkan = tidak diubah · 0 = hapus diskon)</p>
         {booking.originalPrice != null && booking.originalPrice > booking.treatmentPrice && (
-          <p style={{ fontSize: 11, color: 'var(--primary-dark)', margin: '0 0 6px' }}>
+          <p className="koreksi-note koreksi-note-info">
             Saat ini: diskon {booking.discountPct != null ? `${booking.discountPct}%` : ''} — harga {rp(booking.treatmentPrice)} dari {rp(booking.originalPrice)}
             {booking.discountReason ? ` (${booking.discountReason})` : ''}
           </p>
         )}
-        <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" style={{ margin: 0, maxWidth: 120, marginBottom: 6 }} />
+        <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" style={{ margin: '0 0 10px' }} />
         <input type="text" value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="Alasan diskon (wajib bila >0)" style={{ margin: 0, width: '100%' }} />
       </div>
 
       {needsOil && (
-        <div style={{ marginBottom: 8 }}>
-          <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Minyak</p>
-          {oilChoicesFor(activeTreatment).map((oil) => (
-            <div key={oil} style={{ display: 'inline-block', marginRight: 6, marginBottom: 4 }}>
-              {OIL_SIZES.map((size) => (
-                <button
-                  key={size}
-                  className={selOil === oil && selSize === size ? 'pos-chip active' : 'pos-chip'}
-                  onClick={() => { setSelOil(oil); setSelSize(size); }}
-                  style={{ marginRight: 2 }}
-                >
-                  {oil} ({size})
-                </button>
-              ))}
-            </div>
-          ))}
+        <div style={{ marginBottom: 14 }}>
+          <p className="koreksi-label">Minyak</p>
+          <div className="koreksi-chips" style={{ display: 'flex', flexWrap: 'wrap' }}>
+            {oilChoicesFor(activeTreatment).map((oil) => (
+              <div key={oil} style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap', marginRight: 10, marginBottom: 8 }}>
+                {OIL_SIZES.map((size) => (
+                  <button
+                    key={size}
+                    className={selOil === oil && selSize === size ? 'pos-chip active' : 'pos-chip'}
+                    onClick={() => { setSelOil(oil); setSelSize(size); }}
+                  >
+                    {oil} ({size})
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      <div style={{ marginBottom: 8 }}>
-        <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Pindah outlet (kasir salah pilih outlet)</p>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      <div style={{ marginBottom: 14 }}>
+        <p className="koreksi-label">Pindah outlet (kasir salah pilih outlet)</p>
+        <div className="koreksi-chips" style={{ display: 'flex', flexWrap: 'wrap' }}>
           {OUTLETS.map((o) => (
             <button
               key={o.id}
@@ -172,15 +173,15 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
           ))}
         </div>
         {selOutletId !== booking.outletId && (
-          <p style={{ fontSize: 11, color: 'var(--danger)', margin: '6px 0 0' }}>
+          <p className="koreksi-note koreksi-note-warn">
             Booking akan pindah ke <strong>{OUTLET_NAME[selOutletId]}</strong>. Laporan, omzet, komisi, dan stok minyak ikut outlet baru.
           </p>
         )}
       </div>
 
-      <div style={{ marginBottom: 8 }}>
-        <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Ganti terapis (opsional — saat ini "{booking.therapistName}")</p>
-        <select value={selTherapistId || ''} onChange={(e) => setSelTherapistId(e.target.value || null)} style={{ width: '100%', padding: 11, borderRadius: 8, border: '1px solid var(--border)' }}>
+      <div style={{ marginBottom: 14 }}>
+        <p className="koreksi-label">Ganti terapis (opsional — saat ini "{booking.therapistName}")</p>
+        <select value={selTherapistId || ''} onChange={(e) => setSelTherapistId(e.target.value || null)}>
           <option value="">- Tetap {booking.therapistName} -</option>
           {therapists.map((t) => (
             <option key={t.id} value={t.id}>{t.name}{t.homeOutletId ? ` (${t.homeOutletId})` : ''}</option>
@@ -188,31 +189,27 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
         </select>
       </div>
 
-      <div style={{ marginBottom: 8, border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
-        <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>
+      <div className="koreksi-box">
+        <p className="koreksi-label">
           Pembayaran — sekarang: {booking.paid
             ? <strong style={{ color: 'var(--primary-dark)' }}>✓ Lunas via {methodLabel(booking.paymentMethod)}</strong>
             : <strong style={{ color: 'var(--danger)' }}>Belum bayar</strong>}
         </p>
         {!booking.paid ? (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button style={{ width: 'auto', padding: '8px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} disabled={paySaving} onClick={() => savePayment(true, 'cash')}>
+          <div className="koreksi-actions">
+            <button className="koreksi-btn" style={{ background: 'var(--primary-dark)', color: '#fff' }} disabled={paySaving} onClick={() => savePayment(true, 'cash')}>
               Tandai Lunas (Cash)
             </button>
-            <button style={{ width: 'auto', padding: '8px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} disabled={paySaving} onClick={() => savePayment(true, 'cardless')}>
+            <button className="koreksi-btn" style={{ background: 'var(--primary-dark)', color: '#fff' }} disabled={paySaving} onClick={() => savePayment(true, 'cardless')}>
               Tandai Lunas (Cardless)
             </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Ganti metode:</span>
-            <button style={{ width: 'auto', padding: '8px 12px', fontSize: 12, boxShadow: 'none' }} disabled={paySaving} onClick={() => savePayment(true, 'cash')}>
-              Cash
-            </button>
-            <button style={{ width: 'auto', padding: '8px 12px', fontSize: 12, boxShadow: 'none' }} disabled={paySaving} onClick={() => savePayment(true, 'cardless')}>
-              Cardless
-            </button>
-            <button style={{ width: 'auto', padding: '8px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--busy)', color: '#fff' }} disabled={paySaving} onClick={() => savePayment(false)}>
+          <div className="koreksi-actions" style={{ alignItems: 'center' }}>
+            <span className="koreksi-note" style={{ margin: 0, fontWeight: 600 }}>Ganti metode:</span>
+            <button className="koreksi-btn" disabled={paySaving} onClick={() => savePayment(true, 'cash')}>Cash</button>
+            <button className="koreksi-btn" disabled={paySaving} onClick={() => savePayment(true, 'cardless')}>Cardless</button>
+            <button className="koreksi-btn" style={{ background: 'var(--busy)', color: '#fff' }} disabled={paySaving} onClick={() => savePayment(false)}>
               Batalkan lunas
             </button>
           </div>
@@ -221,11 +218,11 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
 
       {error && <p className="error">{error}</p>}
 
-      <div style={{ display: 'flex', gap: 6 }}>
-        <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} disabled={saving} onClick={handleSave}>
+      <div className="koreksi-actions">
+        <button className="koreksi-btn" disabled={saving} onClick={handleSave}>
           {saving ? 'Menyimpan...' : 'Simpan koreksi'}
         </button>
-        <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff' }} onClick={onCancel}>
+        <button className="koreksi-btn" style={{ background: 'var(--text-secondary)', color: '#fff' }} onClick={onCancel}>
           Batal
         </button>
       </div>
@@ -305,9 +302,9 @@ export default function KoreksiBookingPage({ active, isOffice }) {
   }
 
   return (
-    <div className="kasir-page">
+    <div className="kasir-page koreksi-page">
       <h2>Koreksi Booking</h2>
-      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: -8, marginBottom: 16 }}>
+      <p className="koreksi-intro">
         Koreksi treatment, komisi, terapis, minyak, diskon, atau pindah outlet pada booking yang salah input (khusus Office).
       </p>
 
@@ -330,9 +327,9 @@ export default function KoreksiBookingPage({ active, isOffice }) {
         {loading ? 'Memuat...' : 'Tampilkan booking'}
       </button>
 
-      {message && <p style={{ fontSize: 13, color: 'var(--primary-dark)' }}>{message}</p>}
+      {message && <p className="koreksi-message">{message}</p>}
       {!loading && bookings.length === 0 && (
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Tidak ada booking yang bisa dikoreksi pada tanggal ini.</p>
+        <p className="koreksi-empty">Tidak ada booking yang bisa dikoreksi pada tanggal ini.</p>
       )}
 
       {bookings.map((b, i) => (
@@ -346,31 +343,24 @@ export default function KoreksiBookingPage({ active, isOffice }) {
               onCancel={() => setEditingId(null)}
             />
           ) : (
-            <div className="oil-card" style={{ marginBottom: 8, textAlign: 'left' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <strong style={{ fontSize: 14 }}>{i + 1}. {b.therapistName}</strong>
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 6 }}>({outletName(b.outletId)})</span>
-                  <div style={{ fontSize: 13, marginTop: 2 }}>{b.treatmentName}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                    {rp(b.treatmentPrice)}
-                    {b.originalPrice != null && b.originalPrice > b.treatmentPrice
-                      ? ` (dari ${rp(b.originalPrice)}${b.discountPct ? `, potong ${b.discountPct}%` : ''}${b.discountReason ? ` — ${b.discountReason}` : ''})`
-                      : ''} · Komisi {b.commissionPercent ?? 0}% ({rp(b.commissionAmount)}) · {STATUS_LABEL[b.status] || b.status}
-                      · {b.paid ? `Lunas (${methodLabel(b.paymentMethod)})` : 'Belum bayar'}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => setEditingId(b.id)}>
-                    Koreksi
-                  </button>
-                  <button
-                    style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }}
-                    onClick={() => handleDelete(b)}
-                  >
-                    Hapus treatment
-                  </button>
-                </div>
+            <div className="oil-card koreksi-item">
+              <strong className="koreksi-item-name">{i + 1}. {b.therapistName}</strong>
+              <span className="koreksi-item-outlet">({outletName(b.outletId)})</span>
+              <div className="koreksi-item-treat">{b.treatmentName}</div>
+              <div className="koreksi-item-meta">
+                {rp(b.treatmentPrice)}
+                {b.originalPrice != null && b.originalPrice > b.treatmentPrice
+                  ? ` (dari ${rp(b.originalPrice)}${b.discountPct ? `, potong ${b.discountPct}%` : ''}${b.discountReason ? ` — ${b.discountReason}` : ''})`
+                  : ''} · Komisi {b.commissionPercent ?? 0}% ({rp(b.commissionAmount)}) · {STATUS_LABEL[b.status] || b.status}
+                  · {b.paid ? `Lunas (${methodLabel(b.paymentMethod)})` : 'Belum bayar'}
+              </div>
+              <div className="koreksi-item-actions">
+                <button className="koreksi-btn" onClick={() => setEditingId(b.id)}>
+                  Koreksi
+                </button>
+                <button className="koreksi-btn" style={{ background: 'var(--danger)', color: '#fff' }} onClick={() => handleDelete(b)}>
+                  Hapus treatment
+                </button>
               </div>
             </div>
           )}
