@@ -39,7 +39,7 @@ export default function KasirPage({ outletId, active }) {
   const [treatments, setTreatments] = useState([]);
   const [category, setCategory] = useState('Semua');
   const [productSearch, setProductSearch] = useState('');
-  const [popularNames, setPopularNames] = useState([]);
+  const [popularCounts, setPopularCounts] = useState({});
 
   // Alur: pilih treatment -> pilih minyak -> pilih terapis (yang free)
   const [pendingTreatment, setPendingTreatment] = useState(null);
@@ -96,12 +96,7 @@ export default function KasirPage({ outletId, active }) {
         data.forEach((r) => {
           if (r.treatment_name) hitung[r.treatment_name] = (hitung[r.treatment_name] || 0) + 1;
         });
-        setPopularNames(
-          Object.entries(hitung)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 6)
-            .map(([nama]) => nama)
-        );
+        setPopularCounts(hitung);
       });
     return () => { alive = false; };
   }, [active, outletId]);
@@ -122,11 +117,22 @@ export default function KasirPage({ outletId, active }) {
     .filter((t) => category === 'Semua' || t.category === category)
     .filter((t) => t.name.toLowerCase().includes(productSearch.toLowerCase()));
 
-  // Treatment yang bisa dipilih lewat 1 ketuk: sering dipakai + terakhir dipakai.
+  // Treatment yang bisa dipilih lewat 1 ketuk, DIURUTKAN dari yang paling
+  // sering dipakai di outlet ini (30 hari terakhir). Treatment yang baru
+  // dipakai di perangkat ini ikut masuk walau belum punya riwayat.
+  const recentRank = {};
+  recentIds.forEach((id, i) => { recentRank[id] = i; });
   const quickTreatments = [
     ...recentIds.map((id) => treatments.find((t) => t.id === id)).filter(Boolean),
-    ...treatments.filter((t) => popularNames.includes(t.name))
-  ].filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i).slice(0, 8);
+    ...treatments.filter((t) => popularCounts[t.name])
+  ]
+    .filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i)
+    .sort((a, b) => {
+      const selisih = (popularCounts[b.name] || 0) - (popularCounts[a.name] || 0);
+      if (selisih !== 0) return selisih;
+      return (recentRank[a.id] ?? 99) - (recentRank[b.id] ?? 99);
+    })
+    .slice(0, 8);
 
   const lastOil = pendingTreatment ? oilMap[pendingTreatment.id] : null;
   const lastTherapistId = outletId ? therapistMap[outletId] : null;
@@ -434,13 +440,14 @@ export default function KasirPage({ outletId, active }) {
 
         {quickTreatments.length > 0 && productSearch === '' && (
           <div className="pos-quick-bar">
-            <span className="pos-quick-label">⚡ Sering dipakai</span>
+            <span className="pos-quick-label">⚡ Sering dipakai · 30 hari terakhir</span>
             <div className="pos-chip-list">
-              {quickTreatments.map((t) => {
+              {quickTreatments.map((t, i) => {
                 // Kalau sudah ada ingatan minyak + terapis untuk treatment ini,
                 // satu ketuk langsung masuk keranjang (tanpa pilih minyak/terapis).
                 const oil = oilMap[t.id];
                 const satuKetuk = !!lastTherapist && (!!oil || !treatmentUsesOil(t));
+                const jumlah = popularCounts[t.name] || 0;
                 return (
                   <button
                     key={t.id}
@@ -448,9 +455,11 @@ export default function KasirPage({ outletId, active }) {
                     title={satuKetuk ? '1 ketuk langsung masuk keranjang' : 'Ketuk untuk pilih minyak & terapis'}
                     onClick={() => (satuKetuk ? handleQuickRepeat(t) : handlePickTreatment(t))}
                   >
+                    <span className="pos-chip-rank">{i + 1}</span>
                     {satuKetuk && '⚡ '}
                     {t.name}
                     <small>{rp(t.price)}</small>
+                    {jumlah > 0 && <span className="pos-chip-count">{jumlah}×</span>}
                   </button>
                 );
               })}

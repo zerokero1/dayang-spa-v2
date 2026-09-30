@@ -317,6 +317,26 @@ section > button {
 }
 .pos-chip-fast small { font-size: 11px; color: var(--text-secondary); font-weight: 500; }
 .pos-chip-fast:hover { border-color: var(--primary); background: var(--primary-light); }
+.pos-chip-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px; height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+}
+.pos-chip-count {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  font-size: 10px;
+  font-weight: 700;
+}
 
 /* Baris treatment cepat (sering dipakai) */
 .pos-quick-bar {
