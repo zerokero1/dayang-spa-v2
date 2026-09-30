@@ -53,7 +53,7 @@ const PAGES = {
   kelolaTerapis: { label: 'Kelola Terapis', icon: '👥', Component: KelolaTerapisPage, global: true, adminOnly: true },
   koreksiBooking: { label: 'Koreksi Booking', icon: '✏️', Component: KoreksiBookingPage, global: true, officeOnly: true },
   overtime: { label: 'Overtime', icon: '⏱️', Component: OvertimePage, global: true, officeOnly: true },
-  laporanPemakaianStok: { label: 'Laporan Produk', icon: '📉', Component: LaporanPemakaianStokPage, global: true, officeOnly: true },
+  laporanPemakaianStok: { label: 'Laporan Produk', icon: '📉', Component: LaporanPemakaianStokPage, global: true },
   laporanProduksi: { label: 'Laporan Produksi', icon: '🎯', Component: LaporanProduksiPage, global: true },
   logAktivitas: { label: 'Log Aktivitas', icon: '📜', Component: LogAktivitasPage, global: true, officeOnly: true },
   periksaKomisi: { label: 'Periksa Komisi', icon: '💰', Component: PeriksaKomisiPage, global: true, officeOnly: true }

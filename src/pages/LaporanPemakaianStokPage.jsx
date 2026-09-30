@@ -5,8 +5,13 @@ import { exportExcelReport } from '../lib/excelExport';
 
 const todayId = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
 
-export default function LaporanPemakaianStokPage({ isOffice }) {
-  const [outletId, setOutletId] = useState(OUTLETS[0].id);
+export default function LaporanPemakaianStokPage({ profile, outletId: outletIdProp }) {
+  // Kasir hanya boleh melihat pemakaian outletnya sendiri.
+  const isKasir = profile?.role === 'kasir';
+  const myOutletId = profile?.outletId || outletIdProp;
+  const outletList = isKasir ? OUTLETS.filter((o) => o.id === myOutletId) : OUTLETS;
+
+  const [outletId, setOutletId] = useState(isKasir ? myOutletId : OUTLETS[0].id);
   const [startDate, setStartDate] = useState(todayId());
   const [endDate, setEndDate] = useState(todayId());
   const [loading, setLoading] = useState(false);
@@ -15,12 +20,13 @@ export default function LaporanPemakaianStokPage({ isOffice }) {
   const [konsum, setKonsum] = useState(null);
 
   async function handleLoad() {
+    const target = isKasir ? myOutletId : outletId;
     setLoading(true);
     try {
       const [o, i, k] = await Promise.all([
-        getOilStockUsage(outletId, startDate, endDate),
-        getItemStockUsage(outletId, startDate, endDate),
-        getConsumableUsage(outletId, startDate, endDate)
+        getOilStockUsage(target, startDate, endDate),
+        getItemStockUsage(target, startDate, endDate),
+        getConsumableUsage(target, startDate, endDate)
       ]);
       setOil(o);
       setItems(i);
@@ -32,6 +38,7 @@ export default function LaporanPemakaianStokPage({ isOffice }) {
 
   async function handleDownloadKonsum() {
     if (!konsum || !konsum.ok) return;
+    const target = isKasir ? myOutletId : outletId;
     const headers = ['Tanggal', 'Treatment Full Body', ...konsum.itemNames, 'Total Item'];
     const rows = konsum.days.map((d) => [
       d.date,
@@ -42,44 +49,37 @@ export default function LaporanPemakaianStokPage({ isOffice }) {
     rows.push([]);
     rows.push(['TOTAL', konsum.totalCount, ...konsum.items.map((i) => i.keluar), konsum.totalItem]);
     await exportExcelReport({
-      filename: `Pemakaian-FullBodyMassage-${outletId}-${startDate}_${endDate}`,
+      filename: `Pemakaian-FullBodyMassage-${target}-${startDate}_${endDate}`,
       title: 'Pemakaian Full Body Massage (Jumlah Item Keluar) — Dayang Spa',
-      subtitle: `Outlet ${outletId} · ${startDate} s/d ${endDate}`,
+      subtitle: `Outlet ${target} · ${startDate} s/d ${endDate}`,
       headers, rows
     });
   }
 
   async function handleDownloadOil() {
     if (!oil) return;
+    const target = isKasir ? myOutletId : outletId;
     const headers = ['Tanggal', 'Produk', 'Ukuran', 'Stok Awal', 'Terpakai', 'Stok Akhir'];
     const rows = oil.rows.map((r) => [r.date, r.oilType, r.size, r.stockAwal, r.used, r.stockAkhir]);
     await exportExcelReport({
-      filename: `Pemakaian-Produk-${outletId}-${startDate}_${endDate}`,
+      filename: `Pemakaian-Produk-${target}-${startDate}_${endDate}`,
       title: 'Pemakaian Produk per Hari — Dayang Spa',
-      subtitle: `Outlet ${outletId} · ${startDate} s/d ${endDate}${oil.estimated ? ' · Stok awal/akhir estimasi' : ''}`,
+      subtitle: `Outlet ${target} · ${startDate} s/d ${endDate}${oil.estimated ? ' · Stok awal/akhir estimasi' : ''}`,
       headers, rows
     });
   }
 
   async function handleDownloadItems() {
     if (!items) return;
+    const target = isKasir ? myOutletId : outletId;
     const headers = ['Tanggal', 'Barang', 'Satuan', 'Stok Awal', 'Masuk', 'Keluar', 'Stok Akhir'];
     const rows = items.rows.map((r) => [r.date, r.name, r.unit, r.stockAwal, r.masuk, r.keluar, r.stockAkhir]);
     await exportExcelReport({
-      filename: `Pemakaian-Barang-${outletId}-${startDate}_${endDate}`,
+      filename: `Pemakaian-Barang-${target}-${startDate}_${endDate}`,
       title: 'Pemakaian Barang per Hari — Dayang Spa',
-      subtitle: `Outlet ${outletId} · ${startDate} s/d ${endDate}`,
+      subtitle: `Outlet ${target} · ${startDate} s/d ${endDate}`,
       headers, rows
     });
-  }
-
-  if (!isOffice) {
-    return (
-      <div className="kasir-page">
-        <h2>Laporan Produk</h2>
-        <p>Halaman ini hanya tersedia untuk akun Office.</p>
-      </div>
-    );
   }
 
   return (
@@ -88,11 +88,15 @@ export default function LaporanPemakaianStokPage({ isOffice }) {
 
       <section>
         <p>Outlet</p>
-        <div className="grid-2">
-          {OUTLETS.map((o) => (
-            <button key={o.id} className={outletId === o.id ? 'active' : ''} onClick={() => setOutletId(o.id)}>{o.name}</button>
-          ))}
-        </div>
+        {isKasir ? (
+          <p style={{ margin: 0, fontWeight: 600 }}>{outletList[0]?.name || myOutletId}</p>
+        ) : (
+          <div className="grid-2">
+            {outletList.map((o) => (
+              <button key={o.id} className={outletId === o.id ? 'active' : ''} onClick={() => setOutletId(o.id)}>{o.name}</button>
+            ))}
+          </div>
+        )}
       </section>
 
       <section>
