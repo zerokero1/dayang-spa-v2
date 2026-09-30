@@ -307,51 +307,6 @@ section > button {
   color: var(--busy);
   font-weight: 600;
 }
-.pos-chip-fast {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 9px 12px;
-}
-.pos-chip-fast small { font-size: 11px; color: var(--text-secondary); font-weight: 500; }
-.pos-chip-fast:hover { border-color: var(--primary); background: var(--primary-light); }
-.pos-chip-rank {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 17px; height: 17px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 800;
-}
-.pos-chip-count {
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--primary-light);
-  color: var(--primary-dark);
-  font-size: 10px;
-  font-weight: 700;
-}
-
-/* Baris treatment cepat (sering dipakai) */
-.pos-quick-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  margin-bottom: 10px;
-  border: 1px solid var(--primary);
-  border-radius: var(--radius-sm);
-  background: var(--primary-light);
-}
-.pos-quick-label { font-size: 11px; font-weight: 700; color: var(--primary-dark); text-transform: uppercase; letter-spacing: 0.04em; }
-.pos-quick-bar .pos-chip-fast { background: #fff; }
-.pos-quick-bar .pos-chip-fast small { color: var(--primary-dark); }
 
 /* Judul panel pilihan */
 .pos-picker-title { font-size: 14px; font-weight: 700; margin: 0 0 8px; }

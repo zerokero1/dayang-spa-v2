@@ -3,7 +3,6 @@ import { OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, PAYMENT_METHODS, PAYMENT_ME
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createBooking, createBookingsBatch } from '../lib/bookingService';
-import { supabase } from '../lib/supabase';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -13,7 +12,6 @@ const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
    berulang-ulang: treatment terakhir, minyak terakhir, terapis
    terakhir, nama pelanggan & metode pembayaran.
    ============================================================ */
-const LS_RECENT = 'ds_recent_treatments';
 const LS_OIL = 'ds_last_oil';
 const LS_THERAPIST = 'ds_last_therapist';
 const LS_FORM = 'ds_kasir_form';
@@ -39,7 +37,6 @@ export default function KasirPage({ outletId, active }) {
   const [treatments, setTreatments] = useState([]);
   const [category, setCategory] = useState('Semua');
   const [productSearch, setProductSearch] = useState('');
-  const [popularCounts, setPopularCounts] = useState({});
 
   // Alur: pilih treatment -> pilih minyak -> pilih terapis (yang free)
   const [pendingTreatment, setPendingTreatment] = useState(null);
@@ -51,7 +48,6 @@ export default function KasirPage({ outletId, active }) {
   const [freeOnly, setFreeOnly] = useState(true);
 
   // Memori cepat
-  const [recentIds, setRecentIds] = useState(() => loadLS(LS_RECENT, []));
   const [oilMap, setOilMap] = useState(() => loadLS(LS_OIL, {}));
   const [therapistMap, setTherapistMap] = useState(() => loadLS(LS_THERAPIST, {}));
   const savedForm = loadLS(LS_FORM, {});
@@ -68,7 +64,6 @@ export default function KasirPage({ outletId, active }) {
     [customerName, markPaidNow, paymentMethod]);
   useEffect(() => { saveLS(LS_OIL, oilMap); }, [oilMap]);
   useEffect(() => { saveLS(LS_THERAPIST, therapistMap); }, [therapistMap]);
-  useEffect(() => { saveLS(LS_RECENT, recentIds); }, [recentIds]);
 
   useEffect(() => {
     if (!active) return;
@@ -76,30 +71,6 @@ export default function KasirPage({ outletId, active }) {
     const unsub2 = listenTreatments(setTreatments);
     return () => { unsub1(); unsub2(); };
   }, [active]);
-
-  // Treatment yang paling sering dipakai di outlet ini (30 hari terakhir),
-  // supaya kasir bisa 1 ketuk treatment yang biasanya.
-  useEffect(() => {
-    if (!active || !outletId) return;
-    let alive = true;
-    const sejak = new Date(Date.now() - 30 * 864e5).toISOString();
-    supabase
-      .from('bookings')
-      .select('treatment_name')
-      .eq('outlet_id', outletId)
-      .neq('status', 'batal')
-      .gte('created_at', sejak)
-      .limit(1000)
-      .then(({ data }) => {
-        if (!alive || !data) return;
-        const hitung = {};
-        data.forEach((r) => {
-          if (r.treatment_name) hitung[r.treatment_name] = (hitung[r.treatment_name] || 0) + 1;
-        });
-        setPopularCounts(hitung);
-      });
-    return () => { alive = false; };
-  }, [active, outletId]);
 
   const cartTherapistIds = new Set(cart.map((c) => c.therapist.id));
   const cartCountByTherapist = {};
@@ -116,23 +87,6 @@ export default function KasirPage({ outletId, active }) {
   const productList = treatments
     .filter((t) => category === 'Semua' || t.category === category)
     .filter((t) => t.name.toLowerCase().includes(productSearch.toLowerCase()));
-
-  // Treatment yang bisa dipilih lewat 1 ketuk, DIURUTKAN dari yang paling
-  // sering dipakai di outlet ini (30 hari terakhir). Treatment yang baru
-  // dipakai di perangkat ini ikut masuk walau belum punya riwayat.
-  const recentRank = {};
-  recentIds.forEach((id, i) => { recentRank[id] = i; });
-  const quickTreatments = [
-    ...recentIds.map((id) => treatments.find((t) => t.id === id)).filter(Boolean),
-    ...treatments.filter((t) => popularCounts[t.name])
-  ]
-    .filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i)
-    .sort((a, b) => {
-      const selisih = (popularCounts[b.name] || 0) - (popularCounts[a.name] || 0);
-      if (selisih !== 0) return selisih;
-      return (recentRank[a.id] ?? 99) - (recentRank[b.id] ?? 99);
-    })
-    .slice(0, 8);
 
   const lastOil = pendingTreatment ? oilMap[pendingTreatment.id] : null;
   const lastTherapistId = outletId ? therapistMap[outletId] : null;
@@ -215,7 +169,6 @@ export default function KasirPage({ outletId, active }) {
       discountPct: 0,
       discountReason: ''
     }]);
-    setRecentIds((ids) => [t.id, ...ids.filter((x) => x !== t.id)].slice(0, 10));
     if (outletId) setTherapistMap((m) => ({ ...m, [outletId]: tera.id }));
   }
 
@@ -228,18 +181,6 @@ export default function KasirPage({ outletId, active }) {
     addLine(pendingTreatment, t, { oil: pendingOil, size: pendingSize, noOilChosen: pendingNoOil });
     setPendingTreatment(null); setPendingOil(null); setPendingSize(null); setPendingNoOil(false);
     setStep(null);
-    setError('');
-  }
-
-  /** 1 ketuk untuk treatment + minyak + terapis yang sama seperti terakhir. */
-  function handleQuickRepeat(t) {
-    const oil = oilMap[t.id];
-    if (!lastTherapist) return;
-    addLine(t, lastTherapist, {
-      oil: oil && !oil.noOil ? oil.oil : null,
-      size: oil && !oil.noOil ? oil.size : null,
-      noOilChosen: !!oil?.noOil
-    });
     setError('');
   }
 
@@ -437,35 +378,6 @@ export default function KasirPage({ outletId, active }) {
           onChange={(e) => setProductSearch(e.target.value)}
           style={{ marginBottom: 10 }}
         />
-
-        {quickTreatments.length > 0 && productSearch === '' && (
-          <div className="pos-quick-bar">
-            <span className="pos-quick-label">⚡ Sering dipakai · 30 hari terakhir</span>
-            <div className="pos-chip-list">
-              {quickTreatments.map((t, i) => {
-                // Kalau sudah ada ingatan minyak + terapis untuk treatment ini,
-                // satu ketuk langsung masuk keranjang (tanpa pilih minyak/terapis).
-                const oil = oilMap[t.id];
-                const satuKetuk = !!lastTherapist && (!!oil || !treatmentUsesOil(t));
-                const jumlah = popularCounts[t.name] || 0;
-                return (
-                  <button
-                    key={t.id}
-                    className="pos-chip pos-chip-fast"
-                    title={satuKetuk ? '1 ketuk langsung masuk keranjang' : 'Ketuk untuk pilih minyak & terapis'}
-                    onClick={() => (satuKetuk ? handleQuickRepeat(t) : handlePickTreatment(t))}
-                  >
-                    <span className="pos-chip-rank">{i + 1}</span>
-                    {satuKetuk && '⚡ '}
-                    {t.name}
-                    <small>{rp(t.price)}</small>
-                    {jumlah > 0 && <span className="pos-chip-count">{jumlah}×</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         <div className="pos-product-table">
           <div className="pos-product-header">
