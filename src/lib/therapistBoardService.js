@@ -22,11 +22,12 @@ import {
 
 export const todayWib = () => fmtLocalDate(new Date());
 
-// Epoch ms "sekarang" pada tanggal WIB tertentu (untuk=status jeda shift).
-function nowMsOnWib(dateStr) {
+// Epoch ms "sekarang" pada tanggal WIB tertentu (untuk status jeda shift).
+// nowMs boleh diteruskan supaya fungsi ini deterministik dan bisa diuji.
+function nowMsOnWib(dateStr, nowMs = Date.now()) {
   const { startUtc } = wibDayBoundsUtc(dateStr);
-  const now = Date.now();
-// Kalau tanggal yang diminta = hari ini, pakai waktu sungguhan.
+  const now = Number(nowMs) || Date.now();
+  // Kalau tanggal yang diminta = hari ini, pakai waktu sungguhan.
   if (now >= startUtc.getTime() && now < startUtc.getTime() + 24 * 3600000) return now;
   // Tanggal lain: pakai tengah hari WIB agar tidak jadi jam tengah malam
   // yang menyesatkan.
@@ -60,7 +61,7 @@ const outletName = (id) => OUTLETS.find((o) => o.id === id)?.name || id || '-';
  */
 export async function getTherapistBoard({ date = todayWib(), outletIds = null, nowMs = Date.now() } = {}) {
   const { startUtc, endUtc } = wibDayBoundsUtc(date);
-  const todayRef = nowMsOnWib(date);
+  const nowRef = nowMsOnWib(date, nowMs);
   const isToday = date === todayWib();
 
   const therapistQuery = supabase
@@ -104,7 +105,7 @@ export async function getTherapistBoard({ date = todayWib(), outletIds = null, n
   // (terapis sudah otomatis Free), jadi memfilter tanpa cek waktu akan
   // membuat hampir semua terapis terlihat "Ambil Tamu".
   const isReallyRunning = (b) =>
-    b.status === 'berjalan' && (b.end_at == null || Number(b.end_at) > todayRef);
+    b.status === 'berjalan' && (b.end_at == null || Number(b.end_at) > nowRef);
 
   const liveByTherapist = {};
   bookings.forEach((b) => {
@@ -163,7 +164,7 @@ export async function getTherapistBoard({ date = todayWib(), outletIds = null, n
     const isOvertimeNow = !adj && shiftEndMs != null && nowRef > shiftEndMs
       && (workingNow || (lastEndAt != null && lastEndAt > shiftEndMs));
 
-    const shiftWindow = getShiftWindowStatus(t.shift, new Date(todayRef));
+    const shiftWindow = getShiftWindowStatus(t.shift, new Date(nowRef));
 
     return {
       id: t.id,
