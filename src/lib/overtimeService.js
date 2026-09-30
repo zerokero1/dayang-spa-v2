@@ -8,7 +8,7 @@ import { OUTLETS, SHIFTS } from './constants';
 //  - Shift Malam / 15: 15:00-23:00           -> selesai 23:00
 //  - Shift 11: 11:00-23:00                    -> selesai 23:00
 //  - Shift ST / Short: 11:00-16:00            -> selesai 16:00
-const SHIFT_END_MINUTES = {
+export const SHIFT_END_MINUTES = {
   [SHIFTS.SP]: 23 * 60,
   [SHIFTS.SP1]: 22 * 60,
   [SHIFTS.SP2]: 23 * 60,
@@ -74,6 +74,38 @@ function wibDayBoundsUtc(dateStr) {
   const startUtc = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - 7 * 3600000);
   const endUtc = new Date(startUtc.getTime() + 24 * 3600000 - 1);
   return { startUtc, endUtc };
+}
+
+export { wibDayBoundsUtc, fmtLocalDate };
+
+/**
+ * Menit lembur seorang terapis pada satu tanggal, berdasarkan jam selesai
+ * shift normalnya. Dipakai juga oleh Dashboard Terapis (live board) supaya
+ * angka lembur di dua tempat konsisten.
+ * - maxEndAt: epoch ms berakhirnya treatment terakhir (null = belum ada kerja).
+ * - nowMs: untuk mode "sedang lembur", dihitung dari waktu SEKARANG, bukan
+ *   hanya treatment terakhir.
+ */
+export function overtimeMinutesFor(shift, dateStr, maxEndAt, nowMs = null) {
+  const shiftEndMin = shift ? SHIFT_END_MINUTES[shift] : null;
+  if (shiftEndMin == null) return 0;
+  const basis = nowMs != null ? Math.max(nowMs, 0) : maxEndAt;
+  if (basis == null) return 0;
+  return toMinutes(basis - wibDayShiftEndMs(dateStr, shiftEndMin));
+}
+
+// Jam selesai shift pada tanggal tertentu (WIB) dalam epoch ms.
+export function wibDayShiftEndMs(dateStr, shiftEndMin) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const endLocal = new Date(Date.UTC(y, m - 1, d, Math.floor(shiftEndMin / 60), shiftEndMin % 60, 0));
+  return endLocal.getTime() - 7 * 3600000;
+}
+
+// Jam selesai shift (WIB) hari ini dalam epoch ms — untuk status "sedang lembur".
+export function shiftEndMsForDate(shift, dateStr) {
+  const shiftEndMin = shift ? SHIFT_END_MINUTES[shift] : null;
+  if (shiftEndMin == null) return null;
+  return wibDayShiftEndMs(dateStr, shiftEndMin);
 }
 
 // Format tanggal dari komponen LOKAL (WIB) — bukan toISOString (UTC),
@@ -188,12 +220,7 @@ export async function getOvertimeReport(startDate, endDate) {
 }
 
 // Jam selesai shift pada tanggal tertentu (WIB) dalam epoch ms.
-function wibDayShiftEndMs(dateStr, shiftEndMin) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  // jam selesai shift dalam WIB -> konversi ke UTC ms, lalu tambah offset WIB
-  const endLocal = new Date(Date.UTC(y, m - 1, d, Math.floor(shiftEndMin / 60), shiftEndMin % 60, 0));
-  return endLocal.getTime() - 7 * 3600000;
-}
+// (didefinisikan di atas sebagai helper yang di-export)
 
 /**
  * Agregasi overtime otomatis (dari data booking) per karyawan pada rentang tanggal.

@@ -21,3 +21,11 @@ create table if not exists public.overtime_adjustments (
 
 create index if not exists idx_ot_adjust_date
   on public.overtime_adjustments (work_date desc);
+
+-- RLS: halaman Overtime & Laporan Absensi membaca/menulis tabel ini langsung
+-- dari browser memakai akun yang sudah login.
+alter table public.overtime_adjustments enable row level security;
+
+drop policy if exists "authenticated all" on public.overtime_adjustments;
+create policy "authenticated all" on public.overtime_adjustments
+  for all to authenticated using (true) with check (true);
