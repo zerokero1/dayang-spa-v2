@@ -143,12 +143,9 @@ function TherapistCard({ r }) {
   );
 }
 
-export default function DashboardTerapisPage({ profile, active }) {
-  const isKasir = profile?.role === 'kasir';
-  const myOutletId = profile?.outletId;
-
+export default function DashboardTerapisPage({ active }) {
   const [date, setDate] = useState(todayWib());
-  const [outletFilter, setOutletFilter] = useState(isKasir ? (myOutletId || 'semua') : 'semua');
+  const [outletFilter, setOutletFilter] = useState('semua');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -162,9 +159,7 @@ export default function DashboardTerapisPage({ profile, active }) {
     setLoading(true);
     setError('');
     try {
-      const ids = isKasir
-        ? [myOutletId].filter(Boolean)
-        : (outletFilter === 'semua' ? null : [outletFilter]);
+      const ids = outletFilter === 'semua' ? null : [outletFilter];
       const res = await getTherapistBoard({ date, outletIds: ids });
       setData(res);
       setTick(Date.now());
@@ -174,7 +169,7 @@ export default function DashboardTerapisPage({ profile, active }) {
       inFlight.current = false;
       setLoading(false);
     }
-  }, [date, outletFilter, isKasir, myOutletId]);
+  }, [date, outletFilter]);
 
   useEffect(() => { load(); }, [load, active]);
 
@@ -201,21 +196,19 @@ export default function DashboardTerapisPage({ profile, active }) {
         Terapis ambil tamu di outlet mana, siapa yang break, siapa yang lembur.
       </p>
 
-      {!isKasir && (
-        <section>
-          <p>Outlet</p>
-          <div className="grid-2">
-            <button className={outletFilter === 'semua' ? 'active' : ''} onClick={() => setOutletFilter('semua')}>
-              Semua Outlet
+      <section>
+        <p>Outlet</p>
+        <div className="grid-2">
+          <button className={outletFilter === 'semua' ? 'active' : ''} onClick={() => setOutletFilter('semua')}>
+            Semua Outlet
+          </button>
+          {OUTLETS.map((o) => (
+            <button key={o.id} className={outletFilter === o.id ? 'active' : ''} onClick={() => setOutletFilter(o.id)}>
+              {o.name}
             </button>
-            {OUTLETS.map((o) => (
-              <button key={o.id} className={outletFilter === o.id ? 'active' : ''} onClick={() => setOutletFilter(o.id)}>
-                {o.name}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+          ))}
+        </div>
+      </section>
 
       <section>
         <p>Tanggal</p>

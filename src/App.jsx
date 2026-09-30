@@ -87,6 +87,7 @@ const KASIR_HOME_TILES = [
   { key: 'oncall', icon: '🏨', title: 'Oncall', sub: 'Massage ke hotel' },
   { key: 'reservasi', icon: '🗓️', title: 'Reservasi', sub: 'Check-in tamu' },
   { key: 'struk', icon: '🧾', title: 'Struk', sub: 'Cetak / ulang struk' },
+  { key: 'dashboardTerapis', icon: '🧑‍⚕️', title: 'Dashboard Terapis', sub: 'Ambil tamu · break · lembur', board: true },
   { key: 'absensi', icon: '✅', title: 'Absensi', sub: 'Hadir / izin terapis' }
 ];
 
@@ -202,7 +203,7 @@ export default function App() {
                 <span>{currentPage ? currentPage.label : ''}</span>
               </div>
               {currentPage && currentPage.Component && (
-                <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} />
+<currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} onOpen={openPage} />
               )}
             </Suspense>
           )}
@@ -314,7 +315,7 @@ export default function App() {
         <main className={overdueCount > 0 ? 'content has-banner' : 'content'}>
           <Suspense fallback={<div style={{ padding: 24, fontSize: 14, color: 'var(--text-secondary)' }}>Memuat…</div>}>
             {currentPage && currentPage.Component && (
-              <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} />
+              <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} onOpen={(k) => setActivePage(k)} />
             )}
           </Suspense>
         </main>

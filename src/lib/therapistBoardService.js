@@ -251,3 +251,19 @@ export function groupByCurrentOutlet(rows) {
   });
   return g;
 }
+
+/**
+ * Ringkasan singkat untuk kartu di dashboard utama.
+ * Mengembalikan { total, busy, break, libur, free, overtime, jeda,
+ *                 totalOvertimeMinutes } atau null kalau gagal dimuat
+ * (supaya dashboard utama tidak ikut error).
+ */
+export async function getTherapistBoardSummary(opts = {}) {
+  try {
+    const res = await getTherapistBoard({ date: todayWib(), ...opts });
+    return { ...res.summary, updatedAt: Date.now() };
+  } catch (e) {
+    console.warn('therapist board summary error:', e);
+    return null;
+  }
+}
