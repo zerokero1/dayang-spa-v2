@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { OUTLETS } from './constants';
+import { OUTLETS, ATTENDANCE_TYPES } from './constants';
 import { getShiftWindowStatus } from './shiftService';
 import {
   wibDayBoundsUtc,
@@ -74,11 +74,33 @@ export async function getTherapistBoard({ date = todayWib(), outletIds = null, n
     .gte('start_at', startUtc.getTime())
     .lte('start_at', endUtc.getTime());
 
-  const [thRes, bkRes, adjustments] = await Promise.all([
+  const [thRes, bkRes, adjustments, lemburRows] = await Promise.all([
     therapistQuery,
     bookingQuery,
-    getOvertimeAdjustments(date, date).catch(() => ({}))
+    getOvertimeAdjustments(date, date).catch(() => ({})),
+    supabase
+      .from('attendance')
+      .select('employee_id, employee_name, type, overtime_minutes, note')
+      .eq('date', date)
+      .eq('type', ATTENDANCE_TYPES.LEMBUR)
+      .then((r) => (r.error ? [] : r.data || []))
+      .catch(() => [])
   ]);
+
+  // Input lembur manual dari halaman Absensi. Ini yang paling dipercaya:
+  // admin sudah menghitung sendiri menitnya, jadi angka booking tidak boleh
+  // menimpanya. Sumber lembur, dari yang paling kuat:
+  //   1. koreksi overtime (overtime_adjustments)
+  //   2. input lembur di Absensi (attendance type='lembur')
+  //   3. hitung otomatis dari jam selesai treatment vs jam shift
+  const lemburById = {};
+  (lemburRows || []).forEach((a) => {
+    if (!a.employee_id) return;
+    lemburById[a.employee_id] = {
+      minutes: Math.max(0, Math.round(Number(a.overtime_minutes) || 0)),
+      note: a.note || ''
+    };
+  });
 
   if (thRes.error) throw thRes.error;
   if (bkRes.error) throw bkRes.error;
@@ -152,11 +174,21 @@ export async function getTherapistBoard({ date = todayWib(), outletIds = null, n
       : null;
 
     const shiftEndMs = shiftEndMsForDate(t.shift, date);
-    // Total lembur hari ini (dari treatment terakhir), hormati koreksi manual.
+    // Total lembur hari ini. Urutan sumber: koreksi > input Absensi > otomatis.
     const adj = adjustments[`${t.id}|${date}`];
-    let overtimeMinutes = adj
-      ? Number(adj.adjustedMinutes) || 0
-      : overtimeMinutesFor(t.shift, date, lastEndAt);
+    const manual = lemburById[t.id] || null;
+    let overtimeMinutes;
+    let overtimeSource;
+    if (adj) {
+      overtimeMinutes = Number(adj.adjustedMinutes) || 0;
+      overtimeSource = 'koreksi';
+    } else if (manual) {
+      overtimeMinutes = manual.minutes;
+      overtimeSource = 'absensi';
+    } else {
+      overtimeMinutes = overtimeMinutesFor(t.shift, date, lastEndAt);
+      overtimeSource = 'otomatis';
+    }
     // "Sedang lembur" = sudah lewat jam selesai shift DAN masih ada kerja
     // (treatment belum selesai, atau baru saja selesai di luar jam shift).
     const workingNow = (current.length > 0 && currentEndAt != null && currentEndAt > nowRef)
@@ -211,6 +243,8 @@ export async function getTherapistBoard({ date = todayWib(), outletIds = null, n
       lastEndTime: fmtTime(lastEndAt),
       overtimeMinutes,
       overtimeText: fmtMin(overtimeMinutes),
+      overtimeSource,
+      overtimeNote: manual ? manual.note : (adj && adj.reason) || '',
       isOvertimeNow,
       shiftEndTime: shiftEndMs != null ? fmtTime(shiftEndMs) : null,
       adjusted: !!adj
@@ -234,7 +268,12 @@ export async function getTherapistBoard({ date = todayWib(), outletIds = null, n
     break: rows.filter((r) => r.isBreak).length,
     libur: rows.filter((r) => r.isLibur).length,
     free: rows.filter((r) => !r.isBusy && !r.isBreak && !r.isLibur).length,
+    // overtime = sedang lembur SEKARANG (live, dari jam shift + masih kerja).
     overtime: rows.filter((r) => r.isOvertimeNow).length,
+    // overtimeToday = sudah tercatat lembur hari ini, termasuk yang sudah
+    // selesai bekerja. Ini yang biasanya dicari admin (dicek dari input Absensi).
+    overtimeToday: rows.filter((r) => r.overtimeMinutes > 0).length,
+    lemburByAbsensi: rows.filter((r) => r.overtimeSource === 'absensi' && r.overtimeMinutes > 0).length,
     jeda: rows.filter((r) => !r.isBusy && !r.isBreak && !r.isLibur && r.shiftWindow === 'jeda').length,
     totalOvertimeMinutes: rows.reduce((s, r) => s + r.overtimeMinutes, 0)
   };
@@ -254,9 +293,9 @@ export function groupByCurrentOutlet(rows) {
 
 /**
  * Ringkasan singkat untuk kartu di dashboard utama.
- * Mengembalikan { total, busy, break, libur, free, overtime, jeda,
- *                 totalOvertimeMinutes } atau null kalau gagal dimuat
- * (supaya dashboard utama tidak ikut error).
+ * Mengembalikan { total, busy, break, libur, free, overtime, overtimeToday,
+ *                 lemburByAbsensi, jeda, totalOvertimeMinutes } atau null kalau
+ * gagal dimuat (supaya dashboard utama tidak ikut error).
  */
 export async function getTherapistBoardSummary(opts = {}) {
   try {

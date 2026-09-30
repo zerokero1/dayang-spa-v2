@@ -126,7 +126,12 @@ function TherapistCard({ r }) {
 
       <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: 12, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
         <span>Treatment hari ini: <strong>{r.todayCount}</strong></span>
-        {r.overtimeMinutes > 0 && <span>Lembur: <strong>{r.overtimeText}</strong>{r.adjusted ? ' (koreksi)' : ''}</span>}
+        {r.overtimeMinutes > 0 && (
+          <span title={r.overtimeSource === 'absensi' ? 'Diinput manual di halaman Absensi' : r.overtimeSource === 'koreksi' ? 'Dihitung dari koreksi lembur' : 'Dihitung otomatis dari jam selesai shift'}>
+            Lembur: <strong>{r.overtimeText}</strong>
+            {r.overtimeSource === 'absensi' ? ' (input absensi)' : r.overtimeSource === 'koreksi' ? ' (koreksi)' : ''}
+          </span>
+        )}
         {r.lastEndTime !== '-' && <span>Selesai terakhir: <strong>{r.lastEndTime}</strong></span>}
       </div>
 
@@ -249,7 +254,7 @@ export default function DashboardTerapisPage({ active }) {
       {s && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))', gap: 8, margin: '12px 0 4px' }}>
           <SummaryTile label="Ambil Tamu" value={s.busy} bg="var(--busy)" />
-          <SummaryTile label="Lembur" value={s.overtime} bg="#7c3aed" />
+          <SummaryTile label="Lembur" value={s.overtimeToday ?? s.overtime} bg="#7c3aed" tip="ada lembur tercatat hari ini" />
           <SummaryTile label="Break" value={s.break} bg="var(--warning, #f59e0b)" />
           <SummaryTile label="Jeda Shift" value={s.jeda} bg="#0ea5e9" />
           <SummaryTile label="Free" value={s.free} bg="#16a34a" />
@@ -260,6 +265,8 @@ export default function DashboardTerapisPage({ active }) {
       {s && s.totalOvertimeMinutes > 0 && (
         <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
           Total lembur {data.date}: <strong>{fmtMinShort(s.totalOvertimeMinutes).replace(' lagi', '')}</strong>
+          {s.overtime > 0 ? ` · ${s.overtime} orang masih lembur sekarang` : ''}
+          {s.lemburByAbsensi > 0 ? ` · ${s.lemburByAbsensi} dari input Absensi` : ''}
         </p>
       )}
 
@@ -277,9 +284,9 @@ export default function DashboardTerapisPage({ active }) {
   );
 }
 
-function SummaryTile({ label, value, bg }) {
+function SummaryTile({ label, value, bg, tip }) {
   return (
-    <div style={{ background: bg, color: '#fff', borderRadius: 12, padding: '10px 12px' }}>
+    <div style={{ background: bg, color: '#fff', borderRadius: 12, padding: '10px 12px', title: tip || '' }}>
       <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>{value}</div>
       <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.95 }}>{label}</div>
     </div>

@@ -88,7 +88,7 @@ export default function DashboardPage({ active, onOpen }) {
               ? [
                   `${board.busy} ambil tamu`,
                   board.break ? `${board.break} break` : null,
-                  board.overtime ? `${board.overtime} lembur` : null,
+                  (board.overtimeToday ?? board.overtime) ? `${board.overtimeToday ?? board.overtime} lembur` : null,
                   `${board.free} free`
                 ].filter(Boolean).join(' · ')
               : 'Memuat…'}
@@ -99,7 +99,7 @@ export default function DashboardPage({ active, onOpen }) {
             <>
               <MiniStat label="Ambil Tamu" value={board.busy} bg="var(--busy)" />
               <MiniStat label="Break" value={board.break} bg="var(--warning, #f59e0b)" />
-              <MiniStat label="Lembur" value={board.overtime} bg="#7c3aed" />
+              <MiniStat label="Lembur" value={board.overtimeToday ?? board.overtime} bg="#7c3aed" />
             </>
           )}
         </div>

@@ -33,7 +33,7 @@ export default function KasirBeranda({
     ? [
         `${board.busy} ambil tamu`,
         board.break ? `${board.break} break` : null,
-        board.overtime ? `${board.overtime} lembur` : null
+        (board.overtimeToday ?? board.overtime) ? `${board.overtimeToday ?? board.overtime} lembur` : null
       ].filter(Boolean).join(' · ')
     : 'Ambil tamu · break · lembur';
 
