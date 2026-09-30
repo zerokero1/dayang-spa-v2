@@ -155,6 +155,7 @@ export default function DashboardTerapisPage({ active }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [auto, setAuto] = useState(true);
+  const [showLibur, setShowLibur] = useState(false);
   const [tick, setTick] = useState(Date.now());
   const inFlight = useRef(false);
 
@@ -193,6 +194,13 @@ export default function DashboardTerapisPage({ active }) {
 
   const s = data?.summary;
   const rows = data?.rows || [];
+
+// Yang libur disembunyikan supaya dashboard fokus ke orang yang masih
+  // bisa melayani. Tapi kalau status liburnya ternyata masih ada tamu yang
+  // sedang ditangani, tetap ditampilkan — lebih penting daripada rapi.
+  const liburToHide = rows.filter((r) => r.isLibur && !r.isBusy);
+  const visibleRows = showLibur ? rows : rows.filter((r) => !liburToHide.includes(r));
+  const hiddenLibur = liburToHide.length;
 
   return (
     <div className="kasir-page">
@@ -235,6 +243,15 @@ export default function DashboardTerapisPage({ active }) {
           >
             Auto-refresh {auto ? 'ON' : 'OFF'}
           </button>
+          <button
+            style={{
+              width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none',
+              background: showLibur ? undefined : 'var(--primary-dark)', color: showLibur ? undefined : '#fff'
+            }}
+            onClick={() => setShowLibur((v) => !v)}
+          >
+            Tampilkan yang libur: {showLibur ? 'ON' : 'OFF'}
+          </button>
           <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={load} disabled={loading}>
             {loading ? 'Memuat...' : '⟳ Muat ulang'}
           </button>
@@ -258,8 +275,20 @@ export default function DashboardTerapisPage({ active }) {
           <SummaryTile label="Break" value={s.break} bg="var(--warning, #f59e0b)" />
           <SummaryTile label="Jeda Shift" value={s.jeda} bg="#0ea5e9" />
           <SummaryTile label="Free" value={s.free} bg="#16a34a" />
-          <SummaryTile label="Libur" value={s.libur} bg="#6b7280" />
+          {showLibur && <SummaryTile label="Libur" value={s.libur} bg="#6b7280" />}
         </div>
+      )}
+
+      {!showLibur && hiddenLibur > 0 && (
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0' }}>
+          {hiddenLibur} terapis sedang libur dan disembunyikan.{' '}
+          <button
+            style={{ width: 'auto', padding: '2px 8px', fontSize: 11, boxShadow: 'none' }}
+            onClick={() => setShowLibur(true)}
+          >
+            Tampilkan
+          </button>
+        </p>
       )}
 
       {s && s.totalOvertimeMinutes > 0 && (
@@ -271,13 +300,17 @@ export default function DashboardTerapisPage({ active }) {
       )}
 
       <section style={{ marginTop: 12 }}>
-        <p>Daftar terapis ({rows.length})</p>
+        <p>Daftar terapis ({visibleRows.length}{hiddenLibur > 0 ? ` dari ${rows.length}` : ''})</p>
         {!data && !error && <p style={{ fontSize: 13 }}>Memuat…</p>}
-        {data && rows.length === 0 && (
-          <p style={{ fontSize: 13 }}>Tidak ada terapis untuk outlet ini.</p>
+        {data && visibleRows.length === 0 && (
+          <p style={{ fontSize: 13 }}>
+            {rows.length === 0
+              ? 'Tidak ada terapis untuk outlet ini.'
+              : 'Semua terapis sedang libur.'}
+          </p>
         )}
         <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
-          {rows.map((r) => <TherapistCard key={r.id} r={r} />)}
+          {visibleRows.map((r) => <TherapistCard key={r.id} r={r} />)}
         </div>
       </section>
     </div>
