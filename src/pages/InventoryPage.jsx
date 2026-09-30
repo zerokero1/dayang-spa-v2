@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { listenInventory, addInventoryItem, stockIn, stockOut, deleteInventoryItem } from '../lib/inventoryService';
+import { listenInventory, addInventoryItem, stockIn, stockOut, deleteInventoryItem, setItemUnitCost } from '../lib/inventoryService';
+
+const rp = (n) => 'Rp' + (Number(n) || 0).toLocaleString('id-ID');
 
 export default function InventoryPage({ outletId, active }) {
   const [items, setItems] = useState([]);
   const [selItem, setSelItem] = useState(null);
   const [qty, setQty] = useState('');
   const [note, setNote] = useState('');
+  const [cost, setCost] = useState('');
   const [newName, setNewName] = useState('');
   const [newUnit, setNewUnit] = useState('');
   const [message, setMessage] = useState('');
@@ -15,6 +18,28 @@ export default function InventoryPage({ outletId, active }) {
     if (!active) return;
     return listenInventory(outletId, setItems);
   }, [active, outletId]);
+
+  function pick(it) {
+    setSelItem(it);
+    setQty('');
+    setNote('');
+    setCost(it.unitCost ? String(it.unitCost) : '');
+    setMessage('');
+  }
+
+  async function handleSaveCost() {
+    if (!selItem) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      await setItemUnitCost(selItem.id, Number(cost) || 0);
+      setMessage(`Harga satuan ${selItem.name} disimpan: ${rp(cost)}`);
+    } catch (e) {
+      setMessage('Gagal: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function handleAddItem() {
     if (!newName) return;
@@ -85,9 +110,10 @@ export default function InventoryPage({ outletId, active }) {
             <button
               key={it.id}
               className={selItem?.id === it.id ? 'active' : ''}
-              onClick={() => setSelItem(it)}
+              onClick={() => pick(it)}
             >
               {it.name} ({it.stock} {it.unit})
+              {it.unitCost > 0 && <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.8 }}>{rp(it.unitCost)}/{it.unit}</div>}
             </button>
           ))}
         </div>
@@ -102,17 +128,28 @@ export default function InventoryPage({ outletId, active }) {
             <button onClick={handleIn} disabled={busy || !qty}>Barang masuk</button>
             <button onClick={handleOut} disabled={busy || !qty}>Barang keluar</button>
           </div>
-          <button
-            onClick={handleDelete}
-            disabled={busy}
-            style={{ width: 'auto', padding: '6px 12px', fontSize: 12, background: 'var(--danger)', color: '#fff', boxShadow: 'none', marginTop: 8 }}
-          >
-            Hapus item ini
-          </button>
+        </section>
+      )}
+
+      {selItem && (
+        <section>
+          <p>Harga satuan {selItem.name} (untuk hitung pengeluaran)</p>
+          <input type="number" placeholder="Harga per unit" value={cost} onChange={(e) => setCost(e.target.value)} />
+          <button onClick={handleSaveCost} disabled={busy}>Simpan harga satuan</button>
         </section>
       )}
 
       {message && <p>{message}</p>}
+
+      {selItem && (
+        <button
+          onClick={handleDelete}
+          disabled={busy}
+          style={{ width: 'auto', padding: '6px 12px', fontSize: 12, background: 'var(--danger)', color: '#fff', boxShadow: 'none', marginTop: 8 }}
+        >
+          Hapus item ini
+        </button>
+      )}
 
       <section style={{ marginTop: 20 }}>
         <p>Tambah item baru</p>

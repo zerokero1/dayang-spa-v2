@@ -149,3 +149,126 @@ export async function getItemStockUsage(outletId, startDate, endDate) {
 
   return { rows, current: Object.values(items) };
 }
+
+// ============================================================
+// Estimasi pemakaian BARANG KONSUMABLE per treatment (Hole Sheet,
+// Single Sheet, Face Cradle, dll).Aturan pemakaiannya disimpan di
+// tabel treatment_consumables; tiap baris = 1 treatment pakai qty item.
+//
+// Dipakai untuk menghitung berapa pengeluaran full body massage
+// per outlet: jumlah pemakaian x harga satuan (inventory.unit_cost).
+// ============================================================
+export async function getConsumableUsage(outletId, startDate, endDate) {
+  const from = dayStrUtc(startDate);
+  const to = dayStrUtc(endDate) + 24 * 3600000 - 1;
+  const fromIso = new Date(from).toISOString();
+  const toIso = new Date(to).toISOString();
+
+  const [rulesRes, invRes, bookingRes] = await Promise.all([
+    supabase.from('treatment_consumables').select('treatment_id, item_name, qty'),
+    supabase.from('inventory').select('id, name, unit, stock, unit_cost').eq('outlet_id', outletId),
+    supabase
+      .from('bookings')
+      .select('treatment_id, treatment_name, created_at')
+      .eq('outlet_id', outletId)
+      .neq('status', 'batal')
+      .gte('created_at', fromIso)
+      .lte('created_at', toIso)
+  ]);
+
+  const rules = rulesRes.data || [];
+  if (rules.length === 0) {
+    return { ok: false, reason: 'Aturan pemakaian treatment belum diatur.', items: [], byTreatment: [], days: [], total: 0 };
+  }
+
+  // Aturan per treatment.
+  const ruleByTreatment = {};
+  rules.forEach((r) => {
+    (ruleByTreatment[r.treatment_id] = ruleByTreatment[r.treatment_id] || []).push({
+      itemName: r.item_name,
+      qty: Number(r.qty) || 0
+    });
+  });
+
+  // Stok & harga satuan per barang di outlet ini.
+  const invByName = {};
+  (invRes.data || []).forEach((r) => { invByName[String(r.name).toLowerCase()] = r; });
+
+  // Jumlah booking per treatment per hari.
+  const cntTreatment = {};
+  const cntDay = {};
+  (bookingRes.data || []).forEach((b) => {
+    if (!b.treatment_id || !ruleByTreatment[b.treatment_id]) return;
+    const d = wibDate(b.created_at);
+    const t = b.treatment_id;
+    cntTreatment[t] = (cntTreatment[t] || 0) + 1;
+    cntDay[d] = cntDay[d] || {};
+    cntDay[d][t] = (cntDay[d][t] || 0) + 1;
+  });
+
+  // Agregasi per treatment.
+  const byTreatment = Object.entries(cntTreatment)
+    .map(([tid, count]) => {
+      const first = (bookingRes.data || []).find((b) => b.treatment_id === tid);
+      return {
+        treatmentId: tid,
+        treatmentName: first?.treatment_name || '(tanpa nama)',
+        count,
+        items: ruleByTreatment[tid].map((r) => ({
+          itemName: r.itemName,
+          qty: r.qty * count
+        }))
+      };
+    })
+    .sort((a, b) => b.count - a.count || a.treatmentName.localeCompare(b.treatmentName));
+
+  // Agregasi per barang.
+  const agg = {};
+  byTreatment.forEach((t) => t.items.forEach((it) => {
+    agg[it.itemName] = (agg[it.itemName] || 0) + it.qty;
+  }));
+
+  const items = Object.entries(agg)
+    .map(([name, qty]) => {
+      const inv = invByName[name.toLowerCase()];
+      const unitCost = Number(inv?.unit_cost) || 0;
+      return {
+        name,
+        unit: inv?.unit || 'pcs',
+        stock: inv?.stock ?? null,
+        unitCost,
+        qty,
+        estimatedCost: Math.round(unitCost * qty)
+      };
+    })
+    .sort((a, b) => b.estimatedCost - a.estimatedCost || a.name.localeCompare(b.name));
+
+  // Rincian per hari (total semua barang per tanggal).
+  const days = eachDay(startDate, endDate).map((d) => {
+    const perItem = {};
+    let total = 0;
+    Object.entries(cntDay[d] || {}).forEach(([tid, count]) => {
+      ruleByTreatment[tid].forEach((r) => {
+        perItem[r.itemName] = (perItem[r.itemName] || 0) + r.qty * count;
+        const inv = invByName[r.itemName.toLowerCase()];
+        total += (Number(inv?.unit_cost) || 0) * r.qty * count;
+      });
+    });
+    return { date: d, perItem, estimatedCost: Math.round(total) };
+  }).filter((d) => Object.keys(d.perItem).length > 0);
+
+  const total = items.reduce((sum, i) => sum + i.estimatedCost, 0);
+  const totalCount = byTreatment.reduce((sum, t) => sum + t.count, 0);
+  const belumAdaHarga = items.some((i) => i.unitCost === 0);
+
+  return {
+    ok: true,
+    items,
+    byTreatment,
+    days,
+    total,
+    totalCount,
+    belumAdaHarga,
+    rules: rules.length
+  };
+}

@@ -140,7 +140,18 @@ create table if not exists inventory (
   name text not null,
   unit text not null default 'pcs',
   stock int not null default 0,
+  unit_cost numeric not null default 0,   -- harga satuan (untuk estimasi pengeluaran)
   created_at timestamptz not null default now()
+);
+create unique index if not exists inventory_outlet_name_uniq on inventory (outlet_id, lower(name));
+
+-- ---------- Pemakaian barang per treatment (mis. 1 full body massage = 1 paket) ----------
+create table if not exists treatment_consumables (
+  treatment_id uuid not null references treatments(id) on delete cascade,
+  item_name text not null,
+  qty numeric not null default 1,
+  created_at timestamptz not null default now(),
+  primary key (treatment_id, item_name)
 );
 
 create table if not exists inventory_logs (
@@ -179,6 +190,7 @@ alter table reservations   enable row level security;
 alter table oil_inventory  enable row level security;
 alter table inventory      enable row level security;
 alter table inventory_logs enable row level security;
+alter table treatment_consumables enable row level security;
 alter table attendance     enable row level security;
 
 drop policy if exists "authenticated all" on users;
@@ -199,6 +211,7 @@ create policy "authenticated all" on reservations   for all to authenticated usi
 create policy "authenticated all" on oil_inventory  for all to authenticated using (true) with check (true);
 create policy "authenticated all" on inventory      for all to authenticated using (true) with check (true);
 create policy "authenticated all" on inventory_logs for all to authenticated using (true) with check (true);
+create policy "authenticated all" on treatment_consumables for all to authenticated using (true) with check (true);
 create policy "authenticated all" on attendance     for all to authenticated using (true) with check (true);
 
 -- ============================================================

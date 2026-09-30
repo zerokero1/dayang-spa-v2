@@ -1,14 +1,23 @@
 import { supabase } from './supabase';
 
-export async function addInventoryItem(outletId, { name, unit, initialStock }) {
+export async function addInventoryItem(outletId, { name, unit, initialStock, unitCost }) {
   const { data, error } = await supabase.from('inventory').insert({
     outlet_id: outletId,
     name,
     unit: unit || 'pcs',
-    stock: initialStock || 0
+    stock: initialStock || 0,
+    unit_cost: unitCost || 0
   }).select().single();
   if (error) throw error;
   return data.id;
+}
+
+// Ubah harga satuan barang (dipakai untuk estimasi pengeluaran di Laporan Produk).
+export async function setItemUnitCost(itemId, unitCost) {
+  const { error } = await supabase.from('inventory')
+    .update({ unit_cost: Number(unitCost) || 0 })
+    .eq('id', itemId);
+  if (error) throw error;
 }
 
 export async function stockIn(outletId, itemId, qty, note) {
@@ -48,7 +57,9 @@ export function listenInventory(outletId, callback) {
       .eq('outlet_id', outletId)
       .order('created_at');
     if (error) { console.warn(error); return; }
-    callback((data || []).map((r) => ({ id: r.id, name: r.name, unit: r.unit, stock: r.stock })));
+    callback((data || []).map((r) => ({
+      id: r.id, name: r.name, unit: r.unit, stock: r.stock, unitCost: Number(r.unit_cost) || 0
+    })));
   }
   load();
 

@@ -19,7 +19,11 @@
 -- Jalankan file ini di Supabase SQL Editor (production).
 -- ============================================================
 
--- Buang signature lama (11 argumen) supaya tidak jadi overload ambigu.
+-- Buang signature lama supaya tidak jadi overload ambigu.
+-- (9 argumen = versi lama sebelum ada diskon; 11 argumen = versi dengan diskon)
+drop function if exists public.edit_booking_correction(
+  uuid, uuid, text, numeric, numeric, uuid, boolean, text, text
+);
 drop function if exists public.edit_booking_correction(
   uuid, uuid, text, numeric, numeric, uuid, boolean, text, text, numeric, text
 );
