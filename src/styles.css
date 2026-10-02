@@ -295,6 +295,18 @@ section > button {
   opacity: 0.55;
   cursor: not-allowed;
 }
+/* Status terpilih pada chip pilihan (treatment, terapis, metode bayar, dll).
+   Tanpa aturan ini, class "active" tidak berefek sama sekali dan tampilan
+   chip terpilih-identik dengan yang belum dipilih. */
+.pos-chip.active {
+  background: var(--primary);
+  border-color: var(--primary-dark);
+  color: #fff;
+  font-weight: 700;
+}
+.pos-chip.active:hover {
+  background: var(--primary-dark);
+}
 .pos-chip-busy {
   background: var(--busy-bg);
   border-color: var(--busy);
