@@ -204,7 +204,7 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
               background: 'var(--busy-bg)', border: '1px solid var(--busy)'
             }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--busy)', letterSpacing: 0.5 }}>BELUM BAYAR</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--danger)', margin: '2px 0 8px' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--busy)', margin: '2px 0 8px' }}>
                 {rp(payEffective)}
                 {payDisc > 0 && (
                   <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'line-through', marginLeft: 6 }}>{rp(basePrice)}</span>
