@@ -32,7 +32,7 @@ function nowMinutes() {
 }
 
 export default function AbsensiPage({ outletId, active, user }) {
-  const [tab, setTab] = useState('harian');
+  const [tab, setTab] = useState('bulanan');
   const [date, setDate] = useState(todayWib);
   const [outletFilter, setOutletFilter] = useState('');
   const [employees, setEmployees] = useState([]);
@@ -208,17 +208,17 @@ export default function AbsensiPage({ outletId, active, user }) {
       <div className="att-tabs">
         <button
           type="button"
-          className={tab === 'harian' ? 'active' : ''}
-          onClick={() => setTab('harian')}
-        >
-          Harian
-        </button>
-        <button
-          type="button"
           className={tab === 'bulanan' ? 'active' : ''}
           onClick={() => setTab('bulanan')}
         >
           Bulanan
+        </button>
+        <button
+          type="button"
+          className={tab === 'harian' ? 'active' : ''}
+          onClick={() => setTab('harian')}
+        >
+          Harian (lama)
         </button>
       </div>
 
