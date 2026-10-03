@@ -368,11 +368,21 @@
 .kasir-page .att-month-grid thead th.recap { color: var(--text-secondary); }
 
 .kasir-page .att-cell-editor {
-  position: sticky;
+  position: fixed;
   bottom: 0;
-  margin-top: 12px;
+  left: 0;
+  right: 0;
+  margin-top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.98);
+  padding: 12px 16px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
 }
-.kasir-page .att-cell-editor .oil-card { box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12); }
+.kasir-page .att-cell-editor .oil-card {
+  box-shadow: none;
+  max-width: 600px;
+  margin: 0 auto;
+}
 .kasir-page .att-cell-editor input,
 .kasir-page .att-cell-editor select {
   width: 100%;
