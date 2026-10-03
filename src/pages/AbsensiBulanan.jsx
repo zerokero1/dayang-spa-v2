@@ -340,11 +340,9 @@ export default function AbsensiBulanan({ active, employees, outletFilter, onOutl
                   <td className="sticky-col sticky-name">
                     <span className="no">{i + 1}.</span> {e.name}
                   </td>
-                  // Label shift lengkap ("Shift SP1 (11-14, 17-22)") terlalu lebar untuk kolom
-                // sticky yang diulang di tiap baris, jadi di sini cukup kode singkatnya.
-                <td className="sticky-col sticky-job" title={SHIFT_LABEL[e.shift] || e.shift || ''}>
-                  {(e.shift || e.role || '-').toUpperCase()}
-                </td>
+                  <td className="sticky-col sticky-job" title={SHIFT_LABEL[e.shift] || e.shift || ''}>
+                    {(e.shift || e.role || '-').toUpperCase()}
+                  </td>
                   {days.map((d) => {
                     const rec = recMap[`${e.id}|${d.date}`];
                     const txt = cellText(rec);
