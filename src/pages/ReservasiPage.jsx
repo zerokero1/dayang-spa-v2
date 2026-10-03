@@ -84,7 +84,7 @@ export default function ReservasiPage({ outletId, active }) {
         category,
         customerName,
         customerPhone,
-        scheduledAt: new Date(scheduleDate).getTime()
+        scheduledAt: new Date(scheduleDate).toISOString()
       });
       setMessage('Reservasi tersimpan (kategori ' + category + '). Saat jamnya mendekat, isi treatment via "Isi Treatment".');
       setSelTherapist(null); setCustomerName(''); setCustomerPhone(''); setScheduleDate('');

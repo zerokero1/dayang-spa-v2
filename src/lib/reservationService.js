@@ -6,6 +6,16 @@ export async function createReservation({
   treatmentPrice, commissionPercent, durationMinutes, oilType, oilSize,
   customerName, customerPhone, scheduledAt, usesOil = true
 }) {
+  let scheduledAtIso = scheduledAt;
+  if (scheduledAt instanceof Date) {
+    scheduledAtIso = scheduledAt.toISOString();
+  } else if (typeof scheduledAt === 'number' && !Number.isNaN(scheduledAt)) {
+    scheduledAtIso = new Date(scheduledAt).toISOString();
+  } else if (typeof scheduledAt === 'string' && scheduledAt) {
+    const d = new Date(scheduledAt);
+    scheduledAtIso = Number.isNaN(d.getTime()) ? scheduledAt : d.toISOString();
+  }
+
   const { error } = await supabase.from('reservations').insert({
     outlet_id: outletId,
     therapist_id: therapistId,
@@ -21,7 +31,7 @@ export async function createReservation({
     oil_size: usesOil ? oilSize : null,
     customer_name: customerName || '',
     customer_phone: customerPhone || '',
-    scheduled_at: scheduledAt,
+    scheduled_at: scheduledAtIso,
     status: 'terjadwal'
   });
   if (error) throw error;
