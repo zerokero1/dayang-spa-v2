@@ -14,7 +14,7 @@ export const OIL_SIZES = ['Kecil', 'Besar']; // Kecil = 10ml, Besar = 30ml
 
 export const FOOT_PRODUCTS = ['Foot Cream', 'FM'];
 
-export const TREATMENT_CATEGORIES = ['Massage', 'Nail', 'Body Care', 'Waxing', 'Hair Treatment'];
+export const TREATMENT_CATEGORIES = ['Massage', 'Nail', 'Body Care', 'Waxing', 'Hair Treatment', 'Happy Hour'];
 
 /** Apakah treatment ini Foot Massage (pakai produk Foot Cream / FM)? */
 export function isFootMassage(t) {
