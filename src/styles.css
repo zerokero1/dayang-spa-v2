@@ -28,9 +28,9 @@ body {
 }
 
 .app {
-  max-width: 520px;
+  max-width: min(1920px, 100%);
   margin: 0 auto;
-  padding: 0 12px 32px;
+  padding: 0 20px 40px;
   min-height: 100vh;
 }
 
@@ -83,7 +83,13 @@ body {
 }
 
 /* ===== Section headings ===== */
-.kasir-page { padding-bottom: 8px; }
+.kasir-page {
+  padding: 16px 20px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 20px;
+}
 .kasir-page h2 {
   font-size: 17px;
   font-weight: 700;
