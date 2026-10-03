@@ -3,6 +3,7 @@ import { ATTENDANCE_TYPES, OUTLETS, SHIFTS, SHIFT_LABEL } from '../lib/constants
 import { getAttendanceRange, recordAttendance, saveOvertime } from '../lib/attendanceService';
 import { listenAllTherapists } from '../lib/therapistService';
 import { clockToMinutes, minutesToClock, minutesToDuration, shiftStartMinutes } from '../lib/shiftService';
+import AbsensiBulanan from './AbsensiBulanan';
 
 // Status kehadiran yang dipilih kasir. LEMBUR sengaja TIDAK ada di sini:
 // lembur bukan kondisi kerja, melainkan keterangan tambahan hari yang sama,
@@ -12,7 +13,8 @@ const STATUS_OPTIONS = [
   { value: ATTENDANCE_TYPES.TELAT, label: 'Telat' },
   { value: ATTENDANCE_TYPES.SAKIT, label: 'Sakit' },
   { value: ATTENDANCE_TYPES.IZIN, label: 'Izin' },
-  { value: ATTENDANCE_TYPES.ALPHA, label: 'Alpha' }
+  { value: ATTENDANCE_TYPES.ALPHA, label: 'Alpha' },
+  { value: ATTENDANCE_TYPES.LIBUR, label: 'Libur' }
 ];
 
 function todayWib() {
@@ -30,6 +32,7 @@ function nowMinutes() {
 }
 
 export default function AbsensiPage({ outletId, active, user }) {
+  const [tab, setTab] = useState('harian');
   const [date, setDate] = useState(todayWib);
   const [outletFilter, setOutletFilter] = useState('');
   const [employees, setEmployees] = useState([]);
@@ -196,7 +199,35 @@ export default function AbsensiPage({ outletId, active, user }) {
 
   return (
     <div className="kasir-page">
-      <h2>Absensi Harian</h2>
+      <h2>Absensi</h2>
+
+      <div className="att-tabs">
+        <button
+          type="button"
+          className={tab === 'harian' ? 'active' : ''}
+          onClick={() => setTab('harian')}
+        >
+          Harian
+        </button>
+        <button
+          type="button"
+          className={tab === 'bulanan' ? 'active' : ''}
+          onClick={() => setTab('bulanan')}
+        >
+          Bulanan
+        </button>
+      </div>
+
+      {tab === 'bulanan' ? (
+        <AbsensiBulanan
+          active={active}
+          employees={employees}
+          outletFilter={outletFilter}
+          onOutletChange={setOutletFilter}
+          user={user}
+        />
+      ) : (
+        <>
       <p className="muted">
         Isi jam datang &amp; jam pulang. Telat dihitung otomatis dari jam datang
         dibanding jam mulai shift, jadi tidak perlu dihitung sendiri.
@@ -374,6 +405,8 @@ export default function AbsensiPage({ outletId, active, user }) {
         (mis. ada izin datang di tengah). Data sebelum 2026-10-03 belum punya jam
         datang, jadi kolom masuk/pulang kosong dan telat mengikuti catatan status lama.
       </p>
+        </>
+      )}
     </div>
   );
 }

@@ -107,5 +107,6 @@ export const ATTENDANCE_TYPES = {
   IZIN: 'izin',
   TELAT: 'telat',
   ALPHA: 'alpha',
+  LIBUR: 'libur',
   LEMBUR: 'lembur' // overtime
 };

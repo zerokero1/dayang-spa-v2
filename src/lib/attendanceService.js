@@ -106,6 +106,21 @@ export async function deleteOvertime(employeeId, date) {
 }
 
 /**
+ * Kosongkan satu sel absensi (salah input kasir).
+ * Kehadiran DAN lembur dihapus bareng - kalau hanya kehadiran yang dihapus,
+ * menit lembur yatim akan tetap menempel di hari itu dan muncul lagi di
+ * laporan tanpa ada kehadiran.
+ */
+export async function deleteAttendance(employeeId, date) {
+  const [att, ot] = await Promise.all([
+    supabase.from('attendance').delete().eq('employee_id', employeeId).eq('date', date),
+    supabase.from('attendance_overtime').delete().eq('employee_id', employeeId).eq('date', date)
+  ]);
+  if (att.error) throw att.error;
+  if (ot.error) throw ot.error;
+}
+
+/**
  * Ambil absensi + lembur dalam rentang tanggal.
  * Both me-return Array; lembur sudah digabung ke field overtimeMinutes
  * supaya pemanggil lama (summarizeAttendance, LaporanAbsensiPage) tetap jalan.

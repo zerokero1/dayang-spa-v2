@@ -17,7 +17,7 @@ do $$ begin
   create type reservation_status as enum ('terjadwal','checked_in','batal');
 exception when duplicate_object then null; end $$;
 do $$ begin
-  create type attendance_type as enum ('hadir','sakit','izin','telat','alpha','lembur');
+  create type attendance_type as enum ('hadir','sakit','izin','telat','alpha','libur','lembur');
 exception when duplicate_object then null; end $$;
 do $$ begin
   create type inventory_log_type as enum ('in','out');

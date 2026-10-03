@@ -279,7 +279,138 @@
   white-space: nowrap;
 }
 
+/* ===== Grid absensi bulanan (meniru spreadsheet ABSENSI PER OUTLET) ===== */
+.kasir-page .att-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.kasir-page .att-tabs button {
+  width: auto;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+}
+.kasir-page .att-tabs button.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.kasir-page .att-month-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: 70vh;
+}
+.kasir-page .att-month-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.kasir-page .att-month-grid th,
+.kasir-page .att-month-grid td {
+  padding: 4px 5px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+.kasir-page .att-month-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface);
+  font-size: 11px;
+  line-height: 1.25;
+}
+.kasir-page .att-month-grid thead th .dow {
+  display: block;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.kasir-page .att-month-grid thead th .dnum {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+}
+/* Kolom nama & jabatan tetap terlihat saat scroll ke kanan. */
+.kasir-page .att-month-grid .sticky-col {
+  position: sticky;
+  background: var(--surface);
+  text-align: left;
+  z-index: 2;
+}
+.kasir-page .att-month-grid .sticky-name { left: 0; z-index: 4; min-width: 150px; font-weight: 700; }
+.kasir-page .att-month-grid .sticky-job { left: 150px; z-index: 4; min-width: 64px; color: var(--text-secondary); }
+.kasir-page .att-month-grid thead th.sticky-col { z-index: 5; }
+.kasir-page .att-month-grid .no { color: var(--text-secondary); font-weight: 500; }
+
+.kasir-page .att-month-grid .cell {
+  cursor: pointer;
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+.kasir-page .att-month-grid .cell:hover {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+.kasir-page .att-month-grid .cell.filled { font-weight: 700; }
+.kasir-page .att-month-grid .cell.c-telat { background: var(--busy-bg); color: var(--busy); }
+.kasir-page .att-month-grid .cell.c-libur { background: var(--surface); color: var(--text-secondary); font-style: italic; }
+.kasir-page .att-month-grid .cell.c-other { background: var(--primary-light); color: var(--primary-dark); }
+.kasir-page .att-month-grid .cell.c-lembur { box-shadow: inset 0 -3px 0 var(--primary); }
+.kasir-page .att-month-grid .cell .out { font-size: 10px; opacity: 0.75; }
+.kasir-page .att-month-grid .cell .ot { font-size: 10px; font-weight: 700; color: var(--primary); }
+.kasir-page .att-month-grid th.is-today { background: var(--primary-light); color: var(--primary-dark); }
+.kasir-page .att-month-grid .recap { font-weight: 700; min-width: 30px; }
+.kasir-page .att-month-grid thead th.recap { color: var(--text-secondary); }
+
+.kasir-page .att-cell-editor {
+  position: sticky;
+  bottom: 0;
+  margin-top: 12px;
+}
+.kasir-page .att-cell-editor .oil-card { box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12); }
+.kasir-page .att-cell-editor input,
+.kasir-page .att-cell-editor select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+}
+.kasir-page .att-cell-editor button {
+  width: auto;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.kasir-page .att-bulk {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+.kasir-page .att-bulk button { width: auto; padding: 7px 12px; font-size: 12px; font-weight: 600; }
+.kasir-page .att-bulk input[type="date"] {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--text);
+}
+
 @media (max-width: 520px) {
+  .kasir-page .att-month-grid .sticky-job { display: none; }
+  .kasir-page .att-month-grid .sticky-name { min-width: 110px; }
   .kasir-page section.summary-cards { grid-template-columns: repeat(2, 1fr); }
   .kasir-page section.filters > button,
   .kasir-page section.actions > button { flex: 1 1 100%; }

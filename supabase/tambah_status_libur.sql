@@ -1,0 +1,33 @@
+-- ============================================================
+-- TAMBAH STATUS ABSENSI: LIBUR
+--
+-- Grid absensi bulanan (meniru spreadsheet "ABSENSI PER OUTLET") punya
+-- kolom rekap Off = Libur. Sampai sekarang tidak ada cara menyimpan
+-- "hari ini libur" per orang per tanggal, karena:
+--   - kolom attendance.type bertipe ENUM attendance_type yang isinya
+--     belum punya 'libur'
+--   - tidak ada tabel cuti/jadwal libur per tanggal
+-- Tanpa nilai ini, sel libur akan kosong dan kolom Off selalu 0.
+--
+-- JALANKAN sekali, langsung di database VPS (Supabase self-host, BUKAN
+-- Supabase Cloud -- sudah migrasi, lihat docs/MIGRASI_VPS.md). Pilih salah satu:
+--
+--   (a) lewat SSH, di dalam container database:
+--       docker exec -it <container-db> psql -U postgres -d postgres \
+--         -c "alter type attendance_type add value if not exists 'libur';"
+--
+--   (b) lewat Supabase Studio yang self-host di domain yang sama:
+--       https://lombokdayangspa.tech -> SQL Editor
+--
+-- Tidak butuh service-role key: query di atas jalan sebagai superuser
+-- postgres di dalam container, jadi RLS sama sekali tidak berlaku.
+--
+-- Catatan: menambah nilai enum tidak bisa dipakai di baris yang sama
+-- sebelum statement selesai, jadi jangan menggabungkan ALTER TYPE ini
+-- dengan INSERT yang memakai 'libur' pada statement yang sama.
+-- ============================================================
+
+alter type attendance_type add value if not exists 'libur';
+
+-- Verifikasi (hasilnya harus memuat 'libur'):
+--   select unnest(enum_range(null::attendance_type));
