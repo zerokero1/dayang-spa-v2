@@ -1,0 +1,286 @@
+/* =====================================================================
+   Laporan Keseluruhan & Absensi Grid
+   ---------------------------------------------------------------------
+   Ditambahkan untuk Buku Laporan (Inventory/Absensi/Komisi/Revenue) dan
+   grid absensi harian. styling dasar halaman laporan sudah ada; blok ini
+   hanya menambah komponen yang belum punya kelas.
+   ===================================================================== */
+
+/* ===== Teks pendukung ===== */
+.muted {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.kasir-page .muted { margin: 0 0 10px; }
+
+.message {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  border: 1px solid rgba(15, 110, 86, 0.18);
+}
+.message.error {
+  background: #FCEAE8;
+  color: var(--danger);
+  border-color: rgba(192, 57, 43, 0.22);
+}
+.message.warn {
+  background: var(--busy-bg);
+  color: var(--busy);
+  border-color: rgba(180, 83, 9, 0.22);
+}
+
+/* ===== Baris filter (tanggal, outlet, preset) ===== */
+.kasir-page section.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.kasir-page section.filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.kasir-page section.filters input,
+.kasir-page section.filters select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 14px;
+  color: var(--text);
+  font-family: inherit;
+}
+/* section > buttonnormally full-width; filter/action buttons harus inline. */
+.kasir-page section.filters > button,
+.kasir-page section.actions > button {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 120px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+.kasir-page section.actions > button.primary {
+  background: var(--primary);
+  color: #fff;
+}
+.kasir-page section.actions > button.primary:disabled {
+  background: #C4C4C4;
+  color: #fff;
+}
+.kasir-page section.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.preset-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.preset-buttons button {
+  width: auto;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--surface);
+  color: var(--primary);
+  border: 1px solid var(--primary-light);
+  border-radius: 999px;
+  box-shadow: none;
+}
+.preset-buttons button:active { transform: scale(0.98); }
+
+/* ===== Ringkasan angka (4 kartu) ===== */
+.kasir-page section.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.kasir-page section.summary-cards .card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+.kasir-page section.summary-cards .card-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.kasir-page section.summary-cards .card strong {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+.kasir-page section.summary-cards .card .muted { margin: 0; font-size: 11px; }
+
+/* ===== Chip ringkasan absensi ===== */
+.kasir-page section.summary-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.summary-chips .chip {
+  cursor: default;
+  font-weight: 600;
+}
+.summary-chips .chip-warn {
+  background: var(--busy-bg);
+  border-color: rgba(180, 83, 9, 0.25);
+  color: var(--busy);
+}
+.summary-chips .chip-purple {
+  background: #F3EEFF;
+  border-color: #DDD0FB;
+  color: #6D28D9;
+}
+
+/* ===== Tabel laporan ===== */
+.kasir-page .table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.kasir-page .table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.kasir-page .table-wrap th,
+.kasir-page .table-wrap td {
+  padding: 8px 10px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+.kasir-page .table-wrap th {
+  position: sticky;
+  top: 0;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.kasir-page .table-wrap tbody tr:last-child td { border-bottom: none; }
+.kasir-page .table-wrap tfoot td {
+  background: var(--primary-light);
+  font-weight: 700;
+  border-top: 2px solid var(--primary);
+  border-bottom: none;
+}
+.kasir-page .table-wrap .row-total td {
+  background: #F7F6F2;
+  font-weight: 700;
+}
+
+/* ===== Blok laporan (4 bagian) ===== */
+.kasir-page .report-block {
+  margin-bottom: 24px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.kasir-page .report-block h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.kasir-page .report-block details {
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.kasir-page .report-block details summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  padding: 4px 0;
+  list-style: revert;
+}
+.kasir-page .report-block details .table-wrap { margin-top: 8px; }
+
+/* ===== Grid absensi harian ===== */
+.kasir-page .attendance-grid input[type="time"],
+.kasir-page .attendance-grid input[type="number"],
+.kasir-page .attendance-grid input[type="text"],
+.kasir-page .attendance-grid select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  min-width: 92px;
+}
+.kasir-page .attendance-grid input[type="number"] { min-width: 72px; }
+.kasir-page .attendance-grid td { vertical-align: middle; }
+.kasir-page .attendance-grid button {
+  width: auto;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.late-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--busy-bg);
+  color: var(--busy);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ok-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .kasir-page section.summary-cards { grid-template-columns: repeat(2, 1fr); }
+  .kasir-page section.filters > button,
+  .kasir-page section.actions > button { flex: 1 1 100%; }
+}

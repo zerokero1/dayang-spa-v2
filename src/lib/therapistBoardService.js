@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { OUTLETS, ATTENDANCE_TYPES } from './constants';
+import { OUTLETS } from './constants';
 import { getShiftWindowStatus } from './shiftService';
 import {
   wibDayBoundsUtc,
@@ -79,10 +79,9 @@ export async function getTherapistBoard({ date = todayWib(), outletIds = null, n
     bookingQuery,
     getOvertimeAdjustments(date, date).catch(() => ({})),
     supabase
-      .from('attendance')
-      .select('employee_id, employee_name, type, overtime_minutes, note')
+      .from('attendance_overtime')
+      .select('employee_id, employee_name, minutes, note')
       .eq('date', date)
-      .eq('type', ATTENDANCE_TYPES.LEMBUR)
       .then((r) => (r.error ? [] : r.data || []))
       .catch(() => [])
   ]);
@@ -91,13 +90,13 @@ export async function getTherapistBoard({ date = todayWib(), outletIds = null, n
   // admin sudah menghitung sendiri menitnya, jadi angka booking tidak boleh
   // menimpanya. Sumber lembur, dari yang paling kuat:
   //   1. koreksi overtime (overtime_adjustments)
-  //   2. input lembur di Absensi (attendance type='lembur')
+  //   2. input lembur di Absensi (attendance_overtime)
   //   3. hitung otomatis dari jam selesai treatment vs jam shift
   const lemburById = {};
   (lemburRows || []).forEach((a) => {
     if (!a.employee_id) return;
     lemburById[a.employee_id] = {
-      minutes: Math.max(0, Math.round(Number(a.overtime_minutes) || 0)),
+      minutes: Math.max(0, Math.round(Number(a.minutes) || 0)),
       note: a.note || ''
     };
   });

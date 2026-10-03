@@ -1,22 +1,18 @@
 import { supabase } from './supabase';
 import { OUTLETS, SHIFTS } from './constants';
+import { shiftEndMinutes } from './shiftService';
 
 // Jam selesai shift normal (menit sejak 00:00) — patokan overtime.
+// Diturunkan dari SHIFT_DEFS (shiftService.js) supaya definisi shift hanya
+// ada di satu tempat. Nilai:
 //  - Shift SP1 : 11:00-14:00 & 17:00-22:00   -> selesai 22:00
 //  - Shift SP2 : 12:00-15:00 & 18:00-23:00   -> selesai 23:00
 //  - Shift SP  : 11:00-15:00 & 18:00-23:00   -> selesai 23:00
-//  - Shift Malam / 15: 15:00-23:00           -> selesai 23:00
-//  - Shift 11: 11:00-23:00                    -> selesai 23:00
+//  - Shift Malam / AD / 11 : selesai 23:00
 //  - Shift ST / Short: 11:00-16:00            -> selesai 16:00
-export const SHIFT_END_MINUTES = {
-  [SHIFTS.SP]: 23 * 60,
-  [SHIFTS.SP1]: 22 * 60,
-  [SHIFTS.SP2]: 23 * 60,
-  [SHIFTS.MALAM]: 23 * 60,
-  [SHIFTS.AD]: 23 * 60,
-  [SHIFTS.T11]: 23 * 60,
-  [SHIFTS.ST]: 16 * 60
-};
+export const SHIFT_END_MINUTES = Object.freeze(
+  Object.fromEntries(Object.values(SHIFTS).map((code) => [code, shiftEndMinutes(code)]))
+);
 
 // Ambil penyesuaian overtime manual dalam rentang tanggal.
 // Dipakai getOvertimeReport untuk MENIMPA hasil hitung otomatis.

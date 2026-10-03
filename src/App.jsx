@@ -10,6 +10,7 @@ import UnpaidReminder from './components/UnpaidReminder';
 import KasirBeranda from './components/KasirBeranda';
 import LoginPage from './pages/LoginPage';
 import './styles.css';
+import './styles-laporan.css';
 
 const KasirPage = lazy(() => import('./pages/KasirPage'));
 const AbsensiPage = lazy(() => import('./pages/AbsensiPage'));
@@ -34,6 +35,7 @@ const OncallPage = lazy(() => import('./pages/OncallPage'));
 const LaporanProduksiPage = lazy(() => import('./pages/LaporanProduksiPage'));
 const OrderStockPage = lazy(() => import('./pages/OrderStockPage'));
 const PeriksaKomisiPage = lazy(() => import('./pages/PeriksaKomisiPage'));
+const LaporanKeseluruhanPage = lazy(() => import('./pages/LaporanKeseluruhanPage'));
 
 const PAGES = {
   kasir: { label: 'Kasir', icon: '🧾', Component: KasirPage },
@@ -49,6 +51,7 @@ const PAGES = {
   minyak: { label: 'Stok Minyak', icon: '🫗', Component: StokMinyakPage },
   orderStock: { label: 'Order Stok', icon: '📦', Component: OrderStockPage, global: true },
   laporan: { label: 'Laporan Keuangan', icon: '💰', Component: LaporanPage },
+  laporanKeseluruhan: { label: 'Laporan Keseluruhan', icon: '📚', Component: LaporanKeseluruhanPage, global: true, officeOnly: true },
   laporanAbsensi: { label: 'Laporan Absensi', icon: '📋', Component: LaporanAbsensiPage, global: true },
   laporanInventory: { label: 'Laporan Inventory', icon: '📦', Component: LaporanInventoryPage, global: true },
   kelolaTerapis: { label: 'Kelola Terapis', icon: '👥', Component: KelolaTerapisPage, global: true, adminOnly: true },
