@@ -83,19 +83,15 @@ function wibDayBoundsUtc(dateStr) {
   return { startUtc, endUtc };
 }
 
-export async function getTodayOncall(outletId, dateStr) {
-  const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
-  let query = supabase
-    .from('bookings')
-    .select('*')
-    .eq('booking_source', 'oncall')
-    .gte('created_at', startUtc.toISOString())
-    .lte('created_at', endUtc.toISOString());
-  // outletId = null → semua outlet (dipakai office/admin pusat).
-  if (outletId) query = query.eq('outlet_id', outletId);
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data || []).map((r) => ({
+/** Batas UTC untuk rentang hari WIB inklusif. */
+function wibRangeBoundsUtc(startDate, endDate) {
+  const s = wibDayBoundsUtc(startDate).startUtc;
+  const e = wibDayBoundsUtc(endDate).endUtc;
+  return { startUtc: s, endUtc: e };
+}
+
+function mapOncall(r) {
+  return {
     id: r.id,
     outletId: r.outlet_id,
     therapistId: r.therapist_id,
@@ -110,7 +106,43 @@ export async function getTodayOncall(outletId, dateStr) {
     paymentMethod: r.payment_method,
     status: r.status,
     createdAt: r.created_at
-  }));
+  };
+}
+
+export async function getTodayOncall(outletId, dateStr) {
+  const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
+  let query = supabase
+    .from('bookings')
+    .select('*')
+    .eq('booking_source', 'oncall')
+    .gte('created_at', startUtc.toISOString())
+    .lte('created_at', endUtc.toISOString());
+  // outletId = null -> semua outlet (dipakai office/admin pusat).
+  if (outletId) query = query.eq('outlet_id', outletId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []).map(mapOncall);
+}
+
+/**
+ * Booking oncall pada rentang tanggal WIB (inklusif), terbaru dulu.
+ * Dipakai halaman office untuk mengoreksi data oncall tanggal lalu -
+ * getTodayOncall hanya bisa melihat hari ini, jadi transaksi yang
+ * tercatat salah tanggal tidak bisa disentuh dari sana.
+ * outletId = null -> semua outlet.
+ */
+export async function getOncallRange(outletId, startDate, endDate) {
+  const { startUtc, endUtc } = wibRangeBoundsUtc(startDate, endDate);
+  let query = supabase
+    .from('bookings')
+    .select('*')
+    .eq('booking_source', 'oncall')
+    .gte('created_at', startUtc.toISOString())
+    .lte('created_at', endUtc.toISOString());
+  if (outletId) query = query.eq('outlet_id', outletId);
+  const { data, error } = await query.order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(mapOncall);
 }
 
 export function outletNames() {
