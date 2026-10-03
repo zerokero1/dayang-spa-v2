@@ -67,13 +67,16 @@ function daysOfMonth(month) {
 
 /** Teks yang tampil di dalam sel. */
 function cellText(rec) {
-  if (!rec) return '';
-  const t = TOKEN[rec.type] || '';
-  if (rec.type === ATTENDANCE_TYPES.HADIR || rec.type === ATTENDANCE_TYPES.TELAT) {
-    return t + (rec.checkIn != null ? minutesToClock(rec.checkIn) : '');
+    if (!rec) return '';
+    const t = TOKEN[rec.type] || '';
+    if (rec.type === ATTENDANCE_TYPES.HADIR || rec.type === ATTENDANCE_TYPES.TELAT) {
+      // Tampilkan menit telat jika ada, bukan jam datang.
+      // Hadir tepat: 0, Telat 40m: 40
+      if (rec.lateMinutes != null && rec.lateMinutes > 0) return `${t}${rec.lateMinutes}m`;
+      return `${t}0`;
+    }
+    return t;
   }
-  return t;
-}
 
 export default function AbsensiBulanan({ active, employees, outletFilter, onOutletChange, user }) {
   const [month, setMonth] = useState(thisMonthWib);
@@ -155,16 +158,48 @@ export default function AbsensiBulanan({ active, employees, outletFilter, onOutl
     });
   }
 
-  function pickStatus(value) {
-    // Pilih shortcut harus langsung terasa di kasir: status sering dictates
-    // jam. Kasir masih boleh isi jamnya sendiri setelah memilih kode.
-    setCellDraft((d) => ({
-      ...d,
+  async function pickStatus(value) {
+    const draftNext = {
+      ...cellDraft,
       status: value,
-      checkIn: [ATTENDANCE_TYPES.LIBUR, ATTENDANCE_TYPES.SAKIT, ATTENDANCE_TYPES.IZIN, ATTENDANCE_TYPES.ALPHA, ATTENDANCE_TYPES.HADIR].includes(value) ? '' : d.checkIn,
-      checkOut: [ATTENDANCE_TYPES.LIBUR, ATTENDANCE_TYPES.SAKIT, ATTENDANCE_TYPES.IZIN, ATTENDANCE_TYPES.ALPHA, ATTENDANCE_TYPES.HADIR].includes(value) ? '' : d.checkOut,
-      lembur: value === ATTENDANCE_TYPES.LIBUR ? '' : d.lembur
-    }));
+      checkIn: '',
+      checkOut: '',
+      lembur: value === ATTENDANCE_TYPES.LIBUR ? '' : cellDraft.lembur
+    };
+    setCellDraft(draftNext);
+
+    // Untuk status selain Telat, simpan langsung (langsung masuk ke kolom)
+    if (value !== ATTENDANCE_TYPES.TELAT && cellEdit) {
+      const employee = rows.find((e) => e.id === cellEdit.employeeId);
+      if (employee) {
+        setSavingCell(true);
+        try {
+          await recordAttendance({
+            outletId: employee.outletId || outletFilter || null,
+            employeeId: employee.id,
+            employeeName: employee.name,
+            type: value,
+            note: cellDraft.note || '',
+            date: cellEdit.date,
+            checkIn: null,
+            checkOut: null,
+            shift: employee.shift || null,
+            recordedBy: user?.email || user?.name || null
+          });
+          const lemburLama = editRec?.overtimeMinutes || 0;
+          if (lemburLama > 0 && value === ATTENDANCE_TYPES.LIBUR) {
+            await deleteOvertime(employee.id, cellEdit.date);
+          }
+          setCellEdit(null);
+          setMessage(`${employee.name} ${cellEdit.date}: ${value}`);
+          await load();
+        } catch (e) {
+          setMessage('Gagal menyimpan: ' + (e.message || e));
+        } finally {
+          setSavingCell(false);
+        }
+      }
+    }
   }
 
   /** Telat = jam datang - jam mulai shift; null kalau tidak bisa dihitung. */
@@ -418,55 +453,34 @@ export default function AbsensiBulanan({ active, employees, outletFilter, onOutl
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
-              <label style={{ fontSize: 12 }}>
-                Jam datang
-                <input
-                  type="time" step="300"
-                  value={cellDraft.checkIn}
-                  onChange={(e) => setCellDraft((d) => ({ ...d, checkIn: e.target.value }))}
-                />
-              </label>
-              <label style={{ fontSize: 12 }}>
-                Jam pulang
-                <input
-                  type="time" step="300"
-                  value={cellDraft.checkOut}
-                  onChange={(e) => setCellDraft((d) => ({ ...d, checkOut: e.target.value }))}
-                />
-              </label>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-              <label style={{ fontSize: 12 }}>
-                Lembur (menit)
-                <input
-                  type="number" min="0"
-                  value={cellDraft.lembur}
-                  onChange={(e) => setCellDraft((d) => ({ ...d, lembur: e.target.value }))}
-                />
-              </label>
-              <label style={{ fontSize: 12 }}>
-                Catatan
-                <input
-                  type="text"
-                  value={cellDraft.note}
-                  onChange={(e) => setCellDraft((d) => ({ ...d, note: e.target.value }))}
-                />
-              </label>
+              {cellDraft.status === ATTENDANCE_TYPES.TELAT && (
+                <label style={{ fontSize: 12 }}>
+                  Jam datang (untuk menghitung menit telat)
+                  <input
+                    type="time" step="300"
+                    value={cellDraft.checkIn}
+                    onChange={(e) => setCellDraft((d) => ({ ...d, checkIn: e.target.value }))}
+                  />
+                </label>
+              )}
             </div>
 
             <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
               {editLate == null
-                ? 'Telat belum bisa dihitung (jam datang atau shift belum diisi).'
-                : editLate > 0
-                  ? `Telat ${minutesToDuration(editLate)} dari jam mulai shift.`
-                  : 'Tepat waktu.'}
+                ? "Telat belum bisa dihitung. Isi jam datang untuk hitung otomatis."
+                : `Telat diperkirakan ${editLate}m`}
             </p>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-              <button type="button" onClick={saveCell} disabled={savingCell}>
-                {savingCell ? 'Menyimpan...' : 'Simpan'}
-              </button>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              {cellDraft.status === ATTENDANCE_TYPES.TELAT && (
+                <button type="button" onClick={saveCell} disabled={savingCell}>Simpan</button>
+              )}
+              {editRec && (
+                <button type="button" onClick={clearCell} disabled={savingCell} style={{ color: "#b91c1c" }}>Kosongkan</button>
+              )}
+              <button type="button" onClick={() => { setCellEdit(null); }} disabled={savingCell}>Batal</button>
+            </div>
+n>
               <button type="button" className="btn-secondary" onClick={() => setCellEdit(null)} disabled={savingCell}>
                 Batal
               </button>
@@ -477,7 +491,6 @@ export default function AbsensiBulanan({ active, employees, outletFilter, onOutl
               )}
             </div>
           </div>
-        </div>
       )}
 
       {!loading && days.length > 0 && (
