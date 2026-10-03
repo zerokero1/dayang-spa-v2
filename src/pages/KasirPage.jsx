@@ -169,7 +169,7 @@ export default function KasirPage({ outletId, active }) {
       size: pakaiMinyak ? (opts.size || null) : null,
       noOil: !!opts.noOilChosen,
       discountPct: specialPct === null ? 0 : (specialPct || 0),
-      discountReason: isSpecial ? (specialPct === null ? 'Harga Spesial 90 Menit 11:00 - 14:59 (Rp 250.000)' : 'Harga Spesial 11:00 - 14:59') : ''
+      discountReason: isSpecial ? (specialPct === null ? 'Happy Hour - 90 Menit Rp 250.000 (11:00 - 14:59)' : 'Harga Spesial 11:00 - 14:59') : ''
     }]);
     if (outletId) setTherapistMap((m) => ({ ...m, [outletId]: tera.id }));
   }
@@ -193,7 +193,7 @@ export default function KasirPage({ outletId, active }) {
   // Harga efektif per item setelah diskon (kelipatan 5/10/15/20%).
   function discountedPrice(line) {
     const base = line.treatment.price || 0;
-    if (isSpecialTime() && line.treatment.durationMinutes === 90) return 250000;
+    if (isSpecialTime() && (line.treatment.durationMinutes === 90 || line.treatment.category === 'Happy Hour')) return 250000;
     const pct = line.discountPct || 0;
     return Math.round(base * (1 - pct / 100));
   }
@@ -209,7 +209,8 @@ export default function KasirPage({ outletId, active }) {
   function getSpecialDiscountPct(treatment) {
     if (!isSpecialTime()) return 0;
     const dur = treatment?.durationMinutes;
-    if (dur === 90) return null; // harga fixed 250000
+    const cat = treatment?.category;
+    if (dur === 90 || cat === 'Happy Hour') return null; // harga fixed 250000
     return 10;
   }
 
@@ -218,7 +219,8 @@ export default function KasirPage({ outletId, active }) {
     const base = treatment.price || 0;
     if (!isSpecialTime()) return base;
     const dur = treatment.durationMinutes;
-    if (dur === 90) return 250000; // special 90 menit
+    const cat = treatment?.category;
+    if (dur === 90 || cat === 'Happy Hour') return 250000; // special 90 menit / happy hour
     return Math.round(base * 0.9); // diskon 10%
   }
 
