@@ -52,7 +52,8 @@ export async function recordAttendance({
   const override = lateMinutesOverride === null || lateMinutesOverride === undefined
     ? null
     : Math.max(0, Number(lateMinutesOverride) || 0);
-  const lateMin = override !== null ? override : computed;
+  const lateMinCalc = override !== null ? override : computed;
+  const lateMin = lateMinCalc == null ? 0 : lateMinCalc;
 
   const { error } = await supabase.from('attendance').upsert({
     employee_id: employeeId,

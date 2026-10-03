@@ -184,7 +184,8 @@ export default function AbsensiBulanan({ active, employees, outletFilter, onOutl
             checkIn: null,
             checkOut: null,
             shift: employee.shift || null,
-            recordedBy: user?.email || user?.name || null
+            recordedBy: user?.email || user?.name || null,
+            lateMinutesOverride: 0
           });
           const lemburLama = editRec?.overtimeMinutes || 0;
           if (lemburLama > 0 && value === ATTENDANCE_TYPES.LIBUR) {
@@ -232,7 +233,8 @@ export default function AbsensiBulanan({ active, employees, outletFilter, onOutl
         checkIn: clockToMinutes(cellDraft.checkIn),
         checkOut: clockToMinutes(cellDraft.checkOut),
         shift: employee.shift || null,
-        recordedBy: user?.email || user?.name || null
+        recordedBy: user?.email || user?.name || null,
+        lateMinutesOverride: null
       });
       // Lembur lama harus dihapus kalau kasir mengosongkan atau menurunkannya.
       // Kalau tidak, record lama di attendance_overtime tetap ikut terhitung di
