@@ -193,7 +193,12 @@ export default function KasirPage({ outletId, active }) {
   // Harga efektif per item setelah diskon (kelipatan 5/10/15/20%).
   function discountedPrice(line) {
     const base = line.treatment.price || 0;
-    if (isSpecialTime() && (line.treatment.durationMinutes === 90 || line.treatment.category === 'Happy Hour')) return 250000;
+    if (isSpecialTime()) {
+      const cat = line.treatment.category;
+      const dur = line.treatment.durationMinutes;
+      if (cat === 'Happy Hour') return 250000;
+      if (dur === 90) return 250000;
+    }
     const pct = line.discountPct || 0;
     return Math.round(base * (1 - pct / 100));
   }
@@ -208,9 +213,10 @@ export default function KasirPage({ outletId, active }) {
 
   function getSpecialDiscountPct(treatment) {
     if (!isSpecialTime()) return 0;
-    const dur = treatment?.durationMinutes;
     const cat = treatment?.category;
-    if (dur === 90 || cat === 'Happy Hour') return null; // harga fixed 250000
+    if (cat === 'Happy Hour') return null; // harga fixed 250000 untuk Happy Hour
+    const dur = treatment?.durationMinutes;
+    if (dur === 90) return null; // harga fixed 250000 untuk 90 menit
     return 10;
   }
 
@@ -218,9 +224,10 @@ export default function KasirPage({ outletId, active }) {
     if (!treatment) return 0;
     const base = treatment.price || 0;
     if (!isSpecialTime()) return base;
-    const dur = treatment.durationMinutes;
     const cat = treatment?.category;
-    if (dur === 90 || cat === 'Happy Hour') return 250000; // special 90 menit / happy hour
+    const dur = treatment.durationMinutes;
+    if (cat === 'Happy Hour') return 250000; // special Happy Hour
+    if (dur === 90) return 250000; // special 90 menit
     return Math.round(base * 0.9); // diskon 10%
   }
 
