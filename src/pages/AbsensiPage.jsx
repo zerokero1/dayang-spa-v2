@@ -92,7 +92,11 @@ export default function AbsensiPage({ outletId, active, user }) {
         id: e.id,
         name: e.name,
         role: e.role,
-        outletId: e.home_outlet_id,
+        // PENTING: listenAllTherapists mengembalikan objek hasil mapTherapist,
+        // yang key-nya camelCase (homeOutletId), bukan home_outlet_id.
+        // Pakai yang snake_case membuat outletId selalu undefined, sehingga
+        // filter per outlet membuang semua orang (semua outlet tetap tampil).
+        outletId: e.homeOutletId,
         shift: e.shift || ''
       };
     });

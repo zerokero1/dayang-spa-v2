@@ -115,7 +115,7 @@ export default function AbsensiBulanan({ active, employees, outletFilter, onOutl
   const rows = useMemo(() => {
     const byId = {};
     employees.forEach((e) => {
-      byId[e.id] = { id: e.id, name: e.name, role: e.role, outletId: e.home_outlet_id, shift: e.shift || '' };
+      byId[e.id] = { id: e.id, name: e.name, role: e.role, outletId: e.homeOutletId, shift: e.shift || '' };
     });
     records.forEach((r) => {
       if (!byId[r.employeeId]) {
