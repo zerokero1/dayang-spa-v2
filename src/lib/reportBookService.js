@@ -341,7 +341,7 @@ export async function getAttendanceBook({ startDate, endDate, outletId }) {
     if (!byPerson[d.nama]) {
       byPerson[d.nama] = {
         nama: d.nama, hariMasuk: 0, hariTelat: 0, totalTelat: 0, totalLembur: 0,
-        sickness: 0, izin: 0, alpha: 0
+        sickness: 0, izin: 0, alpha: 0, libur: 0
       };
     }
     const p = byPerson[d.nama];
@@ -352,6 +352,7 @@ export async function getAttendanceBook({ startDate, endDate, outletId }) {
     if (d.status === 'sakit') p.sickness++;
     if (d.status === 'izin') p.izin++;
     if (d.status === 'alpha') p.alpha++;
+    if (d.status === 'libur') p.libur++;
   });
   const summary = Object.values(byPerson).sort((a, b) => b.totalTelat - a.totalTelat || a.nama.localeCompare(b.nama));
 
@@ -603,8 +604,12 @@ export function buildBookSheets({ range, outletLabel, inventory, attendance, rev
     d.tanggal, d.nama, d.outlet, d.shift, hhmm(d.jamMasuk),
     d.telat == null ? '-' : d.telat, d.catatan || ''
   ]);
+  // PENTING: nama field di objek summary adalah `sickness`, bukan `sakit`.
+  // Versi lama menulis p.sakit sehingga kolom "Sakit" selalu kosong tanpa
+  // ada error sama sekali - angka 0 yang terlihat benar.
   const attSummaryRows = attendance.summary.map((p) => [
-    p.nama, p.hariMasuk, p.hariTelat, p.totalTelat, p.totalLembur, p.sakit, p.izin, p.alpha
+    p.nama, p.hariMasuk, p.hariTelat, p.totalTelat, p.totalLembur,
+    p.sickness, p.izin, p.alpha, p.libur
   ]);
 
   // ---------------- Sheet 3: Komisi
@@ -705,7 +710,7 @@ export function buildBookSheets({ range, outletLabel, inventory, attendance, rev
         },
         {
           title: '3. Ringkasan per Orang',
-          headers: ['Nama', 'Hari isi jam', 'Hari telat', 'Total telat (menit)', 'Total lembur (menit)', 'Sakit', 'Izin', 'Alpha'],
+          headers: ['Nama', 'Hari isi jam', 'Hari telat', 'Total telat (menit)', 'Total lembur (menit)', 'Sakit', 'Izin', 'Alpha', 'Libur'],
           rows: attSummaryRows,
           currencyColumns: [3, 4]
         }
