@@ -160,14 +160,15 @@ export default function KasirPage({ outletId, active }) {
 
   function addLine(t, tera, opts = {}) {
     const pakaiMinyak = usesOil(t) && !opts.noOil && !opts.noOilChosen;
+    const isSpecial = isSpecialTime();
     setCart((c) => [...c, {
       therapist: tera,
       treatment: t,
       oil: pakaiMinyak ? (opts.oil || null) : null,
       size: pakaiMinyak ? (opts.size || null) : null,
       noOil: !!opts.noOilChosen,
-      discountPct: 0,
-      discountReason: ''
+      discountPct: isSpecial ? 10 : 0,
+      discountReason: isSpecial ? 'Harga Spesial 11:00 - 14:59' : ''
     }]);
     if (outletId) setTherapistMap((m) => ({ ...m, [outletId]: tera.id }));
   }
@@ -193,6 +194,14 @@ export default function KasirPage({ outletId, active }) {
     const base = line.treatment.price || 0;
     const pct = line.discountPct || 0;
     return Math.round(base * (1 - pct / 100));
+  }
+
+  // Harga special jam 11:00 - 14:59
+  function isSpecialTime(date = new Date()) {
+    const h = date.getHours();
+    const m = date.getMinutes();
+    const t = h * 60 + m;
+    return t >= 11 * 60 && t < 15 * 60;
   }
 
   function handleDiscount(index, pct) {
