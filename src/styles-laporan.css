@@ -341,14 +341,14 @@
   text-align: left;
   z-index: 2;
 }
-.kasir-page .att-month-grid .sticky-name { left: 0; z-index: 4; min-width: 150px; font-weight: 700; }
-.kasir-page .att-month-grid .sticky-job { left: 150px; z-index: 4; min-width: 64px; color: var(--text-secondary); }
+.kasir-page .att-month-grid .sticky-name { left: 0; z-index: 4; min-width: 130px; font-weight: 700; }
+.kasir-page .att-month-grid .sticky-job { left: 130px; z-index: 4; min-width: 50px; color: var(--text-secondary); }
 .kasir-page .att-month-grid thead th.sticky-col { z-index: 5; }
 .kasir-page .att-month-grid .no { color: var(--text-secondary); font-weight: 500; }
 
 .kasir-page .att-month-grid .cell {
   cursor: pointer;
-  min-width: 52px;
+  min-width: 44px;
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
 }
@@ -410,7 +410,7 @@
 
 @media (max-width: 520px) {
   .kasir-page .att-month-grid .sticky-job { display: none; }
-  .kasir-page .att-month-grid .sticky-name { min-width: 110px; }
+  .kasir-page .att-month-grid .sticky-name { min-width: 100px; }
   .kasir-page section.summary-cards { grid-template-columns: repeat(2, 1fr); }
   .kasir-page section.filters > button,
   .kasir-page section.actions > button { flex: 1 1 100%; }
