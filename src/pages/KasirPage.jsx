@@ -161,14 +161,15 @@ export default function KasirPage({ outletId, active }) {
   function addLine(t, tera, opts = {}) {
     const pakaiMinyak = usesOil(t) && !opts.noOil && !opts.noOilChosen;
     const isSpecial = isSpecialTime();
+    const specialPct = getSpecialDiscountPct(t);
     setCart((c) => [...c, {
       therapist: tera,
       treatment: t,
       oil: pakaiMinyak ? (opts.oil || null) : null,
       size: pakaiMinyak ? (opts.size || null) : null,
       noOil: !!opts.noOilChosen,
-      discountPct: isSpecial ? 10 : 0,
-      discountReason: isSpecial ? 'Harga Spesial 11:00 - 14:59' : ''
+      discountPct: specialPct === null ? 0 : (specialPct || 0),
+      discountReason: isSpecial ? (specialPct === null ? 'Harga Spesial 90 Menit 11:00 - 14:59 (Rp 250.000)' : 'Harga Spesial 11:00 - 14:59') : ''
     }]);
     if (outletId) setTherapistMap((m) => ({ ...m, [outletId]: tera.id }));
   }
@@ -192,6 +193,7 @@ export default function KasirPage({ outletId, active }) {
   // Harga efektif per item setelah diskon (kelipatan 5/10/15/20%).
   function discountedPrice(line) {
     const base = line.treatment.price || 0;
+    if (isSpecialTime() && line.treatment.durationMinutes === 90) return 250000;
     const pct = line.discountPct || 0;
     return Math.round(base * (1 - pct / 100));
   }
@@ -202,6 +204,22 @@ export default function KasirPage({ outletId, active }) {
     const m = date.getMinutes();
     const t = h * 60 + m;
     return t >= 11 * 60 && t < 15 * 60;
+  }
+
+  function getSpecialDiscountPct(treatment) {
+    if (!isSpecialTime()) return 0;
+    const dur = treatment?.durationMinutes;
+    if (dur === 90) return null; // harga fixed 250000
+    return 10;
+  }
+
+  function getEffectivePrice(treatment) {
+    if (!treatment) return 0;
+    const base = treatment.price || 0;
+    if (!isSpecialTime()) return base;
+    const dur = treatment.durationMinutes;
+    if (dur === 90) return 250000; // special 90 menit
+    return Math.round(base * 0.9); // diskon 10%
   }
 
   function handleDiscount(index, pct) {
