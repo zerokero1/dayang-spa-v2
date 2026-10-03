@@ -161,15 +161,18 @@ export default function AbsensiBulanan({ active, employees, outletFilter, onOutl
     setCellDraft((d) => ({
       ...d,
       status: value,
-      // Libur / sakit / izin / alpha tidak punya jam datang-pulang.
-      checkIn: [ATTENDANCE_TYPES.LIBUR, ATTENDANCE_TYPES.SAKIT, ATTENDANCE_TYPES.IZIN, ATTENDANCE_TYPES.ALPHA].includes(value) ? '' : d.checkIn,
-      checkOut: [ATTENDANCE_TYPES.LIBUR, ATTENDANCE_TYPES.SAKIT, ATTENDANCE_TYPES.IZIN, ATTENDANCE_TYPES.ALPHA].includes(value) ? '' : d.checkOut,
+      checkIn: [ATTENDANCE_TYPES.LIBUR, ATTENDANCE_TYPES.SAKIT, ATTENDANCE_TYPES.IZIN, ATTENDANCE_TYPES.ALPHA, ATTENDANCE_TYPES.HADIR].includes(value) ? '' : d.checkIn,
+      checkOut: [ATTENDANCE_TYPES.LIBUR, ATTENDANCE_TYPES.SAKIT, ATTENDANCE_TYPES.IZIN, ATTENDANCE_TYPES.ALPHA, ATTENDANCE_TYPES.HADIR].includes(value) ? '' : d.checkOut,
       lembur: value === ATTENDANCE_TYPES.LIBUR ? '' : d.lembur
     }));
   }
 
   /** Telat = jam datang - jam mulai shift; null kalau tidak bisa dihitung. */
   function previewLate(employee, draft) {
+    // Untuk mode "klik saja" (tanpa jam), telat tidak perlu dihitung.
+    // Tetap izinkan tampilan preview jika kasir terpaksa isi jam, tapi
+    // untuk Hadir/Sakit/Izin/Alpha/Libur umumnya kosong.
+    if (draft?.status !== ATTENDANCE_TYPES.TELAT) return null;
     if (!draft?.checkIn) return null;
     const inMin = clockToMinutes(draft.checkIn);
     const start = shiftStartMinutes(employee.shift);
