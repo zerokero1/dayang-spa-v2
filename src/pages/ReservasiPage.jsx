@@ -239,11 +239,15 @@ export default function ReservasiPage({ outletId, active }) {
               <>
                 <p style={{ marginBottom: 6 }}>Treatment</p>
                 <div className="grid-2">
-                  {treatments.filter((t) => t.category === pCategory).map((t) => (
-                    <button key={t.id} className={pTreatment?.id === t.id ? 'active' : ''} onClick={() => { setPTreatment(t); setPOil(null); setPSize(null); }}>
-                      {t.name} - Rp{t.price?.toLocaleString('id-ID')}
-                    </button>
-                  ))}
+                  {treatments.filter((t) => t.category === pCategory).length === 0 ? (
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Belum ada treatment untuk kategori ini.</p>
+                  ) : (
+                    treatments.filter((t) => t.category === pCategory).map((t) => (
+                      <button key={t.id} className={pTreatment?.id === t.id ? 'active' : ''} onClick={() => { setPTreatment(t); setPOil(null); setPSize(null); }}>
+                        {t.name} - Rp{t.price?.toLocaleString('id-ID')}
+                      </button>
+                    ))
+                  )}
                 </div>
               </>
             )}
