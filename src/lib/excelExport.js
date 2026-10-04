@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { DOW } from './attendanceGrid';
 
 // Warna brand — satu-satunya palet yang dipakai semua laporan.
 const BRAND = 'FF0F6E56';
@@ -192,6 +193,176 @@ function triggerDownload(buffer, filename) {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+// Warna isi sel mengikuti warna sel di layar: telat, libur, dan status lain
+// punya warna berbeda supayafile bisa dibaca tanpa melihat aplikasinya.
+const CELL_FILL = {
+  hadir: null,
+  telat: 'FFFDE8E8',
+  libur: 'FFEFF6FF',
+  sakit: 'FFF5F5F5',
+  izin: 'FFF5F5F5',
+  alpha: 'FFF5F5F5'
+};
+const CELL_FONT = {
+  telat: 'FFB91C1C',
+  libur: 'FF1D4ED8'
+};
+
+/**
+ * Export GRID ABSENSI — bentuknya meniru tabel di halaman Absensi:
+ * baris = orang, kolom = tanggal. Bedanya dengan `exportExcelReport` ada di
+ * header-nya yang DUA baris (nama hari di atas, angka tanggal di bawah) dan
+ * kolom rekap yang menyatu dua baris itu, jadi writer-nya terpisah supaya
+ * laporan lain tidak ikut berubah.
+ *
+ * Nilai setiap sel sudah dikirim dari halaman sebagai teks jadi (lihat
+ * `gridCellText`), sehingga angka di file dijamin sama dengan yang tampil di
+ * layar — bukan dihitung ulang di sini dan risking berbeda.
+ *
+ * @param {string} filename - nama file (tanpa .xlsx)
+ * @param {string} title - judul di baris paling atas
+ * @param {string} subtitle - sub-judul (outlet + periode)
+ * @param {Array<{dow:string, day:number, date:string}>} days - satu entri per kolom tanggal
+ * @param {Array<{name:string, shift:string, shiftLabel:string, cells:Array<{text:string,type:string}>}>} rows
+ * @param {Array<{label:string, title?:string}>} recapColumns - kolom rekap di kanan
+ * @param {Array<{label:string, title?:string}>} recapTotals - nilai baris TOTAL per kolom rekap
+ * @param {number[]} presentByDay - jumlah orang hadir per tanggal (baris TOTAL)
+ * @param {string} note - catatan kaki di bawah tabel
+ */
+export async function exportAbsensiGrid({
+  filename, title, subtitle, days = [], rows = [], recapColumns = [],
+  recapTotals = [], presentByDay = [], sheetName, note
+}) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Dayang Spa';
+
+  const sheet = workbook.addWorksheet(safeSheetName(sheetName, 'Absensi'));
+  // kolom 1 = nama, kolom 2 = shift, lalu 1 kolom per tanggal, lalu rekap.
+  const nameCol = 1;
+  const shiftCol = 2;
+  const firstDayCol = 3;
+  const firstRecapCol = firstDayCol + days.length;
+  const colCount = firstRecapCol + recapColumns.length - 1;
+  const cur = () => sheet.rowCount + 1;
+
+  const putMerged = (row, value, style) => {
+    sheet.mergeCells(row, 1, row, colCount);
+    const c = sheet.getCell(row, 1);
+    c.value = value;
+    Object.assign(c, style);
+    return c;
+  };
+
+  putMerged(cur(), title || '', {
+    font: { bold: true, size: 14, color: { argb: BRAND } },
+    alignment: { horizontal: 'center' }
+  });
+  if (subtitle) {
+    putMerged(cur(), subtitle, {
+      font: { italic: true, size: 10, color: { argb: MUTED } },
+      alignment: { horizontal: 'center' }
+    });
+  }
+
+  // --- Header baris 1: nama hari + judul kolom yang menyatu dua baris -------
+  const h1 = cur();
+  sheet.getCell(h1, nameCol).value = 'Nama';
+  sheet.getCell(h1, shiftCol).value = 'Shift';
+  days.forEach((d, i) => {
+    const c = sheet.getCell(h1, firstDayCol + i);
+    c.value = DOW[d.dow] || '';
+  });
+  recapColumns.forEach((rc, i) => {
+    sheet.getCell(h1, firstRecapCol + i).value = rc.label;
+  });
+
+  // --- Header baris 2: angka tanggal ----------------------------------------
+  const h2 = cur();
+  days.forEach((d, i) => { sheet.getCell(h2, firstDayCol + i).value = d.day; });
+
+  // Nama, shift, dan tiap kolom rekap menyatu dua baris header.
+  sheet.mergeCells(h1, nameCol, h2, nameCol);
+  sheet.mergeCells(h1, shiftCol, h2, shiftCol);
+  recapColumns.forEach((rc, i) => {
+    sheet.mergeCells(h1, firstRecapCol + i, h2, firstRecapCol + i);
+  });
+
+  [h1, h2].forEach((r) => {
+    const row = sheet.getRow(r);
+    row.height = 18;
+    for (let c = 1; c <= colCount; c++) {
+      const cell = row.getCell(c);
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = thinBorder;
+    }
+  });
+  // Judul kolom rekap dibuat tooltips, karena labelnya singkat (H/S/A/…).
+  recapColumns.forEach((rc, i) => {
+    const cell = sheet.getCell(h1, firstRecapCol + i);
+    cell.note = rc.title || rc.label;
+  });
+
+  // --- Baris data -----------------------------------------------------------
+  rows.forEach((r) => {
+    const values = [r.name, r.shift || '', ...r.cells.map((c) => c.text)];
+    const row = sheet.addRow(values);
+    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      cell.border = thinBorder;
+    });
+
+    sheet.getCell(row.number, nameCol).alignment = { horizontal: 'left' };
+    sheet.getCell(row.number, shiftCol).alignment = { horizontal: 'center' };
+
+    // Warna sel mengikuti status, sama seperti di layar.
+    r.cells.forEach((c, i) => {
+      const cell = sheet.getCell(row.number, firstDayCol + i);
+      cell.alignment = { horizontal: 'center' };
+      const fill = CELL_FILL[c.type];
+      if (fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
+      const fontColor = CELL_FONT[c.type];
+      if (fontColor) cell.font = { color: { argb: fontColor } };
+    });
+  });
+
+  // --- Baris TOTAL ----------------------------------------------------------
+  if (rows.length) {
+    const totalValues = [`TOTAL (${rows.length} orang)`, '', ...presentByDay];
+    recapTotals.forEach((v) => totalValues.push(v));
+    const totalRow = sheet.addRow(totalValues);
+    for (let c = 1; c <= colCount; c++) {
+      const cell = totalRow.getCell(c);
+      cell.border = thinBorder;
+      cell.font = { bold: true };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_LIGHT } };
+      cell.alignment = { horizontal: c === nameCol ? 'left' : 'center' };
+    }
+  }
+
+  // --- Catatan kaki ---------------------------------------------------------
+  if (note) {
+    sheet.getRow(cur());
+    putMerged(cur(), note, {
+      font: { italic: true, size: 9, color: { argb: MUTED } },
+      alignment: { horizontal: 'left', vertical: 'top', wrapText: true }
+    });
+  }
+
+  // --- Lebar kolom & freeze -------------------------------------------------
+  sheet.getColumn(nameCol).width = 22;
+  sheet.getColumn(shiftCol).width = 8;
+  for (let c = firstDayCol; c < firstRecapCol; c++) sheet.getColumn(c).width = 6.5;
+  recapColumns.forEach((_, i) => { sheet.getColumn(firstRecapCol + i).width = 7; });
+
+  // Nama + shift dan dua baris header dikunci, jadi saat scroll ke kanan
+  // orangnya tetap kelihatan.
+  sheet.views = [{ state: 'frozen', xSplit: shiftCol, ySplit: h2 }];
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  triggerDownload(buffer, filename);
 }
 
 /**

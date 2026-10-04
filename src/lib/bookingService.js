@@ -10,6 +10,9 @@ export async function createBookingCore({
   const method = paymentMethod || 'cash';
   const commissionAmount = Math.round((commissionPercent / 100) * treatmentPrice);
 
+  // NB: p_discount_pct sengaja tidak dikirim. RPC create_booking sudah
+  // menghitungnya sendiri dari (original_price vs treatment_price), jadi
+  // mengirimnya hanya akan menambah parameter yang tidak ada di signature.
   const { data: bookingId, error } = await supabase.rpc('create_booking', {
     p_outlet_id: outletId,
     p_therapist_id: therapistId,

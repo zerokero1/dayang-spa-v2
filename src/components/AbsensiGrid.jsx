@@ -5,7 +5,8 @@ import {
 } from '../lib/attendanceService';
 import { clockToMinutes, minutesToClock, minutesToDuration, shiftStartMinutes } from '../lib/shiftService';
 import {
-  DOW, QUICK, cellClass, cellText, recapValue, todayWib, DEFAULT_RECAP
+  DOW, QUICK, cellClass, cellText, todayWib, DEFAULT_RECAP,
+  buildGridRows, buildRecMap, computeRecap, computeRecapTotals, presentCount
 } from '../lib/attendanceGrid';
 
 /**
@@ -75,54 +76,24 @@ export default function AbsensiGrid({
 
   // employeeId|date -> record. Satu baris attendance per orang per tanggal,
   // jadi tidak mungkin ada dua entri untuk sel yang sama.
-  const recMap = useMemo(() => {
-    const m = {};
-    records.forEach((r) => { m[`${r.employeeId}|${r.date}`] = r; });
-    return m;
-  }, [records]);
+  const recMap = useMemo(() => buildRecMap(records), [records]);
 
-  const rows = useMemo(() => {
-    const byId = {};
-    employees.forEach((e) => {
-      byId[e.id] = { id: e.id, name: e.name, role: e.role, outletId: e.homeOutletId, shift: e.shift || '' };
-    });
-    records.forEach((r) => {
-      if (!byId[r.employeeId]) {
-        byId[r.employeeId] = { id: r.employeeId, name: r.employeeName, role: '-', outletId: r.outletId, shift: '' };
-      }
-    });
-    return Object.values(byId)
-      .filter((e) => (outletFilter ? e.outletId === outletFilter : true))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [employees, records, outletFilter]);
+  const rows = useMemo(
+    () => buildGridRows(employees, records, outletFilter),
+    [employees, records, outletFilter]
+  );
 
   // Rekap per orang. Nilai selalu dihitung dari sel yang sudah terisi, tidak
   // pernah diisi manual, supaya tidak mungkin beda dengan isi tabel.
-  const recap = useMemo(() => {
-    const out = {};
-    rows.forEach((e) => { out[e.id] = {}; });
-    const listByEmp = {};
-    records.forEach((r) => {
-      const row = out[r.employeeId];
-      if (!row) return;
-      (listByEmp[r.employeeId] = listByEmp[r.employeeId] || []).push(r);
-    });
-    rows.forEach((e) => {
-      const listEmp = listByEmp[e.id] || [];
-      recapColumns.forEach((col) => {
-        out[e.id][col.key] = recapValue(col, e.id, listEmp, recapContext);
-      });
-    });
-    return out;
-  }, [rows, records, recapColumns, recapContext]);
+  const recap = useMemo(
+    () => computeRecap(rows, records, recapColumns, recapContext),
+    [rows, records, recapColumns, recapContext]
+  );
 
-  const recapTotals = useMemo(() => {
-    const out = {};
-    recapColumns.forEach((col) => {
-      out[col.key] = rows.reduce((sum, e) => sum + (Number(recap[e.id]?.[col.key]) || 0), 0);
-    });
-    return out;
-  }, [rows, recap, recapColumns]);
+  const recapTotals = useMemo(
+    () => computeRecapTotals(rows, recap, recapColumns),
+    [rows, recap, recapColumns]
+  );
 
   function openCell(employee, date) {
     const rec = recMap[`${employee.id}|${date}`];
@@ -362,7 +333,7 @@ export default function AbsensiGrid({
                   <td className="sticky-col sticky-job" />
                   {list.map((d) => (
                     <td key={d.date} className="recap">
-                      {records.filter((r) => r.date === d.date && (r.type === ATTENDANCE_TYPES.HADIR || r.type === ATTENDANCE_TYPES.TELAT)).length || ''}
+                      {presentCount(records, d.date) || ''}
                     </td>
                   ))}
                   {recapColumns.map((c) => (

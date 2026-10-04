@@ -208,6 +208,9 @@ function addLine(t, tera, opts = {}) {
       // Selalu 0: Happy Hour sudah berupa harga flat (Rp 250.000), bukan
       // persen, dan treatment lain TIDAK dapat diskon otomatis.
       discountPct: 0,
+      // Diskon nominal dalam rupiah. Saling eksklusif dengan discountPct:
+      // mengisi yang satu mengosongkan yang lain.
+      discountAmount: 0,
       discountReason: happyHour ? HAPPY_HOUR_REASON : ''
     }]);
     if (outletId) setTherapistMap((m) => ({ ...m, [outletId]: tera.id }));
@@ -232,11 +235,21 @@ function addLine(t, tera, opts = {}) {
   // Harga efektif per item. Happy Hour memakai harga flat Rp 250.000 yang
   // sudah dibekukan saat item masuk keranjang; treatment lain memakai harga
   // daftar dikali diskon manual yang dipilih kasir.
+  //
+  // Diskon bisa persen (chip) ATAU nominal rupiah. Nominal_WINNING kalau diisi:
+  // kasir sering perlu memotong tepat Rp 100.000, dan chip persen tidak akan
+  // pernah menghasilkan angka bulat itu (480.000 jadi 380.000 butuh 20,83%).
   function discountedPrice(line) {
     const base = line.treatment.price || 0;
     if (line.happyHour) return HAPPY_HOUR_PRICE;
+    const amount = line.discountAmount || 0;
+    if (amount > 0) return Math.max(0, Math.round(base - amount));
     const pct = line.discountPct || 0;
     return Math.round(base * (1 - pct / 100));
+  }
+
+  function hasDiscount(line) {
+    return (line.discountPct || 0) > 0 || (line.discountAmount || 0) > 0;
   }
 
   // Harga Happy Hour sudah flat (Rp 250.000) jadi chip persen tidak boleh
@@ -246,7 +259,25 @@ function addLine(t, tera, opts = {}) {
     setCart((c) => c.map((l, i) => {
       if (i !== index) return l;
       if (l.happyHour) return l;
-      return { ...l, discountPct: pct, discountReason: pct === 0 ? '' : l.discountReason };
+      return { ...l, discountPct: pct, discountAmount: 0, discountReason: pct === 0 ? '' : l.discountReason };
+    }));
+  }
+
+  // Diskon nominal. Dibatasi 0..harga daftar supaya kasir tidak bisa membuat
+  // harga negatif atau diskon melebihi harga.
+  function handleDiscountAmount(index, raw) {
+    const clean = String(raw).replace(/[^\d]/g, '');
+    setCart((c) => c.map((l, i) => {
+      if (i !== index) return l;
+      if (l.happyHour) return l;
+      const base = l.treatment.price || 0;
+      const amount = clean === '' ? 0 : Math.min(Math.max(0, Number(clean)), base);
+      return {
+        ...l,
+        discountAmount: amount,
+        discountPct: 0,
+        discountReason: amount === 0 ? '' : l.discountReason
+      };
     }));
   }
 
@@ -261,8 +292,8 @@ function addLine(t, tera, opts = {}) {
 
   async function handlePay() {
     if (cart.length === 0) return;
-    // Validasi: semua item berdiskon wajib punya alasan
-    const missingReason = cart.find((line) => line.discountPct > 0 && !(line.discountReason || '').trim());
+    // Validasi: semua item berdiskon (persen ATAU nominal) wajib punya alasan.
+    const missingReason = cart.find((line) => hasDiscount(line) && !(line.discountReason || '').trim());
     if (missingReason) {
       setError(`Alasan diskon wajib diisi untuk "${missingReason.treatment.name}".`);
       return;
@@ -284,6 +315,9 @@ function addLine(t, tera, opts = {}) {
         // Happy Hour (yang discountPct-nya 0) terkirim null: diskonnya hilang
         // dari laporan dan komisi jadi dihitung dari Rp 250.000.
         const isDiscounted = discounted < listPrice;
+        //effectivePct hanya untuk tampilan — RPC create_booking sudah
+        // menghitung discount_pct sendiri dari (original_price vs
+        // treatment_price), jadi tidak perlu dikirim dari sini.
         return {
           outletId,
           therapistId: line.therapist.id,
@@ -492,7 +526,7 @@ function addLine(t, tera, opts = {}) {
                       {[0, 5, 10, 15, 20, 25].map((p) => (
                         <button
                           key={p}
-                          className={line.discountPct === p ? 'pos-chip active' : 'pos-chip'}
+                          className={line.discountPct === p && !(line.discountAmount > 0) ? 'pos-chip active' : 'pos-chip'}
                           onClick={() => handleDiscount(i, p)}
                           style={{ fontSize: 11, padding: '2px 8px' }}
                         >
@@ -500,7 +534,23 @@ function addLine(t, tera, opts = {}) {
                         </button>
                       ))}
                     </div>
-                    {line.discountPct > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Potong Rp</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={line.discountAmount > 0 ? String(line.discountAmount) : ''}
+                        onChange={(e) => handleDiscountAmount(i, e.target.value)}
+                        style={{ fontSize: 12, padding: '4px 8px', width: 110 }}
+                      />
+                      {line.discountAmount > 0 && (
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                          ({(Math.round((line.discountAmount / (line.treatment.price || 1)) * 1000) / 10).toFixed(1)}%)
+                        </span>
+                      )}
+                    </div>
+                    {(line.discountPct > 0 || line.discountAmount > 0) && (
                       <input
                         placeholder="Alasan diskon (wajib)"
                         value={line.discountReason}

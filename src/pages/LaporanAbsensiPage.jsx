@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AbsensiGrid from '../components/AbsensiGrid';
 import { daysOfMonth, daysOfRange, thisMonthWib, todayWib } from '../lib/attendanceGrid';
+import {
+  buildGridRows, buildRecMap, computeRecap, computeRecapTotals, gridCellText, presentCount
+} from '../lib/attendanceGrid';
 import { getOvertimeByEmployee } from '../lib/overtimeService';
 import { listenAllTherapists } from '../lib/therapistService';
-import { summarizeAttendance } from '../lib/attendanceService';
 import { OUTLETS } from '../lib/constants';
-import { exportExcelReport } from '../lib/excelExport';
+import { exportAbsensiGrid } from '../lib/excelExport';
 
 /**
  * Laporan Absensi memakai grid yang sama dengan halaman Absensi: baris = orang,
@@ -89,42 +91,58 @@ export default function LaporanAbsensiPage({ active, user }) {
   // angka lembur otomatis berubah.
   const recapCols = useMemo(() => makeRecapColumns(autoOt), [autoOt]);
 
-  const summary = useMemo(() => summarizeAttendance(records), [records]);
+  // Data grid dipakai untuk membangkitkan file Excel. Dihitung dengan helper
+  // yang sama dengan grid di layar supaya isi file dijamin identik dengan
+  // tabel yang sedang dilihat — bukan tabel rekap yang terpisah.
+  const gridRows = useMemo(
+    () => buildGridRows(employees, records, outletFilter),
+    [employees, records, outletFilter]
+  );
+  const gridRecap = useMemo(
+    () => computeRecap(gridRows, records, recapCols, autoOt),
+    [gridRows, records, recapCols, autoOt]
+  );
+  const gridRecapTotals = useMemo(
+    () => computeRecapTotals(gridRows, gridRecap, recapCols),
+    [gridRows, gridRecap, recapCols]
+  );
 
   async function handleDownload() {
-    const values = Object.values(summary);
-    const headers = [
-      'Nama Karyawan', 'Hadir', 'Sakit', 'Izin', 'Telat', 'Alpha', 'Lembur (hari)',
-      'Menit telat', 'Lembur Absensi (menit)', 'Lembur Otomatis (menit)', 'Total Lembur (menit)'
-    ];
-    const rows = values.map((s) => [
-      s.employeeName,
-      s.hadir + (s.telat || 0),
-      s.sakit, s.izin, s.telat, s.alpha, s.lembur,
-      s.lateMinutes || 0,
-      s.overtimeMinutes || 0,
-      autoOt[s.employeeId]?.totalOvertimeMinutes || 0,
-      (s.overtimeMinutes || 0) + (autoOt[s.employeeId]?.totalOvertimeMinutes || 0)
-    ]);
-    if (rows.length) {
-      rows.push([
-        'TOTAL', '', '', '', '', '', '', '', '', '', rows.reduce((sum, r) => sum + Number(r[10] || 0), 0)
-      ]);
-    }
+    if (!gridRows.length) return;
+    const recMap = buildRecMap(records);
+
+    // Satu sel = teks yang sama persis dengan yang dirender layar (token
+    // status + menit telat, jam pulang, menit lembur). `type` dibawa terpisah
+    // supaya Excel bisa mewarnai selnya seperti warna di aplikasi.
+    const excelRows = gridRows.map((e) => ({
+      name: e.name,
+      shift: (e.shift || e.role || '-').toUpperCase(),
+      cells: days.map((d) => {
+        const rec = recMap[`${e.id}|${d.date}`];
+        return { text: gridCellText(rec), type: rec?.type || '' };
+      })
+    }));
+
     const outletLabel = outletFilter ? (OUTLETS.find((o) => o.id === outletFilter)?.name || outletFilter) : 'Semua Outlet';
     const rangeLabel = first === last ? first : `${first} s/d ${last}`;
+
     setDownloading(true);
     try {
-      await exportExcelReport({
+      await exportAbsensiGrid({
         filename: `Laporan-Absensi-${outletLabel}-${first}_${last}`,
         title: 'Laporan Absensi — Dayang Spa',
         subtitle: `${outletLabel} · ${rangeLabel}`,
-        headers,
-        rows,
-        totalRowIndex: rows.length - 1,
+        sheetName: 'Absensi',
+        days,
+        rows: excelRows,
+        recapColumns: recapCols.map((c) => ({ label: c.label, title: c.title || c.label })),
+        recapTotals: recapCols.map((c) => gridRecapTotals[c.key] || 0),
+        presentByDay: days.map((d) => presentCount(records, d.date) || ''),
         note: 'H = hadir, T = telat, S = sakit, I = izin, A = alpha, OFF = libur. '
           + 'Angka setelah H/T = menit telat, /.. = jam pulang, +.. = menit lembur dari input absensi. '
-          + 'Lm = total menit lembur absensi, Lo = total menit lembur otomatis dari booking, Tot = Lm + Lo.'
+          + 'Kolom rekap: H = jumlah hari hadir, S/A/I/Off = jumlah hari masing-masing, '
+          + 'Lm = total menit lembur absensi, Lo = total menit lembur otomatis dari booking, Tot = Lm + Lo. '
+          + 'Baris TOTAL: angka per tanggal = jumlah orang yang hadir hari itu.'
       });
     } catch (e) {
       alert('Gagal membuat file Excel: ' + e.message);

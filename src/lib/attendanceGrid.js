@@ -1,4 +1,5 @@
 import { ATTENDANCE_TYPES } from './constants';
+import { minutesToClock } from './shiftService';
 
 /**
  * Bagian "purnama" dari grid absensi: token status, daftar hari, dan
@@ -133,4 +134,91 @@ export function recapValue(column, employeeId, recordsOfEmployee, context) {
   if (column.get) return column.get(employeeId, recordsOfEmployee || [], context);
   const fn = BASE_RECAP[column.key];
   return fn ? fn(recordsOfEmployee || []) : '';
+}
+
+// ---------------------------------------------------------------------------
+// 函数 pembantu untuk menyusun grid (dipakai bersama oleh layar & Excel).
+//
+// Grid absensi perlu hal yang sama persis di dua tempat: di layar (AbsensiGrid)
+// dan di file Excel (exportAbsensiGrid). Kalau masing-masing menghitung sendiri,
+// cepat atau lambat isinya akan berbeda dan laporan jadi tidak bisa dipercaya.
+// Semua perhitungan baris/kolom tanggal dan rekap dikumpulkan di sini supaya
+// keduanya benar-benar membaca sumber yang sama.
+// ---------------------------------------------------------------------------
+
+/**
+ * Daftar orang yang tampil sebagai baris grid: gabungan terapis aktif dengan
+ * siapa pun yang punya catatan absensi di periode ini (mis. orang yang sudah
+ * dihapus dari daftar tapi absensinya masih ada). Dihasilkan dengan urutan
+ * nama yang stabil supaya cocok dengan yang terlihat di layar.
+ */
+export function buildGridRows(employees, records, outletFilter) {
+  const byId = {};
+  (employees || []).forEach((e) => {
+    byId[e.id] = { id: e.id, name: e.name, role: e.role, outletId: e.homeOutletId, shift: e.shift || '' };
+  });
+  (records || []).forEach((r) => {
+    if (!byId[r.employeeId]) {
+      byId[r.employeeId] = { id: r.employeeId, name: r.employeeName, role: '-', outletId: r.outletId, shift: '' };
+    }
+  });
+  return Object.values(byId)
+    .filter((e) => (outletFilter ? e.outletId === outletFilter : true))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Peta akses cepat per sel: "employeeId|tanggal" -> record. */
+export function buildRecMap(records) {
+  const m = {};
+  (records || []).forEach((r) => { m[`${r.employeeId}|${r.date}`] = r; });
+  return m;
+}
+
+/**
+ * Teks lengkap satu sel, sama persis dengan yang dirender layar: token status
+ * (dengan menit telat), lalu jam pulang "/.." dan menit lembur "+.." kalau ada.
+ * Layar menulis spans-nya sebagai elemen terpisah supaya bisa diberi warna;
+ * file Excel tidak bisa, jadi di sini digabung jadi satu teks.
+ */
+export function gridCellText(rec) {
+  if (!rec) return '';
+  let out = cellText(rec);
+  if (rec.checkOut != null) out += `/${minutesToClock(rec.checkOut)}`;
+  if (rec.overtimeMinutes > 0) out += `+${rec.overtimeMinutes}`;
+  return out;
+}
+
+/** Rekap per orang untuk sekumpulan kolom rekap. */
+export function computeRecap(rows, records, recapColumns, recapContext) {
+  const out = {};
+  const listByEmp = {};
+  (records || []).forEach((r) => {
+    (listByEmp[r.employeeId] = listByEmp[r.employeeId] || []).push(r);
+  });
+  rows.forEach((e) => {
+    const listEmp = listByEmp[e.id] || [];
+    const row = {};
+    recapColumns.forEach((col) => {
+      row[col.key] = recapValue(col, e.id, listEmp, recapContext);
+    });
+    out[e.id] = row;
+  });
+  return out;
+}
+
+/** Total tiap kolom rekap untuk baris TOTAL di bawah grid. */
+export function computeRecapTotals(rows, recap, recapColumns) {
+  const out = {};
+  recapColumns.forEach((col) => {
+    out[col.key] = rows.reduce((sum, e) => sum + (Number(recap[e.id]?.[col.key]) || 0), 0);
+  });
+  return out;
+}
+
+/** Berapa orang yang hadir (hadir + telat) pada satu tanggal. */
+export function presentCount(records, date) {
+  return (records || []).filter(
+    (r) => r.date === date
+      && (r.type === ATTENDANCE_TYPES.HADIR || r.type === ATTENDANCE_TYPES.TELAT)
+  ).length;
 }
