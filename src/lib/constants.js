@@ -31,49 +31,113 @@ export function isFootMassage(t) {
 // ---------------------------------------------------------------------------
 // Happy Hour
 //
-// Happy Hour BUKAN kategori treatment. Sebuah treatment hanya ikut Happy Hour
-// kalau TIGA syarat ini sama-sama terpenuhi:
+// Happy Hour itu DAFTAR KUTUK, bukan aturan umum. Hanya enam menu di bawah
+// yang boleh jadi Happy Hour, tidak ada treatment lain:
 //
-//   1. kategorinya Massage,
-//   2. durasinya 90 menit, dan
-//   3. harga dafarnya Rp 300.000
+//   1. Lombok Massage (90 Min)
+//   2. Balinese Massage (90 Min)
+//   3. Deep Tissue Massage (90 Min)
+//   4. Thai Massage (90 Min)
+//   5. Stress Relieving Massage (90 Min)
+//   6. Aloevera Massage (90 Min)
 //
-// Syarat kategori itu penting: Manicure / Pedicure / Fake Nail / Dinfill BIAB
-// (semua kategori Nail) TIDAK BOLEH ikut Happy Hour dalam keadaan apa pun,
-// walau suatu saat ada treatment 90 menit berharga Rp 300.000 di kategori
-// Nail. Enjoy hour juga tidak berlaku di Waxing / Body Care / Hair Treatment.
+// Dahulu aturannya "Massage + 90 menit + Rp 300.000". Itu SALAH karena
+// ikut-treatment "After Surf Massage (90 Min)" yang harganya juga Rp 300.000
+// padahal tidak ada di daftar. Karena itu aturan sekarang murni berbasis nama
+// menu, bukan kategori/durasi/harga — sehingga perubahan harga atau kategori di
+// katalog tidak diam-diam mengubah siapa yang boleh Happy Hour.
 //
-//   - treatment 90 menit yang harganya beda (Hot Stone & Herbal Compress
-//     Rp 400.000, Fake Nail & Dinfill BIAB Rp 280.000)
-//   - semua treatment non-Massage (Nail, Waxing, Body Care, Hair Treatment)
+// Treatment 90 menit yang TIDAK ikut, dan tidak boleh ikut:
+//   - After Surf Massage (90 Min)  Rp 300.000  <- sengaja dikeluarkan
+//   - Hot Stone (90 Min)           Rp 400.000
+//   - Herbal Compress (90 Min)     Rp 400.000
+//   - Fake Nail (Full) / Dinfill BIAB (Full)   Rp 280.000 (kategori Nail)
 //   - semua treatment 30 / 45 / 60 menit
+//   - semua treatment Waxing / Body Care / Hair Treatment / Nail
 //
 // Harga Happy Hour: jam 11:00 - 14:59 -> Rp 250.000 (flat, bukan persen).
-// Di luar jam itu semua treatment kembali ke harga daftar.
-// Treatment yang tidak ikut Happy Hour tetap dapat "harga spesial" 10% di jam
-// yang sama — itu diskon lain, bukan Happy Hour.
+// Di luar jam itu keenam menu itu kembali ke harga daftar Rp 300.000.
+//
+// TIDAK ADA diskon otomatis untuk treatment lain di jam yang sama. Diskon lain
+// tetap harus dipilih kasir secara manual dengan alasan (chip 5/10/15/20% atau
+// menu diskon di Koreksi Booking).
+//
+// Jam memakai WIB (UTC+7) yang sama dengan seluruh laporan — bukan jam lokal
+// perangkat. Kalau memakai jam perangkat, tablet yang zona waktunya keliru akan
+// membuka/menutup Happy Hour di jam yang salah.
 // ---------------------------------------------------------------------------
 export const HAPPY_HOUR_START_MIN = 11 * 60;
 export const HAPPY_HOUR_END_MIN = 15 * 60; // exclusive: 14:59 masih Happy Hour
-export const HAPPY_HOUR_MINUTES = 90;
-export const HAPPY_HOUR_BASE_PRICE = 300000;
 export const HAPPY_HOUR_PRICE = 250000;
-export const HAPPY_HOUR_CATEGORIES = ['Massage'];
-export const SPECIAL_TIME_DISCOUNT_PCT = 10;
-export const HAPPY_HOUR_REASON = 'Happy Hour - 90 Menit Rp 250.000 (11:00 - 14:59)';
+export const HAPPY_HOUR_TIMEZONE = 'Asia/Jakarta'; // WIB, sama dengan reportBookService
+export const HAPPY_HOUR_REASON = 'Happy Hour (11:00 - 14:59)';
 
-/** Apakah `date` sudah masuk jam Happy Hour (11:00 - 14:59)? */
+// Nama treatment yang boleh Happy Hour. Sengaja ditulis sebagai nama yang
+// ditulisi persis seperti di katalog supaya mudah dicek/diubah.
+export const HAPPY_HOUR_TREATMENTS = [
+  'Lombok Massage (90 Min)',
+  'Balinese Massage (90 Min)',
+  'Deep Tissue Massage (90 Min)',
+  'Thai Massage (90 Min)',
+  'Stress Relieving Massage (90 Min)',
+  'Aloevera Massage (90 Min)'
+];
+
+/**
+ * Kunci pembanding nama treatment: huruf kecil dan spasi dirapatkan. Jadi
+ * "Lombok Massage (90 Min)" cocok dengan "  lombok   massage (90 min) ".
+ *
+ * PENTING: sufiks durasi TIDAK dibuang di sini. Kalau dibuang, "Lombok Massage
+ * (60 Min)" akan ikut cocok dengan "Lombok Massage (90 Min)" dan treatment 60
+ * menit ikut Happy Hour. Durasi justru pembeda yang paling penting.
+ */
+export function happyHourKey(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Buang sufiks durasi di akhir nama, mis. "(90 Min)". lowercase dulu. */
+function happyHourKeyTanDurasi(name) {
+  return happyHourKey(name).replace(/\((?:[^()]*)\)\s*$/, '').trim();
+}
+
+const HAPPY_HOUR_KEYS = HAPPY_HOUR_TREATMENTS.map(happyHourKey);
+const HAPPY_HOUR_KEYS_TAN_DURASI = HAPPY_HOUR_TREATMENTS.map(happyHourKeyTanDurasi);
+
+/**
+ * Apakah `date` sudah masuk jam Happy Hour (11:00 - 14:59) menurut WIB?
+ * `date` boleh Date atau angka epoch ms.
+ */
 export function isHappyHourTime(date = new Date()) {
-  const t = date.getHours() * 60 + date.getMinutes();
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return false;
+  // Ambil jam-menit di WIB tanpa bergantung pada zona waktu perangkat.
+  const wib = new Date(d.getTime() + (7 * 60 + d.getTimezoneOffset()) * 60000);
+  const t = wib.getHours() * 60 + wib.getMinutes();
   return t >= HAPPY_HOUR_START_MIN && t < HAPPY_HOUR_END_MIN;
 }
 
-/** Tiga syarat Happy Hour: kategori Massage + 90 menit + harga Rp 300.000. */
+/**
+ * Apakah treatment ini salah satu dari enam menu Happy Hour?
+ *
+ * Dua jalur:
+ *  1. nama persis sama dengan salah satu daftar (huruf kecil/spasi diabaikan);
+ *  2. nama sama tapi sufiks durasinya ditulis lain ("(90 Menit)"), asal
+ *     durationMinutes-nya benar-benar 90.
+ *
+ * Jalur (2) tetap wajib memeriksa durationMinutes supaya treatment 30/45/60
+ * menit dengan nama serupa tidak ikut. Kalau durationMinutes tidak ada, tidak
+ * ikut — lebih baik misses daripada memberi diskon yang tidak berhak.
+ */
 export function isHappyHourTreatment(t) {
   if (!t) return false;
-  return HAPPY_HOUR_CATEGORIES.includes(t.category)
-    && Number(t.durationMinutes) === HAPPY_HOUR_MINUTES
-    && Number(t.price) === HAPPY_HOUR_BASE_PRICE;
+  const key = happyHourKey(t.name);
+  if (key === '') return false;
+  if (HAPPY_HOUR_KEYS.includes(key)) return true;
+  return Number(t.durationMinutes) === 90
+    && HAPPY_HOUR_KEYS_TAN_DURASI.includes(happyHourKeyTanDurasi(key));
 }
 
 /** Harga Happy Hour untuk treatment ini, atau null kalau tidak berlaku. */

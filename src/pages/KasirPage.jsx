@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import {
   OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, PAYMENT_METHODS, PAYMENT_METHOD_LABEL,
   treatmentUsesOil, oilChoicesFor,
-  HAPPY_HOUR_PRICE, HAPPY_HOUR_REASON, SPECIAL_TIME_DISCOUNT_PCT,
-  isHappyHourTime, isHappyHourTreatment, happyHourPriceFor
+  HAPPY_HOUR_PRICE, HAPPY_HOUR_REASON,
+  isHappyHourTime, isHappyHourTreatment
 } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
@@ -187,18 +187,22 @@ export default function KasirPage({ outletId, active }) {
 
 function addLine(t, tera, opts = {}) {
     const pakaiMinyak = usesOil(t) && !opts.noOil && !opts.noOilChosen;
-    const jamSpesial = isHappyHourTime();
-    const specialPct = getSpecialDiscountPct(t);
+    // Kelayakan Happy Hour DIBEKUK saat item masuk keranjang. Kalau dicek
+    // ulang tiap render, item yang ditambahkan sebelum jam 11:00 tapi dibayar
+    // setelahnya akan berubah-ubah tampilan (250.000 vs 300.000) hanya karena
+    // jam berjalan, sehingga kasir bisa salah hitung kembalian.
+    const happyHour = isHappyHourTime() && isHappyHourTreatment(t);
     setCart((c) => [...c, {
       therapist: tera,
       treatment: t,
       oil: pakaiMinyak ? (opts.oil || null) : null,
       size: pakaiMinyak ? (opts.size || null) : null,
       noOil: !!opts.noOilChosen,
-      discountPct: specialPct === null ? 0 : (specialPct || 0),
-      discountReason: !jamSpesial
-        ? ''
-        : (specialPct === null ? HAPPY_HOUR_REASON : 'Harga Spesial 11:00 - 14:59')
+      happyHour,
+      // Selalu 0: Happy Hour sudah berupa harga flat (Rp 250.000), bukan
+      // persen, dan treatment lain TIDAK dapat diskon otomatis.
+      discountPct: 0,
+      discountReason: happyHour ? HAPPY_HOUR_REASON : ''
     }]);
     if (outletId) setTherapistMap((m) => ({ ...m, [outletId]: tera.id }));
   }
@@ -219,35 +223,25 @@ function addLine(t, tera, opts = {}) {
     setCart((c) => c.filter((_, i) => i !== index));
   }
 
-  // Harga efektif per item setelah diskon (kelipatan 5/10/15/20%).
+  // Harga efektif per item. Happy Hour memakai harga flat Rp 250.000 yang
+  // sudah dibekukan saat item masuk keranjang; treatment lain memakai harga
+  // daftar dikali diskon manual yang dipilih kasir.
   function discountedPrice(line) {
     const base = line.treatment.price || 0;
-    const hh = happyHourPriceFor(line.treatment);
-    if (hh !== null) return hh;
+    if (line.happyHour) return HAPPY_HOUR_PRICE;
     const pct = line.discountPct || 0;
     return Math.round(base * (1 - pct / 100));
   }
 
-  // Harga saat jam khusus 11:00 - 14:59.
-  // Happy Hour: hanya Massage 90 menit DENGAN harga daftar Rp 300.000 ->
-  // Rp 250.000. Nail (Manicure/Pedicure) & treatment non-90 menit tidak ikut.
-  // Selain itu: tetap dapat harga spesial 10%.
-  function getSpecialDiscountPct(treatment) {
-    if (!isHappyHourTime()) return 0;
-    if (isHappyHourTreatment(treatment)) return null; // harga flat, bukan persen
-    return SPECIAL_TIME_DISCOUNT_PCT;
-  }
-
-  function getEffectivePrice(treatment) {
-    if (!treatment) return 0;
-    const base = treatment.price || 0;
-    if (!isHappyHourTime()) return base;
-    if (isHappyHourTreatment(treatment)) return HAPPY_HOUR_PRICE;
-    return Math.round(base * (1 - SPECIAL_TIME_DISCOUNT_PCT / 100));
-  }
-
+  // Harga Happy Hour sudah flat (Rp 250.000) jadi chip persen tidak boleh
+  // mengubahnya — kalau boleh, price tetap Rp 250.000 tapi discountReason masih
+  // berbunyi "Happy Hour" padahal yang dipotong diskon kasir.
   function handleDiscount(index, pct) {
-    setCart((c) => c.map((l, i) => (i === index ? { ...l, discountPct: pct, discountReason: pct === 0 ? '' : l.discountReason } : l)));
+    setCart((c) => c.map((l, i) => {
+      if (i !== index) return l;
+      if (l.happyHour) return l;
+      return { ...l, discountPct: pct, discountReason: pct === 0 ? '' : l.discountReason };
+    }));
   }
 
   function handleDiscountReason(index, reason) {
@@ -277,7 +271,13 @@ function addLine(t, tera, opts = {}) {
       }
       const items = cart.map((line) => {
         const discounted = discountedPrice(line);
+        const listPrice = line.treatment.price || 0;
         const useOil = treatmentUsesOil(line.treatment) && !line.noOil;
+        // original_price hanya diisi kalau harga bayar benar-benar lebih kecil
+        // dari harga daftar. Versi lama memakai `line.discountPct ?` sehingga
+        // Happy Hour (yang discountPct-nya 0) terkirim null: diskonnya hilang
+        // dari laporan dan komisi jadi dihitung dari Rp 250.000.
+        const isDiscounted = discounted < listPrice;
         return {
           outletId,
           therapistId: line.therapist.id,
@@ -285,8 +285,8 @@ function addLine(t, tera, opts = {}) {
           treatmentId: line.treatment.id,
           treatmentName: line.treatment.name,
           treatmentPrice: discounted,
-          originalPrice: line.discountPct ? (line.treatment.price || 0) : null,
-          discountReason: line.discountPct ? line.discountReason : null,
+          originalPrice: isDiscounted ? listPrice : null,
+          discountReason: isDiscounted ? (line.discountReason || HAPPY_HOUR_REASON) : null,
           commissionPercent: line.treatment.commissionPercent,
           durationMinutes: line.treatment.durationMinutes,
           usesOil: useOil,
@@ -476,35 +476,51 @@ function addLine(t, tera, opts = {}) {
                 <div style={{ fontSize: 12, color: 'var(--primary)', marginTop: 2 }}>
                   {fmtTime(line.start)} – {fmtTime(line.end)} WIB ({line.treatment.durationMinutes || 0} mnt)
                 </div>
-                <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-                  {[0, 5, 10, 15, 20, 25].map((p) => (
-                    <button
-                      key={p}
-                      className={line.discountPct === p ? 'pos-chip active' : 'pos-chip'}
-                      onClick={() => handleDiscount(i, p)}
-                      style={{ fontSize: 11, padding: '2px 8px' }}
-                    >
-                      {p === 0 ? '-' : `${p}%`}
-                    </button>
-                  ))}
-                </div>
-                {line.discountPct > 0 && (
-                  <input
-                    placeholder="Alasan diskon (wajib)"
-                    value={line.discountReason}
-                    onChange={(e) => handleDiscountReason(i, e.target.value)}
-                    style={{ marginTop: 6, fontSize: 12, padding: '6px 8px' }}
-                  />
+                {line.happyHour ? (
+                  <div style={{ fontSize: 11, color: 'var(--primary)', marginTop: 6 }}>
+                    Happy Hour — harga tetap Rp250.000 (chip diskon tidak dipakai)
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                      {[0, 5, 10, 15, 20, 25].map((p) => (
+                        <button
+                          key={p}
+                          className={line.discountPct === p ? 'pos-chip active' : 'pos-chip'}
+                          onClick={() => handleDiscount(i, p)}
+                          style={{ fontSize: 11, padding: '2px 8px' }}
+                        >
+                          {p === 0 ? '-' : `${p}%`}
+                        </button>
+                      ))}
+                    </div>
+                    {line.discountPct > 0 && (
+                      <input
+                        placeholder="Alasan diskon (wajib)"
+                        value={line.discountReason}
+                        onChange={(e) => handleDiscountReason(i, e.target.value)}
+                        style={{ marginTop: 6, fontSize: 12, padding: '6px 8px' }}
+                      />
+                    )}
+                  </>
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>
-                  {line.discountPct ? (
-                    <>
-                      <span style={{ textDecoration: 'line-through', color: 'var(--text-secondary)', marginRight: 4 }}>{rp(line.treatment.price)}</span>
-                      {rp(discountedPrice(line))}
-                    </>
-                  ) : rp(line.treatment.price)}
+                  {(() => {
+                    const list = line.treatment.price || 0;
+                    const disc = discountedPrice(line);
+                    // Harga dicoret hanya kalau benar-benar ada diskon. Versi
+                    // lama memakai `line.discountPct ?` sehingga Happy Hour
+                    // (discountPct 0) menampilkan Rp300.000 seolah-olah tidak
+                    // ada diskon, padahal dibayar Rp250.000.
+                    return disc < list ? (
+                      <>
+                        <span style={{ textDecoration: 'line-through', color: 'var(--text-secondary)', marginRight: 4 }}>{rp(list)}</span>
+                        {rp(disc)}
+                      </>
+                    ) : rp(list);
+                  })()}
                 </span>
                 <button
                   style={{ width: 'auto', padding: '4px 8px', fontSize: 11, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }}
