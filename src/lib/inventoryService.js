@@ -1,11 +1,13 @@
 import { supabase } from './supabase';
+import { DEFAULT_INVENTORY_CATEGORY } from './constants';
 
-export async function addInventoryItem(outletId, { name, unit, initialStock }) {
+export async function addInventoryItem(outletId, { name, unit, initialStock, category }) {
   const { data, error } = await supabase.from('inventory').insert({
     outlet_id: outletId,
     name,
     unit: unit || 'pcs',
-    stock: initialStock || 0
+    stock: initialStock || 0,
+    category: category || DEFAULT_INVENTORY_CATEGORY
   }).select().single();
   if (error) throw error;
   return data.id;
@@ -48,9 +50,34 @@ export function listenInventory(outletId, callback) {
       .eq('outlet_id', outletId)
       .order('created_at');
     if (error) { console.warn(error); return; }
-    callback((data || []).map((r) => ({ id: r.id, name: r.name, unit: r.unit, stock: r.stock })));
+    callback((data || []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      unit: r.unit,
+      stock: r.stock,
+      category: r.category || DEFAULT_INVENTORY_CATEGORY
+    })));
   }
   load();
 
   return () => supabase.removeChannel(channel);
+}
+
+/**
+ * Peta produk yang terpakai per treatment, hasil dari tabel treatment_consumables.
+ * Bentuk: { [treatmentId]: [{ itemName, qty }, ...] }
+ * Dipakai untuk memperingatkan stok di Kasir sebelum pembayaran.
+ */
+export async function fetchTreatmentConsumables() {
+  const { data, error } = await supabase
+    .from('treatment_consumables')
+    .select('treatment_id, item_name, qty');
+  if (error) { console.warn(error); return {}; }
+
+  const map = {};
+  (data || []).forEach((r) => {
+    const list = map[r.treatment_id] || (map[r.treatment_id] = []);
+    list.push({ itemName: r.item_name, qty: Number(r.qty) || 0 });
+  });
+  return map;
 }

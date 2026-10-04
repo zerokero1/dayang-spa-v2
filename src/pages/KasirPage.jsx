@@ -8,6 +8,8 @@ import {
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createBooking, createBookingsBatch } from '../lib/bookingService';
+import { listenInventory, fetchTreatmentConsumables } from '../lib/inventoryService';
+import { forecastStockAlerts, describeStockAlerts } from '../lib/stockForecast';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -63,6 +65,8 @@ export default function KasirPage({ outletId, active }) {
   const [cart, setCart] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [stockItems, setStockItems] = useState([]);
+  const [consumables, setConsumables] = useState({});
 
   // Simpan form + pilihan terakhir setiap berubah.
   useEffect(() => { saveLS(LS_FORM, { customerName, markPaidNow, paymentMethod }); },
@@ -75,6 +79,21 @@ export default function KasirPage({ outletId, active }) {
     const unsub1 = listenAllTherapists(setTherapists); // semua terapis, termasuk yang sibuk (untuk ditandai)
     const unsub2 = listenTreatments(setTreatments);
     return () => { unsub1(); unsub2(); };
+  }, [active]);
+
+  // Stok barang outlet ini (untuk peringatan produk kurang) + peta produk per treatment.
+  useEffect(() => {
+    if (!active || !outletId) return;
+    return listenInventory(outletId, setStockItems);
+  }, [active, outletId]);
+
+  useEffect(() => {
+    if (!active) return;
+    let alive = true;
+    fetchTreatmentConsumables()
+      .then((map) => { if (alive) setConsumables(map); })
+      .catch(() => { if (alive) setConsumables({}); });
+    return () => { alive = false; };
   }, [active]);
 
   const cartTherapistIds = new Set(cart.map((c) => c.therapist.id));
@@ -100,6 +119,9 @@ export default function KasirPage({ outletId, active }) {
     : null;
 
   const cartTotal = cart.reduce((sum, l) => sum + discountedPrice(l), 0);
+
+  // Peringatan (bukan penghalang) bila produk treatment akan habis.
+  const stockAlerts = forecastStockAlerts(cart, consumables, stockItems);
 
   // Perkiraan jam mulai & selesai tiap item berdasarkan banyaknya therapist
   // dan akumulasi durasi treatment berurutan per therapist.
@@ -526,6 +548,12 @@ function addLine(t, tera, opts = {}) {
         )}
 
         <div className="pos-cart-footer">
+          {stockAlerts.length > 0 && (
+            <div className="message warn" style={{ marginBottom: 8 }}>
+              ⚠ Stok kurang: {describeStockAlerts(stockAlerts, stockItems)}.
+              Transaksi tetap diproses, stok jadi 0 — segera isi di Inventory.
+            </div>
+          )}
           <div className="pos-cart-total">
             <span>Total</span>
             <strong>{rp(cartTotal)}</strong>

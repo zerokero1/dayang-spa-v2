@@ -14,6 +14,11 @@ export const OIL_SIZES = ['Kecil', 'Besar']; // Kecil = 10ml, Besar = 30ml
 
 export const FOOT_PRODUCTS = ['Foot Cream', 'FM'];
 
+// Kategori barang inventory. 'Produk' = produk treatment yang terpakai otomatis
+// ( Facial, Pedicure Produk, ... ). 'Laundry' = barang linen/equipment (Face Cradle, Hole Sheet, ...).
+export const INVENTORY_CATEGORIES = ['Produk', 'Laundry'];
+export const DEFAULT_INVENTORY_CATEGORY = 'Produk';
+
 // Happy Hour bukan kategori. Lihat blok aturan Happy Hour di bawah.
 export const TREATMENT_CATEGORIES = ['Massage', 'Nail', 'Body Care', 'Waxing', 'Hair Treatment'];
 

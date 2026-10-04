@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listenInventory, addInventoryItem, stockIn, stockOut, deleteInventoryItem } from '../lib/inventoryService';
+import { INVENTORY_CATEGORIES, DEFAULT_INVENTORY_CATEGORY } from '../lib/constants';
 
 export default function InventoryPage({ outletId, active }) {
   const [items, setItems] = useState([]);
@@ -8,6 +9,7 @@ export default function InventoryPage({ outletId, active }) {
   const [note, setNote] = useState('');
   const [newName, setNewName] = useState('');
   const [newUnit, setNewUnit] = useState('');
+  const [newCategory, setNewCategory] = useState(DEFAULT_INVENTORY_CATEGORY);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -27,9 +29,16 @@ export default function InventoryPage({ outletId, active }) {
     if (!newName) return;
     setBusy(true);
     try {
-      await addInventoryItem(outletId, { name: newName, unit: newUnit || 'pcs', initialStock: 0 });
+      await addInventoryItem(outletId, {
+        name: newName,
+        unit: newUnit || 'pcs',
+        initialStock: 0,
+        category: newCategory || DEFAULT_INVENTORY_CATEGORY
+      });
       setNewName(''); setNewUnit('');
-      setMessage('Item baru ditambahkan');
+      setMessage(`Item "${newName.trim()}" ditambahkan (${newCategory})`);
+    } catch (e) {
+      setMessage('Gagal: ' + e.message);
     } finally {
       setBusy(false);
     }
@@ -87,17 +96,29 @@ export default function InventoryPage({ outletId, active }) {
 
       <section>
         <p>Daftar barang</p>
-        <div className="grid-2">
-          {items.map((it) => (
-            <button
-              key={it.id}
-              className={selItem?.id === it.id ? 'active' : ''}
-              onClick={() => pick(it)}
-            >
-              {it.name} ({it.stock} {it.unit})
-            </button>
-          ))}
-        </div>
+        {INVENTORY_CATEGORIES.map((cat) => {
+          const rows = items.filter((it) => (it.category || DEFAULT_INVENTORY_CATEGORY) === cat);
+          if (rows.length === 0) return null;
+          return (
+            <div key={cat} style={{ marginBottom: 14 }}>
+              <p className="muted" style={{ marginBottom: 6 }}>{cat} ({rows.length})</p>
+              <div className="grid-2">
+                {rows.map((it) => (
+                  <button
+                    key={it.id}
+                    className={selItem?.id === it.id ? 'active' : ''}
+                    onClick={() => pick(it)}
+                  >
+                    {it.name} ({it.stock} {it.unit})
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+        {items.length === 0 && (
+          <p className="muted">Belum ada barang tercatat.</p>
+        )}
       </section>
 
       {selItem && (
@@ -128,7 +149,14 @@ export default function InventoryPage({ outletId, active }) {
         <p>Tambah item baru</p>
         <input placeholder="Nama barang" value={newName} onChange={(e) => setNewName(e.target.value)} />
         <input placeholder="Satuan (pcs/botol/lusin)" value={newUnit} onChange={(e) => setNewUnit(e.target.value)} />
-        <button onClick={handleAddItem} disabled={busy || !newName}>Tambah item</button>
+        <select
+          value={newCategory}
+          onChange={(e) => setNewCategory(e.target.value)}
+          style={{ width: '100%', padding: 11, marginBottom: 8, borderRadius: 8, border: '1px solid var(--border)' }}
+        >
+          {INVENTORY_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <button onClick={handleAddItem} disabled={busy || !newName.trim()}>Tambah item</button>
       </section>
     </div>
   );

@@ -141,6 +141,7 @@ create table if not exists inventory (
   unit text not null default 'pcs',
   stock int not null default 0,
   unit_cost numeric not null default 0,   -- harga satuan (untuk estimasi pengeluaran)
+  category text not null default 'Produk', -- 'Produk' (produk treatment) | 'Laundry'
   created_at timestamptz not null default now()
 );
 create unique index if not exists inventory_outlet_name_uniq on inventory (outlet_id, lower(name));
@@ -644,7 +645,7 @@ begin
   insert into inventory_logs (outlet_id, item_id, type, qty, note, created_at)
   values (p_outlet_id, p_item_id, (case when p_qty >= 0 then 'in' else 'out' end)::inventory_log_type, abs(p_qty), coalesce(p_note,''), now());
 
-  if p_qty < 0 then
+if p_qty < 0 then
     update inventory set stock = v_current + p_qty  -- p_qty negatif -> kurangi
      where id = p_item_id and outlet_id = p_outlet_id;
     if v_current + p_qty < 0 then raise exception 'Stok tidak cukup'; end if;
@@ -652,5 +653,76 @@ begin
     update inventory set stock = v_current + p_qty
      where id = p_item_id and outlet_id = p_outlet_id;
   end if;
+end;
+$fn$;
+
+-- ============================================================
+-- RPC: consume_treatment_products
+-- Potong stok barang yang terpetakan di treatment_consumables.
+-- Dipanggil create_booking / create_booking_batch / continue_booking.
+-- Stok kurang TIDAK memblokir: dijepit di 0 (kebijakan "A").
+-- ============================================================
+create or replace function consume_treatment_products(
+  p_outlet_id text, p_treatment_id uuid, p_note text default null
+) returns void
+language plpgsql as $fn$
+declare
+  r record;
+begin
+  if p_treatment_id is null or coalesce(p_outlet_id, '') = '' then
+    return;
+  end if;
+
+  for r in
+    select c.qty, i.id
+      from treatment_consumables c
+      join inventory i
+        on i.outlet_id = p_outlet_id
+       and lower(i.name) = lower(c.item_name)
+     where c.treatment_id = p_treatment_id
+  loop
+    update inventory
+       set stock = greatest(stock - r.qty::integer, 0)
+     where id = r.id and outlet_id = p_outlet_id;
+
+    insert into inventory_logs (outlet_id, item_id, type, qty, note, created_at)
+    values (p_outlet_id, r.id, 'out'::inventory_log_type, r.qty::integer,
+            coalesce(p_note, 'Pemakaian otomatis treatment'), now());
+  end loop;
+end;
+$fn$;
+
+-- ============================================================
+-- RPC: restore_treatment_products
+-- Kembalikan stok barang saat booking dibatalkan/dihapus
+-- (cancel_booking_full / hapus_booking_office).
+-- ============================================================
+create or replace function restore_treatment_products(
+  p_outlet_id text, p_treatment_id uuid, p_note text default null
+) returns void
+language plpgsql as $fn$
+declare
+  r record;
+begin
+  if p_treatment_id is null or coalesce(p_outlet_id, '') = '' then
+    return;
+  end if;
+
+  for r in
+    select c.qty, i.id
+      from treatment_consumables c
+      join inventory i
+        on i.outlet_id = p_outlet_id
+       and lower(i.name) = lower(c.item_name)
+     where c.treatment_id = p_treatment_id
+  loop
+    update inventory
+       set stock = stock + r.qty::integer
+     where id = r.id and outlet_id = p_outlet_id;
+
+    insert into inventory_logs (outlet_id, item_id, type, qty, note, created_at)
+    values (p_outlet_id, r.id, 'in'::inventory_log_type, r.qty::integer,
+            coalesce(p_note, 'Pengembalian produk (booking dibatalkan)'), now());
+  end loop;
 end;
 $fn$;
