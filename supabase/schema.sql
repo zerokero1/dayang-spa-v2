@@ -642,7 +642,7 @@ begin
   if not found then raise exception 'Item tidak ditemukan'; end if;
 
   insert into inventory_logs (outlet_id, item_id, type, qty, note, created_at)
-  values (p_outlet_id, p_item_id, case when p_qty >= 0 then 'in' else 'out' end, abs(p_qty), coalesce(p_note,''), now());
+  values (p_outlet_id, p_item_id, (case when p_qty >= 0 then 'in' else 'out' end)::inventory_log_type, abs(p_qty), coalesce(p_note,''), now());
 
   if p_qty < 0 then
     update inventory set stock = v_current + p_qty  -- p_qty negatif -> kurangi

@@ -1,138 +1,210 @@
-import { useState } from 'react';
-import { getAttendanceRange, summarizeAttendance } from '../lib/attendanceService';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import AbsensiGrid from '../components/AbsensiGrid';
+import { daysOfMonth, daysOfRange, thisMonthWib, todayWib } from '../lib/attendanceGrid';
 import { getOvertimeByEmployee } from '../lib/overtimeService';
+import { listenAllTherapists } from '../lib/therapistService';
+import { summarizeAttendance } from '../lib/attendanceService';
 import { OUTLETS } from '../lib/constants';
 import { exportExcelReport } from '../lib/excelExport';
 
-function todayId() {
-  // Tanggal LOKAL WIB (UTC+7)
-  const now = new Date(Date.now() + 7 * 3600000);
-  return now.toISOString().slice(0, 10);
+/**
+ * Laporan Absensi memakai grid yang sama dengan halaman Absensi: baris = orang,
+ * kolom = tanggal. Default satu bulan penuh, bisa diganti rentang bebas kalau
+ * perlu rekap mingguan. Sel tetap bisa diklik untuk mengisi atau mengoreksi,
+ * karena laporan sering dipakai saat mau betulkan data.
+ *
+ * Kolom rekap di kanan menambah hitungan yang tidak ada di grid absensi:
+ * jumlah hari hadir, menit lembur manual, menit lembur otomatis (dihitung
+ * dari jam selesai booking), dan totalnya.
+ */
+
+/** Kolom rekap tambahan. autoOv disuntikkan lewat makeRecapColumns(). */
+function makeRecapColumns(autoOt) {
+  return [
+    { key: 'H', label: 'H', title: 'Jumlah hari hadir (hadir + telat)' },
+    { key: 'S', label: 'S', title: 'Sakit' },
+    { key: 'A', label: 'A', title: 'Alpha' },
+    { key: 'I', label: 'I', title: 'Izin' },
+    { key: 'OFF', label: 'Off', title: 'Libur' },
+    { key: 'L', label: 'Lm', title: 'Lembur dari input absensi (menit)' },
+    {
+      key: 'auto',
+      label: 'Lo',
+      title: 'Lembur otomatis dari jam selesai booking (menit)',
+      get: (employeeId) => autoOt[employeeId]?.totalOvertimeMinutes || 0
+    },
+    {
+      key: 'totalLembur',
+      label: 'Tot',
+      title: 'Total lembur manual + otomatis (menit)',
+      get: (employeeId, list) => (Number(autoOt[employeeId]?.totalOvertimeMinutes) || 0)
+        + list.reduce((sum, r) => sum + (r.overtimeMinutes || 0), 0)
+    }
+  ];
 }
 
-export default function LaporanAbsensiPage() {
-  const [startDate, setStartDate] = useState(todayId());
-  const [endDate, setEndDate] = useState(todayId());
+export default function LaporanAbsensiPage({ active, user }) {
+  const [period, setPeriod] = useState('bulan');           // 'bulan' | 'rentang'
+  const [month, setMonth] = useState(thisMonthWib);
+  const [startDate, setStartDate] = useState(todayWib);
+  const [endDate, setEndDate] = useState(todayWib);
   const [outletFilter, setOutletFilter] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [summary, setSummary] = useState(null);
+  const [employees, setEmployees] = useState([]);
+  const [records, setRecords] = useState([]);
+  const [autoOt, setAutoOt] = useState({});
+  const [downloading, setDownloading] = useState(false);
 
-  async function handleLoad() {
-    setLoading(true);
+  useEffect(() => {
+    if (!active) return undefined;
+    const unsub = listenAllTherapists(setEmployees);
+    return () => unsub();
+  }, [active]);
+
+  const days = useMemo(
+    () => (period === 'bulan' ? daysOfMonth(month) : daysOfRange(startDate, endDate)),
+    [period, month, startDate, endDate]
+  );
+  const first = days[0]?.date || '';
+  const last = days[days.length - 1]?.date || '';
+
+  const loadAutoOvertime = useCallback(async (from, to) => {
+    if (!from || !to) return;
     try {
-      const records = await getAttendanceRange(startDate, endDate, outletFilter || undefined);
-      const summary = summarizeAttendance(records);
+      setAutoOt(await getOvertimeByEmployee(from, to));
+    } catch (e) {
+      console.warn('lembur otomatis gagal dimuat', e);
+      setAutoOt({});
+    }
+  }, []);
 
-      // Gabungkan overtime OTOMATIS (dari data booking) per karyawan
-      try {
-        const autoOt = await getOvertimeByEmployee(startDate, endDate);
-        Object.values(summary).forEach((s) => {
-          const a = autoOt[s.employeeId];
-          if (a) {
-            s.autoOvertimeMinutes = a.totalOvertimeMinutes;
-            s.autoOvertimeDays = a.daysCount;
-          }
-        });
-        // Karyawan yang hanya lembur otomatis (tanpa catatan absensi manual)
-        if (outletFilter === '') {
-          Object.entries(autoOt).forEach(([empId, a]) => {
-            if (!summary[empId]) {
-              summary[empId] = {
-                employeeId: empId, employeeName: a.employeeName,
-                hadir: 0, sakit: 0, izin: 0, telat: 0, alpha: 0, lembur: 0,
-                overtimeMinutes: 0, autoOvertimeMinutes: a.totalOvertimeMinutes, autoOvertimeDays: a.daysCount
-              };
-            }
-          });
-        }
-      } catch (e) {
-        console.warn('auto OT gagal dimuat', e);
-      }
+  useEffect(() => {
+    if (active) loadAutoOvertime(first, last);
+  }, [active, first, last, loadAutoOvertime]);
 
-      setSummary(summary);
+  // Dipakai grid: begitu data tabel termuat, simpan di sini untuk ringkasan
+  // dan export Excel.
+  const handleRecordsLoaded = useCallback((rows) => { setRecords(rows); }, []);
+
+  // Kolom rekap membaca autoOt, jadi daftar kolomnya dibuat ulang tiap
+  // angka lembur otomatis berubah.
+  const recapCols = useMemo(() => makeRecapColumns(autoOt), [autoOt]);
+
+  const summary = useMemo(() => summarizeAttendance(records), [records]);
+
+  async function handleDownload() {
+    const values = Object.values(summary);
+    const headers = [
+      'Nama Karyawan', 'Hadir', 'Sakit', 'Izin', 'Telat', 'Alpha', 'Lembur (hari)',
+      'Menit telat', 'Lembur Absensi (menit)', 'Lembur Otomatis (menit)', 'Total Lembur (menit)'
+    ];
+    const rows = values.map((s) => [
+      s.employeeName,
+      s.hadir + (s.telat || 0),
+      s.sakit, s.izin, s.telat, s.alpha, s.lembur,
+      s.lateMinutes || 0,
+      s.overtimeMinutes || 0,
+      autoOt[s.employeeId]?.totalOvertimeMinutes || 0,
+      (s.overtimeMinutes || 0) + (autoOt[s.employeeId]?.totalOvertimeMinutes || 0)
+    ]);
+    if (rows.length) {
+      rows.push([
+        'TOTAL', '', '', '', '', '', '', '', '', '', rows.reduce((sum, r) => sum + Number(r[10] || 0), 0)
+      ]);
+    }
+    const outletLabel = outletFilter ? (OUTLETS.find((o) => o.id === outletFilter)?.name || outletFilter) : 'Semua Outlet';
+    const rangeLabel = first === last ? first : `${first} s/d ${last}`;
+    setDownloading(true);
+    try {
+      await exportExcelReport({
+        filename: `Laporan-Absensi-${outletLabel}-${first}_${last}`,
+        title: 'Laporan Absensi — Dayang Spa',
+        subtitle: `${outletLabel} · ${rangeLabel}`,
+        headers,
+        rows,
+        totalRowIndex: rows.length - 1,
+        note: 'H = hadir, T = telat, S = sakit, I = izin, A = alpha, OFF = libur. '
+          + 'Angka setelah H/T = menit telat, /.. = jam pulang, +.. = menit lembur dari input absensi. '
+          + 'Lm = total menit lembur absensi, Lo = total menit lembur otomatis dari booking, Tot = Lm + Lo.'
+      });
+    } catch (e) {
+      alert('Gagal membuat file Excel: ' + e.message);
     } finally {
-      setLoading(false);
+      setDownloading(false);
     }
   }
 
-  async function handleDownload() {
-    const headers = ['Nama Karyawan', 'Hadir', 'Sakit', 'Izin', 'Telat', 'Alpha', 'Lembur', 'Menit Lembur Manual', 'Lembur Otomatis (Menit)', 'Total Lembur (Menit)'];
-    const rows = Object.values(summary).map((s) => [
-      s.employeeName, s.hadir, s.sakit, s.izin, s.telat, s.alpha, s.lembur,
-      s.overtimeMinutes, s.autoOvertimeMinutes || 0, (s.overtimeMinutes || 0) + (s.autoOvertimeMinutes || 0)
-    ]);
-    const outletLabel = outletFilter ? OUTLETS.find((o) => o.id === outletFilter)?.name : 'Semua Outlet';
-    await exportExcelReport({
-      filename: `Laporan-Absensi-${outletLabel}-${startDate}_${endDate}`,
-      title: 'Laporan Absensi — Dayang Spa',
-      subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
-      headers, rows
-    });
-  }
+  const rangeTooLong = days.length > 62;
+  const periodLabel = period === 'bulan' ? month : (first === last ? first : `${first} s/d ${last}`);
 
   return (
     <div className="kasir-page">
       <h2>Laporan Absensi</h2>
-      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: -8, marginBottom: 16 }}>
-        Otomatis terbaru — muncul begitu absensi diinput di tab Absensi
-      </p>
 
-      <section>
-        <p>Rentang tanggal</p>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ flex: 1 }} />
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={{ flex: 1 }} />
-        </div>
-      </section>
+      <div className="att-tabs">
+        <button type="button" className={period === 'bulan' ? 'active' : ''} onClick={() => setPeriod('bulan')}>
+          Bulanan
+        </button>
+        <button type="button" className={period === 'rentang' ? 'active' : ''} onClick={() => setPeriod('rentang')}>
+          Rentang tanggal
+        </button>
+      </div>
 
-      <section>
-        <p>Outlet</p>
-        <select
-          value={outletFilter}
-          onChange={(e) => setOutletFilter(e.target.value)}
-          style={{ width: '100%', padding: 11, marginBottom: 12, borderRadius: 8, border: '1px solid var(--border)' }}
-        >
-          <option value="">Semua outlet</option>
-          {OUTLETS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-        </select>
-      </section>
-
-      <button onClick={handleLoad} disabled={loading}>
-        {loading ? 'Memuat...' : 'Tampilkan laporan'}
-      </button>
-
-      {summary && (
-        <section style={{ marginTop: 16 }}>
-          {Object.keys(summary).length === 0 && (
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Tidak ada data absensi di rentang ini.</p>
-          )}
-          {Object.keys(summary).length > 0 && (
-            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', marginBottom: 10 }} onClick={handleDownload}>
-              ⬇ Download Excel
-            </button>
-          )}
-          {Object.values(summary).map((s, i) => (
-            <div key={i} className="oil-card" style={{ marginBottom: 8, textAlign: 'left' }}>
-              <strong style={{ fontSize: 14 }}>{s.employeeName}</strong>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
-                Hadir: {s.hadir} · Sakit: {s.sakit} · Izin: {s.izin} · Telat: {s.telat} · Alpha: {s.alpha} · Lembur: {s.lembur}
-                {(s.overtimeMinutes || 0) > 0 && ` (${s.overtimeMinutes} menit)`}
-              </div>
-              {(s.autoOvertimeMinutes || 0) > 0 && (
-                <div style={{ fontSize: 12, color: 'var(--busy)', marginTop: 2 }}>
-                  Lembur otomatis (dari booking): {s.autoOvertimeMinutes} menit
-                  {s.autoOvertimeDays ? ` (${s.autoOvertimeDays} hari)` : ''}
-                </div>
-              )}
-              {(s.overtimeMinutes || 0) + (s.autoOvertimeMinutes || 0) > 0 && (
-                <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>
-                  Total lembur: {(s.overtimeMinutes || 0) + (s.autoOvertimeMinutes || 0)} menit
-                </div>
-              )}
-            </div>
-          ))}
-        </section>
+      {rangeTooLong && (
+        <p className="message warn">
+          Periode ini {days.length} hari — tabelnya jadi sangat lebar. Batasi rentang sekitar 2 bulan agar mudah dibaca.
+        </p>
       )}
+
+      <AbsensiGrid
+        active={active}
+        employees={employees}
+        outletFilter={outletFilter}
+        onOutletChange={setOutletFilter}
+        user={user}
+        days={days}
+        first={first}
+        last={last}
+        recapColumns={recapCols}
+        recapContext={autoOt}
+        showTotals
+        onRecordsLoaded={handleRecordsLoaded}
+        controls={period === 'bulan' ? (
+          <label>
+            Bulan
+            <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+          </label>
+        ) : (
+          <>
+            <label>
+              Dari
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </label>
+            <label>
+              Sampai
+              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </label>
+          </>
+        )}
+        actions={(
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={downloading || records.length === 0}
+          >
+            {downloading ? 'Menyiapkan...' : `⬇ Download Excel (${records.length} baris)`}
+          </button>
+        )}
+        hint={(
+          <>
+            Periode <strong>{periodLabel}</strong> · {days.length} hari · {employees.length} karyawan.
+            Klik sel untuk mengisi atau mengoreksi — datanya sama dengan halaman Absensi.
+            <strong>H</strong> hadir, <strong>T</strong> telat, <strong>S</strong> sakit,
+            <strong> I</strong> izin, <strong>A</strong> alpha, <strong>OFF</strong> libur.
+            Angka setelah <strong>H/T</strong> = menit telat, <span className="out">/..</span> jam pulang,
+            <span className="ot">+..</span> menit lembur. Kolom rekap dan baris <strong>TOTAL</strong> dihitung otomatis.
+          </>
+        )}
+      />
     </div>
   );
 }
