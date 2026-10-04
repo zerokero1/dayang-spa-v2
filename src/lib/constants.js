@@ -14,7 +14,7 @@ export const OIL_SIZES = ['Kecil', 'Besar']; // Kecil = 10ml, Besar = 30ml
 
 export const FOOT_PRODUCTS = ['Foot Cream', 'FM'];
 
-// Happy Hour BUKAN kategori. Lihat HAPPY_HOUR_MINUTES di bawah.
+// Happy Hour bukan kategori. Lihat blok aturan Happy Hour di bawah.
 export const TREATMENT_CATEGORIES = ['Massage', 'Nail', 'Body Care', 'Waxing', 'Hair Treatment'];
 
 /** Apakah treatment ini Foot Massage (pakai produk Foot Cream / FM)? */
@@ -26,18 +26,25 @@ export function isFootMassage(t) {
 // ---------------------------------------------------------------------------
 // Happy Hour
 //
-// Happy Hour BUKAN kategori treatment. Aturannya murni dari DURASI:
-// hanya treatment 90 menit yang bisa ikut Happy Hour. Treatment Selain itu
-// (mis. 30 / 45 / 60 menit) tidak dapat diskon Happy Hour sama sekali.
+// Happy Hour BUKAN kategori treatment. Sebuah treatment hanya ikut Happy Hour
+// kalau DUA syarat ini sama-sama terpenuhi:
 //
-// Harga: jam 11:00 - 14:59 -> Rp 250.000 (flat, bukan persen).
-// Di luar jam itu, semua treatment kembali ke harga daftar.
-// Treatment non-90 menit tetap dapat "harga spesial" 10% saat jam yang sama —
-// itu diskon lain, bukan Happy Hour.
+//   1. durasinya 90 menit, dan
+//   2. harga dafarnya Rp 300.000
+//
+// Jadi treatment 90 menit yang harganya beda (Hot Stone & Herbal Compress
+// Rp 400.000, Fake Nail & Dinfill BIAB Rp 280.000) TIDAK ikut Happy Hour.
+// Treatment 30 / 45 / 60 menit juga tidak ikut.
+//
+// Harga Happy Hour: jam 11:00 - 14:59 -> Rp 250.000 (flat, bukan persen).
+// Di luar jam itu semua treatment kembali ke harga daftar.
+// Treatment yang tidak ikut Happy Hour tetap dapat "harga spesial" 10% di jam
+// yang sama — itu diskon lain, bukan Happy Hour.
 // ---------------------------------------------------------------------------
 export const HAPPY_HOUR_START_MIN = 11 * 60;
 export const HAPPY_HOUR_END_MIN = 15 * 60; // exclusive: 14:59 masih Happy Hour
 export const HAPPY_HOUR_MINUTES = 90;
+export const HAPPY_HOUR_BASE_PRICE = 300000;
 export const HAPPY_HOUR_PRICE = 250000;
 export const SPECIAL_TIME_DISCOUNT_PCT = 10;
 export const HAPPY_HOUR_REASON = 'Happy Hour - 90 Menit Rp 250.000 (11:00 - 14:59)';
@@ -48,10 +55,11 @@ export function isHappyHourTime(date = new Date()) {
   return t >= HAPPY_HOUR_START_MIN && t < HAPPY_HOUR_END_MIN;
 }
 
-/** Satu-satunya syarat Happy Hour: durasi treatment 90 menit. */
+/** Dua syarat Happy Hour: durasi 90 menit DAN harga daftar Rp 300.000. */
 export function isHappyHourTreatment(t) {
   if (!t) return false;
-  return Number(t.durationMinutes) === HAPPY_HOUR_MINUTES;
+  return Number(t.durationMinutes) === HAPPY_HOUR_MINUTES
+    && Number(t.price) === HAPPY_HOUR_BASE_PRICE;
 }
 
 /** Harga Happy Hour untuk treatment ini, atau null kalau tidak berlaku. */

@@ -207,8 +207,8 @@ function addLine(t, tera, opts = {}) {
   }
 
   // Harga saat jam khusus 11:00 - 14:59.
-  // Happy Hour: hanya treatment 90 menit -> Rp 250.000.
-  // Di luar 90 menit: tetap dapat harga spesial 10%, bukan Happy Hour.
+  // Happy Hour: hanya 90 menit DENGAN harga daftar Rp 300.000 -> Rp 250.000.
+  // Selain itu: tidak ikut Happy Hour, tetap dapat harga spesial 10%.
   function getSpecialDiscountPct(treatment) {
     if (!isHappyHourTime()) return 0;
     if (isHappyHourTreatment(treatment)) return null; // harga flat, bukan persen
