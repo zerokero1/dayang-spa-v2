@@ -207,8 +207,9 @@ function addLine(t, tera, opts = {}) {
   }
 
   // Harga saat jam khusus 11:00 - 14:59.
-  // Happy Hour: hanya 90 menit DENGAN harga daftar Rp 300.000 -> Rp 250.000.
-  // Selain itu: tidak ikut Happy Hour, tetap dapat harga spesial 10%.
+  // Happy Hour: hanya Massage 90 menit DENGAN harga daftar Rp 300.000 ->
+  // Rp 250.000. Nail (Manicure/Pedicure) & treatment non-90 menit tidak ikut.
+  // Selain itu: tetap dapat harga spesial 10%.
   function getSpecialDiscountPct(treatment) {
     if (!isHappyHourTime()) return 0;
     if (isHappyHourTreatment(treatment)) return null; // harga flat, bukan persen

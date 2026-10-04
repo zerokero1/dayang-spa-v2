@@ -27,14 +27,21 @@ export function isFootMassage(t) {
 // Happy Hour
 //
 // Happy Hour BUKAN kategori treatment. Sebuah treatment hanya ikut Happy Hour
-// kalau DUA syarat ini sama-sama terpenuhi:
+// kalau TIGA syarat ini sama-sama terpenuhi:
 //
-//   1. durasinya 90 menit, dan
-//   2. harga dafarnya Rp 300.000
+//   1. kategorinya Massage,
+//   2. durasinya 90 menit, dan
+//   3. harga dafarnya Rp 300.000
 //
-// Jadi treatment 90 menit yang harganya beda (Hot Stone & Herbal Compress
-// Rp 400.000, Fake Nail & Dinfill BIAB Rp 280.000) TIDAK ikut Happy Hour.
-// Treatment 30 / 45 / 60 menit juga tidak ikut.
+// Syarat kategori itu penting: Manicure / Pedicure / Fake Nail / Dinfill BIAB
+// (semua kategori Nail) TIDAK BOLEH ikut Happy Hour dalam keadaan apa pun,
+// walau suatu saat ada treatment 90 menit berharga Rp 300.000 di kategori
+// Nail. Enjoy hour juga tidak berlaku di Waxing / Body Care / Hair Treatment.
+//
+//   - treatment 90 menit yang harganya beda (Hot Stone & Herbal Compress
+//     Rp 400.000, Fake Nail & Dinfill BIAB Rp 280.000)
+//   - semua treatment non-Massage (Nail, Waxing, Body Care, Hair Treatment)
+//   - semua treatment 30 / 45 / 60 menit
 //
 // Harga Happy Hour: jam 11:00 - 14:59 -> Rp 250.000 (flat, bukan persen).
 // Di luar jam itu semua treatment kembali ke harga daftar.
@@ -46,6 +53,7 @@ export const HAPPY_HOUR_END_MIN = 15 * 60; // exclusive: 14:59 masih Happy Hour
 export const HAPPY_HOUR_MINUTES = 90;
 export const HAPPY_HOUR_BASE_PRICE = 300000;
 export const HAPPY_HOUR_PRICE = 250000;
+export const HAPPY_HOUR_CATEGORIES = ['Massage'];
 export const SPECIAL_TIME_DISCOUNT_PCT = 10;
 export const HAPPY_HOUR_REASON = 'Happy Hour - 90 Menit Rp 250.000 (11:00 - 14:59)';
 
@@ -55,10 +63,11 @@ export function isHappyHourTime(date = new Date()) {
   return t >= HAPPY_HOUR_START_MIN && t < HAPPY_HOUR_END_MIN;
 }
 
-/** Dua syarat Happy Hour: durasi 90 menit DAN harga daftar Rp 300.000. */
+/** Tiga syarat Happy Hour: kategori Massage + 90 menit + harga Rp 300.000. */
 export function isHappyHourTreatment(t) {
   if (!t) return false;
-  return Number(t.durationMinutes) === HAPPY_HOUR_MINUTES
+  return HAPPY_HOUR_CATEGORIES.includes(t.category)
+    && Number(t.durationMinutes) === HAPPY_HOUR_MINUTES
     && Number(t.price) === HAPPY_HOUR_BASE_PRICE;
 }
 
