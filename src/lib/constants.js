@@ -72,15 +72,23 @@ export const HAPPY_HOUR_PRICE = 250000;
 export const HAPPY_HOUR_TIMEZONE = 'Asia/Jakarta'; // WIB, sama dengan reportBookService
 export const HAPPY_HOUR_REASON = 'Happy Hour (11:00 - 14:59)';
 
-// Nama treatment yang boleh Happy Hour. Sengaja ditulis sebagai nama yang
-// ditulisi persis seperti di katalog supaya mudah dicek/diubah.
+// Nama treatment yang boleh Happy Hour, harga jadi Rp 250.000. Sengaja ditulis
+// sebagai nama yang ditulisi persis seperti di katalog supaya mudah dicek/diubah.
+//
+// Daftar ini = 7 dari 11 treatment 90 menit yang ada di katalog, yaitu semua
+// Massage 90 menit berharga Rp 300.000. Yang 4 di luar sengaja TIDAK ikut:
+//   - Dinfill BIAB (Full)          Nail     Rp 280.000
+//   - Fake Nail (Full)             Nail     Rp 280.000
+//   - Herbal Compress (90 Min)     Massage  Rp 400.000
+//   - Hot Stone (90 Min)           Massage  Rp 400.000
 export const HAPPY_HOUR_TREATMENTS = [
   'Lombok Massage (90 Min)',
   'Balinese Massage (90 Min)',
   'Deep Tissue Massage (90 Min)',
   'Thai Massage (90 Min)',
   'Stress Relieving Massage (90 Min)',
-  'Aloevera Massage (90 Min)'
+  'Aloevera Massage (90 Min)',
+  'After Surf Massage (90 Min)'
 ];
 
 /**
