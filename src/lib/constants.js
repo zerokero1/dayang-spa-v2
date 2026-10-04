@@ -62,14 +62,18 @@ export function isFootMassage(t) {
 // tetap harus dipilih kasir secara manual dengan alasan (chip 5/10/15/20% atau
 // menu diskon di Koreksi Booking).
 //
-// Jam memakai WIB (UTC+7) yang sama dengan seluruh laporan — bukan jam lokal
-// perangkat. Kalau memakai jam perangkat, tablet yang zona waktunya keliru akan
+// Jam memakai WITA (UTC+8) = jam lokal Lombok, sesuai yang diminta owner.
+// PENTING: ini berbeda dari zona waktu yang dipakai sebagian besar laporan
+// (laporan masih WIB/UTC+7). Owner sudah ditanya dan memilih jam lokal Lombok
+// untuk Happy Hour.
+// Kalau memakai jam perangkat, tablet yang zona waktunya keliru akan
 // membuka/menutup Happy Hour di jam yang salah.
 // ---------------------------------------------------------------------------
 export const HAPPY_HOUR_START_MIN = 11 * 60;
 export const HAPPY_HOUR_END_MIN = 15 * 60; // exclusive: 14:59 masih Happy Hour
 export const HAPPY_HOUR_PRICE = 250000;
-export const HAPPY_HOUR_TIMEZONE = 'Asia/Jakarta'; // WIB, sama dengan reportBookService
+export const HAPPY_HOUR_TIMEZONE = 'Asia/Makassar'; // WITA (UTC+8) = jam lokal Lombok
+export const HAPPY_HOUR_UTC_OFFSET_MIN = 8 * 60;
 export const HAPPY_HOUR_REASON = 'Happy Hour (11:00 - 14:59)';
 
 // Nama treatment yang boleh Happy Hour, harga jadi Rp 250.000. Sengaja ditulis
@@ -115,15 +119,18 @@ const HAPPY_HOUR_KEYS = HAPPY_HOUR_TREATMENTS.map(happyHourKey);
 const HAPPY_HOUR_KEYS_TAN_DURASI = HAPPY_HOUR_TREATMENTS.map(happyHourKeyTanDurasi);
 
 /**
- * Apakah `date` sudah masuk jam Happy Hour (11:00 - 14:59) menurut WIB?
- * `date` boleh Date atau angka epoch ms.
+ * Apakah `date` sudah masuk jam Happy Hour (11:00 - 14:59) menurut WITA
+ * (UTC+8) = jam lokal Lombok? `date` boleh Date atau angka epoch ms.
+ *
+ * Sengaja tidak memakai jam perangkat: tablet kasir bisa salah zona waktu,
+ * sehingga Happy Hour akan buka/tutup di jam yang keliru.
  */
 export function isHappyHourTime(date = new Date()) {
   const d = date instanceof Date ? date : new Date(date);
   if (Number.isNaN(d.getTime())) return false;
-  // Ambil jam-menit di WIB tanpa bergantung pada zona waktu perangkat.
-  const wib = new Date(d.getTime() + (7 * 60 + d.getTimezoneOffset()) * 60000);
-  const t = wib.getHours() * 60 + wib.getMinutes();
+  // Geser ke WITA lalu ambil jam-menitnya.
+  const wita = new Date(d.getTime() + (HAPPY_HOUR_UTC_OFFSET_MIN + d.getTimezoneOffset()) * 60000);
+  const t = wita.getHours() * 60 + wita.getMinutes();
   return t >= HAPPY_HOUR_START_MIN && t < HAPPY_HOUR_END_MIN;
 }
 

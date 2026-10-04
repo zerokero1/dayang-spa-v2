@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, PAYMENT_METHODS, PAYMENT_METHOD_LABEL,
   treatmentUsesOil, oilChoicesFor,
-  HAPPY_HOUR_PRICE, HAPPY_HOUR_REASON,
+  HAPPY_HOUR_PRICE, HAPPY_HOUR_REASON, HAPPY_HOUR_TIMEZONE,
   isHappyHourTime, isHappyHourTreatment
 } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
@@ -136,7 +136,13 @@ export default function KasirPage({ outletId, active }) {
     return { ...line, start, end };
   });
 
-  const fmtTime = (d) => d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  // Jam ditampilkan dalam WITA (UTC+8) = jam lokal Lombok, sama dengan zona
+  // waktu Happy Hour. Sebelumnya memakai jam perangkat tanpa timeZone eksplisit
+  // tapi labelnya "WIB", jadi di tablet yang zona waktunya keliru jam yang
+  // tampil tidak cocok dengan jendela Happy Hour. Sekarang keduanya WITA.
+  const fmtTime = (d) => new Intl.DateTimeFormat('id-ID', {
+    hour: '2-digit', minute: '2-digit', timeZone: HAPPY_HOUR_TIMEZONE
+  }).format(d);
 
   function usesOil(treatment) {
     return treatmentUsesOil(treatment);
@@ -474,7 +480,7 @@ function addLine(t, tera, opts = {}) {
                   {line.therapist.name}{line.oil ? ` · ${line.oil} (${line.size})` : (line.noOil ? ' · tanpa minyak' : '')}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--primary)', marginTop: 2 }}>
-                  {fmtTime(line.start)} – {fmtTime(line.end)} WIB ({line.treatment.durationMinutes || 0} mnt)
+                  {fmtTime(line.start)} – {fmtTime(line.end)} WITA ({line.treatment.durationMinutes || 0} mnt)
                 </div>
                 {line.happyHour ? (
                   <div style={{ fontSize: 11, color: 'var(--primary)', marginTop: 6 }}>
