@@ -236,3 +236,155 @@ export async function exportExcelWorkbook({ filename, sheets = [] }) {
   const buffer = await workbook.xlsx.writeBuffer();
   triggerDownload(buffer, filename);
 }
+
+/**
+ * Export LAPORAN PRODUK — mengikuti template tabel (bukan format laporan
+ * standar): dua blok tabel dalam satu worksheet, dan header DUA BARIS
+ * yang di-merge per grup tanggal.
+ *
+ * Bentuk header di sini:
+ *   - kolom pertama menara dua baris (mis. "No" dan "Produk Treatment")
+ *   - setiap grup tanggal = satu baris tanggal ter-merge sepanjang 4 kolom,
+ *     dengan baris kedua berisi Stock / In / Out / Sisa
+ *
+ * Format `exportExcelReport` sengaja tidak diubah sama sekali supaya
+ * laporan lain (dan test-nya) tidak terpengaruh.
+ *
+ * @param {string} filename - nama file (tanpa .xlsx)
+ * @param {string} title - judul laporan di baris paling atas
+ * @param {string} subtitle - sub-judul (mis. outlet + rentang tanggal)
+ * @param {string[]} dates - label grup tanggal, mis. ['02 Okt', ...]
+ * @param {Array<{title:string, note?:string, rows:Array<Array>}>} blocks
+ *        `rows` sudah termasuk kolom No + nama di depan, lalu 4 angka
+ *        per tanggal. Nilai null ditulis sebagai teks "–".
+ * @param {string} note - catatan kaki di bawah seluruh tabel (opsional)
+ */
+export async function exportStockLedger({
+  filename, title, subtitle, dates, blocks = [], sheetName, note
+}) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Dayang Spa';
+
+  const sheet = workbook.addWorksheet(safeSheetName(sheetName, 'Laporan Produk'));
+  const subHeaders = ['Stock', 'In', 'Out', 'Sisa'];
+  // kolom 1 = No, kolom 2 = nama produk, lalu 4 kolom per tanggal
+  const colCount = 2 + dates.length * subHeaders.length;
+  const cur = () => sheet.rowCount + 1;
+
+  const putMerged = (row, from, to, value, style) => {
+    sheet.mergeCells(row, from, row, to);
+    const c = sheet.getCell(row, from);
+    c.value = value;
+    if (style) Object.assign(c, style);
+    return c;
+  };
+
+  const putMergedTitle = (value, style) =>
+    putMerged(cur(), 1, colCount, value, style);
+
+  putMergedTitle(title || '', {
+    font: { bold: true, size: 14, color: { argb: BRAND } },
+    alignment: { horizontal: 'center' }
+  });
+
+  if (subtitle) {
+    putMergedTitle(subtitle, {
+      font: { italic: true, size: 10, color: { argb: MUTED } },
+      alignment: { horizontal: 'center' }
+    });
+  }
+
+  let firstHeaderRow = null;
+
+  blocks.forEach((block, blockIdx) => {
+    if (blockIdx > 0) sheet.getRow(cur()).height = 8; // baris kosong pemisah
+
+    if (block.title) {
+      putMergedTitle(block.title, {
+        font: { bold: true, size: 11, color: { argb: BRAND } },
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_LIGHT } },
+        alignment: { horizontal: 'left', vertical: 'middle' }
+      });
+    }
+
+    // Baris 1 header: kolom menara dua baris + grup tanggal ter-merge.
+    const h1 = cur();
+    if (firstHeaderRow === null) firstHeaderRow = h1;
+    dates.forEach((d, i) => {
+      putMerged(h1, 3 + i * 4, 6 + i * 4, d, {
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      });
+    });
+
+    // Baris 2 header: Stock / In / Out / Sisa per tanggal.
+    const h2 = cur();
+    dates.forEach((_, i) => {
+      subHeaders.forEach((s, j) => {
+        sheet.getCell(h2, 3 + i * 4 + j).value = s;
+      });
+    });
+
+    // No + Produk Treatment diturunkan sampai baris sub-judul (rowSpan 2).
+    // Baris 2 harus dibuat dulu, baru di-merge — jangan mergeCells(a, a)
+    // karena itu bikin ExcelJS menolak merge yang sebenarnya.
+    sheet.getCell(h1, 1).value = 'No';
+    sheet.getCell(h1, 2).value = 'Produk Treatment';
+    sheet.mergeCells(h1, 1, h2, 1);
+    sheet.mergeCells(h1, 2, h2, 2);
+
+    [h1, h2].forEach((r) => {
+      const row = sheet.getRow(r);
+      row.height = 20;
+      for (let c = 1; c <= colCount; c++) {
+        const cell = row.getCell(c);
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = thinBorder;
+      }
+    });
+
+    block.rows.forEach((values) => {
+      // null = belum ada catatan, bukan nol. Di Excel ditulis "–" supaya
+      // tidak salah dibaca sebagai "tidak ada barang keluar".
+      const row = sheet.addRow(values.map((v, i) => (
+        i >= 2 && (v === null || v === undefined) ? '–' : v
+      )));
+      row.eachCell((cell, colNumber) => {
+        cell.border = thinBorder;
+        if (colNumber <= 2) {
+          cell.alignment = { horizontal: colNumber === 1 ? 'center' : 'left' };
+          return;
+        }
+        cell.alignment = { horizontal: 'right' };
+        if (typeof cell.value === 'number') cell.numFmt = '#,##0';
+      });
+    });
+
+    if (block.note) {
+      sheet.getRow(cur()); // baris kosong pemisah
+      putMergedTitle(block.note, {
+        font: { italic: true, size: 9, color: { argb: MUTED } },
+        alignment: { horizontal: 'left', vertical: 'top', wrapText: true }
+      });
+    }
+  });
+
+  if (note) {
+    sheet.getRow(cur());
+    putMergedTitle(note, {
+      font: { italic: true, size: 9, color: { argb: MUTED } },
+      alignment: { horizontal: 'left', vertical: 'top', wrapText: true }
+    });
+  }
+
+  sheet.getColumn(1).width = 6;
+  sheet.getColumn(2).width = 30;
+  for (let c = 3; c <= colCount; c++) sheet.getColumn(c).width = 9;
+  if (firstHeaderRow !== null) {
+    sheet.views = [{ state: 'frozen', xSplit: 2, ySplit: firstHeaderRow }];
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  triggerDownload(buffer, filename);
+}

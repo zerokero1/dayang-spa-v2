@@ -1,4 +1,12 @@
 import { supabase } from './supabase';
+import {
+  buildItemLedgerDays,
+  buildOilLedgerDays,
+  eachDayCount,
+  firstLogDay,
+  rangeIso,
+  wibDate
+} from './stokLedger';
 
 function dayStrUtc(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -17,137 +25,104 @@ function eachDay(startDate, endDate) {
   return days;
 }
 
-// Konversi created_at (UTC) ke tanggal LOKAL WIB (YYYY-MM-DD)
-function wibDate(iso) {
-  return new Date(new Date(iso).getTime() + 7 * 3600000).toISOString().slice(0, 10);
-}
+// ============================================================
+// BUKU STOK PER HARI — dipakai Laporan Produk
+// ------------------------------------------------------------
+// Matematika rantainya ada di stokLedger.js (murni, bisa diuji).
+// File ini hanya ambil datanya lalu meneruskannya.
+// ============================================================
 
-// Pemakaian MINYAK per hari = jumlah booking non-batal yang memakai minyak.
-// Stok awal/akhir dihitung mundur dari stok terbaru (estimasi: pengisian stok
-// minyak manual tidak tercatat secara historis).
-export async function getOilStockUsage(outletId, startDate, endDate) {
-  const from = dayStrUtc(startDate);
-  const to = dayStrUtc(endDate) + 24 * 3600000 - 1;
+/**
+ * Buku stok MINYAK per hari.
+ *
+ * Rantainya diturunkan mundur dari oil_inventory.stock, jadi Sisa hari
+ * terakhir selalu sama dengan angka stok yang tampil di halaman Inventori.
+ * oil_inventory_logs dipakai untuk In/Out tiap hari; trigger
+ * trg_oil_inventory_logs mencatat setiap perubahan stok, jadi rantai ini
+ * lengkap. Hari sebelum pencatatan pertama dikosongkan.
+ */
+export async function getOilLedger(outletId, startDate, dayCount = 7) {
+  const days = eachDayCount(startDate, dayCount);
+  const { fromIso, toIso } = rangeIso(startDate, days);
 
-  const [{ data: stockRows }, { data: bookingRows }] = await Promise.all([
+  const [stockRes, logRes] = await Promise.all([
     supabase.from('oil_inventory').select('oil_type, size, stock').eq('outlet_id', outletId),
     supabase
-      .from('bookings')
-      .select('oil_type, oil_size, created_at')
+      .from('oil_inventory_logs')
+      .select('oil_type, size, type, qty, created_at')
       .eq('outlet_id', outletId)
-      .eq('uses_oil', true)
-      .neq('status', 'batal')
-      .gte('created_at', new Date(from).toISOString())
-      .lte('created_at', new Date(to).toISOString())
+      .gte('created_at', fromIso)
+      .lte('created_at', toIso)
   ]);
 
-  const current = {};
-  (stockRows || []).forEach((r) => {
-    current[`${r.oil_type}_${r.size}`] = { oilType: r.oil_type, size: r.size, stock: r.stock || 0 };
-  });
+  const variants = (stockRes.data || []).map((r) => ({
+    oilType: r.oil_type,
+    size: r.size,
+    stock: Number(r.stock) || 0
+  }));
 
-  const usage = {};
-  (bookingRows || []).forEach((r) => {
-    if (!r.oil_type) return;
-    const d = wibDate(r.created_at);
-    const key = `${r.oil_type}_${r.oil_size}`;
-    usage[d] = usage[d] || {};
-    usage[d][key] = (usage[d][key] || 0) + 1;
-  });
-
-  const days = eachDay(startDate, endDate);
-  const keys = Object.keys(current);
-  const rows = [];
-  let closing = {};
-  keys.forEach((k) => { closing[k] = current[k].stock; });
-
-  for (let i = days.length - 1; i >= 0; i--) {
-    const d = days[i];
-    const open = {};
-    keys.forEach((k) => {
-      open[k] = closing[k] + (usage[d]?.[k] || 0);
-    });
-    keys.forEach((k) => {
-      rows.push({
-        date: d,
-        oilType: current[k].oilType,
-        size: current[k].size,
-        stockAwal: open[k],
-        used: usage[d]?.[k] || 0,
-        stockAkhir: closing[k]
-      });
-      closing[k] -= usage[d]?.[k] || 0;
-    });
-  }
-
-  rows.sort((a, b) => (a.date === b.date ? (a.oilType + a.size).localeCompare(b.oilType + b.size) : a.date > b.date ? 1 : -1));
+  const logs = (logRes.data || []).map((r) => ({
+    key: r.oil_type, sub: r.size, type: r.type, qty: r.qty, created_at: r.created_at
+  }));
+  const coverageFrom = firstLogDay(logs);
 
   return {
-    rows,
-    current: Object.values(current),
-    estimated: true
+    days,
+    rows: buildOilLedgerDays({ days, variants, coverageFrom, logs }),
+    variants: variants.sort(
+      (a, b) => a.oilType.localeCompare(b.oilType) || a.size.localeCompare(b.size)
+    ),
+    coverageFrom
   };
 }
 
-// Pemakaian BARANG LAIN per hari dari inventory_logs (keluar/masuk).
-// Stok awal/akhir akurat karena dihitung mundur dari stok terbaru + delta log.
-export async function getItemStockUsage(outletId, startDate, endDate) {
-  const from = dayStrUtc(startDate);
-  const to = dayStrUtc(endDate) + 24 * 3600000 - 1;
+/**
+ * Buku stok BARANG (Produk + Laundry) per hari.
+ *
+ * inventory_logs tidak menyimpan stock_after, jadi rantainya diturunkan
+ * MUNDUR dari inventory.stock: sisa hari ini = stok sekarang, lalu
+ * stok awal = sisa - In + Out, dan seterusnya ke belakang.
+ */
+export async function getItemLedger(outletId, startDate, dayCount = 7) {
+  const days = eachDayCount(startDate, dayCount);
+  const { fromIso, toIso } = rangeIso(startDate, days);
 
-  const [{ data: itemRows }, { data: logRows }] = await Promise.all([
-    supabase.from('inventory').select('id, name, unit, stock').eq('outlet_id', outletId),
+  const [itemRes, logRes] = await Promise.all([
+    supabase.from('inventory').select('id, name, unit, stock, category').eq('outlet_id', outletId),
     supabase
       .from('inventory_logs')
       .select('item_id, type, qty, created_at')
       .eq('outlet_id', outletId)
-      .gte('created_at', new Date(from).toISOString())
-      .lte('created_at', new Date(to).toISOString())
+      .gte('created_at', fromIso)
+      .lte('created_at', toIso)
   ]);
 
-  const items = {};
-  (itemRows || []).forEach((r) => {
-    items[r.id] = { id: r.id, name: r.name, unit: r.unit, stock: r.stock || 0 };
-  });
+  const items = (itemRes.data || []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    unit: r.unit,
+    stock: Number(r.stock) || 0,
+    category: r.category || 'Produk'
+  }));
+  const byId = {};
+  items.forEach((it) => { byId[it.id] = it; });
 
-  const dayLog = {}; // date -> itemId -> { out, inn }
-  (logRows || []).forEach((r) => {
-    if (!items[r.item_id]) return;
-    const d = wibDate(r.created_at);
-    dayLog[d] = dayLog[d] || {};
-    dayLog[d][r.item_id] = dayLog[d][r.item_id] || { out: 0, inn: 0 };
-    const qty = Number(r.qty) || 0;
-    if (r.type === 'out') dayLog[d][r.item_id].out += qty;
-    else dayLog[d][r.item_id].inn += qty;
-  });
-
-  const days = eachDay(startDate, endDate);
-  const ids = Object.keys(items);
-  const rows = [];
-  let closing = {};
-  ids.forEach((id) => { closing[id] = items[id].stock; });
-
-  for (let i = days.length - 1; i >= 0; i--) {
-    const d = days[i];
-    ids.forEach((id) => {
-      const log = dayLog[d]?.[id] || { out: 0, inn: 0 };
-      const open = closing[id] + log.out - log.inn;
-      rows.push({
-        date: d,
-        name: items[id].name,
-        unit: items[id].unit,
-        stockAwal: open,
-        masuk: log.inn,
-        keluar: log.out,
-        stockAkhir: closing[id]
-      });
-      closing[id] = open; // stok awal hari ini = stok akhir kemarin
+  const logs = (logRes.data || [])
+    .filter((r) => byId[r.item_id])
+    .map((r) => {
+      const it = byId[r.item_id];
+      return { key: it.name, sub: it.unit, type: r.type, qty: r.qty, created_at: r.created_at };
     });
-  }
+  const coverageFrom = firstLogDay(logs);
 
-  rows.sort((a, b) => (a.date === b.date ? a.name.localeCompare(b.name) : a.date > b.date ? 1 : -1));
-
-  return { rows, current: Object.values(items) };
+  return {
+    days,
+    rows: buildItemLedgerDays({ days, items, coverageFrom, logs }),
+    items: items.sort(
+      (a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)
+    ),
+    coverageFrom
+  };
 }
 
 // ============================================================
