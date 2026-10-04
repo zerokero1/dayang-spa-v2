@@ -31,7 +31,7 @@ export function isFootMassage(t) {
 // ---------------------------------------------------------------------------
 // Happy Hour
 //
-// Happy Hour itu DAFTAR KUTUK, bukan aturan umum. Hanya enam menu di bawah
+// Happy Hour itu DAFTAR KUTUK, bukan aturan umum. Hanya tujuh menu di bawah
 // yang boleh jadi Happy Hour, tidak ada treatment lain:
 //
 //   1. Lombok Massage (90 Min)
@@ -56,7 +56,7 @@ export function isFootMassage(t) {
 //   - semua treatment Waxing / Body Care / Hair Treatment / Nail
 //
 // Harga Happy Hour: jam 11:00 - 14:59 -> Rp 250.000 (flat, bukan persen).
-// Di luar jam itu keenam menu itu kembali ke harga daftar Rp 300.000.
+// Di luar jam itu ketujuh menu itu kembali ke harga daftar Rp 300.000.
 //
 // TIDAK ADA diskon otomatis untuk treatment lain di jam yang sama. Diskon lain
 // tetap harus dipilih kasir secara manual dengan alasan (chip 5/10/15/20% atau
@@ -135,7 +135,7 @@ export function isHappyHourTime(date = new Date()) {
 }
 
 /**
- * Apakah treatment ini salah satu dari enam menu Happy Hour?
+ * Apakah treatment ini salah satu dari tujuh menu Happy Hour?
  *
  * Dua jalur:
  *  1. nama persis sama dengan salah satu daftar (huruf kecil/spasi diabaikan);
