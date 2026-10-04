@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import { OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, PAYMENT_METHODS, PAYMENT_METHOD_LABEL, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
+import {
+  OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, PAYMENT_METHODS, PAYMENT_METHOD_LABEL,
+  treatmentUsesOil, oilChoicesFor,
+  HAPPY_HOUR_PRICE, HAPPY_HOUR_REASON, SPECIAL_TIME_DISCOUNT_PCT,
+  isHappyHourTime, isHappyHourTreatment, happyHourPriceFor
+} from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createBooking, createBookingsBatch } from '../lib/bookingService';
@@ -158,9 +163,9 @@ export default function KasirPage({ outletId, active }) {
     setStep('therapist');
   }
 
-  function addLine(t, tera, opts = {}) {
+function addLine(t, tera, opts = {}) {
     const pakaiMinyak = usesOil(t) && !opts.noOil && !opts.noOilChosen;
-    const isSpecial = isSpecialTime();
+    const jamSpesial = isHappyHourTime();
     const specialPct = getSpecialDiscountPct(t);
     setCart((c) => [...c, {
       therapist: tera,
@@ -169,7 +174,9 @@ export default function KasirPage({ outletId, active }) {
       size: pakaiMinyak ? (opts.size || null) : null,
       noOil: !!opts.noOilChosen,
       discountPct: specialPct === null ? 0 : (specialPct || 0),
-      discountReason: isSpecial ? (specialPct === null ? 'Happy Hour - 90 Menit Rp 250.000 (11:00 - 14:59)' : 'Harga Spesial 11:00 - 14:59') : ''
+      discountReason: !jamSpesial
+        ? ''
+        : (specialPct === null ? HAPPY_HOUR_REASON : 'Harga Spesial 11:00 - 14:59')
     }]);
     if (outletId) setTherapistMap((m) => ({ ...m, [outletId]: tera.id }));
   }
@@ -193,42 +200,27 @@ export default function KasirPage({ outletId, active }) {
   // Harga efektif per item setelah diskon (kelipatan 5/10/15/20%).
   function discountedPrice(line) {
     const base = line.treatment.price || 0;
-    if (isSpecialTime()) {
-      const cat = line.treatment.category;
-      const dur = line.treatment.durationMinutes;
-      if (cat === 'Happy Hour') return 250000;
-      if (dur === 90) return 250000;
-    }
+    const hh = happyHourPriceFor(line.treatment);
+    if (hh !== null) return hh;
     const pct = line.discountPct || 0;
     return Math.round(base * (1 - pct / 100));
   }
 
-  // Harga special jam 11:00 - 14:59
-  function isSpecialTime(date = new Date()) {
-    const h = date.getHours();
-    const m = date.getMinutes();
-    const t = h * 60 + m;
-    return t >= 11 * 60 && t < 15 * 60;
-  }
-
+  // Harga saat jam khusus 11:00 - 14:59.
+  // Happy Hour: hanya treatment 90 menit -> Rp 250.000.
+  // Di luar 90 menit: tetap dapat harga spesial 10%, bukan Happy Hour.
   function getSpecialDiscountPct(treatment) {
-    if (!isSpecialTime()) return 0;
-    const cat = treatment?.category;
-    if (cat === 'Happy Hour') return null; // harga fixed 250000 untuk Happy Hour
-    const dur = treatment?.durationMinutes;
-    if (dur === 90) return null; // harga fixed 250000 untuk 90 menit
-    return 10;
+    if (!isHappyHourTime()) return 0;
+    if (isHappyHourTreatment(treatment)) return null; // harga flat, bukan persen
+    return SPECIAL_TIME_DISCOUNT_PCT;
   }
 
   function getEffectivePrice(treatment) {
     if (!treatment) return 0;
     const base = treatment.price || 0;
-    if (!isSpecialTime()) return base;
-    const cat = treatment?.category;
-    const dur = treatment.durationMinutes;
-    if (cat === 'Happy Hour') return 250000; // special Happy Hour
-    if (dur === 90) return 250000; // special 90 menit
-    return Math.round(base * 0.9); // diskon 10%
+    if (!isHappyHourTime()) return base;
+    if (isHappyHourTreatment(treatment)) return HAPPY_HOUR_PRICE;
+    return Math.round(base * (1 - SPECIAL_TIME_DISCOUNT_PCT / 100));
   }
 
   function handleDiscount(index, pct) {

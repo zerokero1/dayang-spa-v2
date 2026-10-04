@@ -14,12 +14,49 @@ export const OIL_SIZES = ['Kecil', 'Besar']; // Kecil = 10ml, Besar = 30ml
 
 export const FOOT_PRODUCTS = ['Foot Cream', 'FM'];
 
-export const TREATMENT_CATEGORIES = ['Massage', 'Nail', 'Body Care', 'Waxing', 'Hair Treatment', 'Happy Hour'];
+// Happy Hour BUKAN kategori. Lihat HAPPY_HOUR_MINUTES di bawah.
+export const TREATMENT_CATEGORIES = ['Massage', 'Nail', 'Body Care', 'Waxing', 'Hair Treatment'];
 
 /** Apakah treatment ini Foot Massage (pakai produk Foot Cream / FM)? */
 export function isFootMassage(t) {
   if (!t) return false;
   return String(t.name || '').toLowerCase().includes('foot massage');
+}
+
+// ---------------------------------------------------------------------------
+// Happy Hour
+//
+// Happy Hour BUKAN kategori treatment. Aturannya murni dari DURASI:
+// hanya treatment 90 menit yang bisa ikut Happy Hour. Treatment Selain itu
+// (mis. 30 / 45 / 60 menit) tidak dapat diskon Happy Hour sama sekali.
+//
+// Harga: jam 11:00 - 14:59 -> Rp 250.000 (flat, bukan persen).
+// Di luar jam itu, semua treatment kembali ke harga daftar.
+// Treatment non-90 menit tetap dapat "harga spesial" 10% saat jam yang sama —
+// itu diskon lain, bukan Happy Hour.
+// ---------------------------------------------------------------------------
+export const HAPPY_HOUR_START_MIN = 11 * 60;
+export const HAPPY_HOUR_END_MIN = 15 * 60; // exclusive: 14:59 masih Happy Hour
+export const HAPPY_HOUR_MINUTES = 90;
+export const HAPPY_HOUR_PRICE = 250000;
+export const SPECIAL_TIME_DISCOUNT_PCT = 10;
+export const HAPPY_HOUR_REASON = 'Happy Hour - 90 Menit Rp 250.000 (11:00 - 14:59)';
+
+/** Apakah `date` sudah masuk jam Happy Hour (11:00 - 14:59)? */
+export function isHappyHourTime(date = new Date()) {
+  const t = date.getHours() * 60 + date.getMinutes();
+  return t >= HAPPY_HOUR_START_MIN && t < HAPPY_HOUR_END_MIN;
+}
+
+/** Satu-satunya syarat Happy Hour: durasi treatment 90 menit. */
+export function isHappyHourTreatment(t) {
+  if (!t) return false;
+  return Number(t.durationMinutes) === HAPPY_HOUR_MINUTES;
+}
+
+/** Harga Happy Hour untuk treatment ini, atau null kalau tidak berlaku. */
+export function happyHourPriceFor(t, date = new Date()) {
+  return isHappyHourTime(date) && isHappyHourTreatment(t) ? HAPPY_HOUR_PRICE : null;
 }
 
 /** Pilihan produk/minyak yang muncul saat memilih sebuah treatment.
