@@ -74,7 +74,7 @@ export const HAPPY_HOUR_END_MIN = 15 * 60; // exclusive: 14:59 masih Happy Hour
 export const HAPPY_HOUR_PRICE = 250000;
 export const HAPPY_HOUR_TIMEZONE = 'Asia/Makassar'; // WITA (UTC+8) = jam lokal Lombok
 export const HAPPY_HOUR_UTC_OFFSET_MIN = 8 * 60;
-export const HAPPY_HOUR_REASON = 'Happy Hour (11:00 - 14:59)';
+export const HAPPY_HOUR_REASON = 'Happy Hour (11:00 - 14:59 WITA)';
 
 // Nama treatment yang boleh Happy Hour, harga jadi Rp 250.000. Sengaja ditulis
 // sebagai nama yang ditulisi persis seperti di katalog supaya mudah dicek/diubah.
