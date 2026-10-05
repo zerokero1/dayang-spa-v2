@@ -8,7 +8,7 @@ export const OUTLETS = [
 ];
 
 export const OIL_TYPES = [
-  'Relaxing', 'Refreshing', 'Herbal', 'Hot Oil', 'Cem-Ceman', 'Aloevera Cream'
+  'Relaxing', 'Refreshing', 'Herbal', 'Hot Oil', 'Cem-Ceman', 'Aromatic Oil', 'Aloevera Cream'
 ];
 export const OIL_SIZES = ['Kecil', 'Besar']; // Kecil = 10ml, Besar = 30ml
 
@@ -17,11 +17,14 @@ export const FOOT_PRODUCTS = ['Foot Cream', 'FM'];
 /**
  * Produk yang HANYA ADA SATU JENIS — tidak punya varian Kecil/Besar.
  *
- * Foot Cream, FM (alias produk foot), dan Aloevera Cream pasta/cream, bukan
- * minyak. Sizedaya tidak berarti apa-apa dan sebelumnya hanya bikin kasir
- * asal pilih, sehingga stok terpecah jadi dua angka untuk produk yang
- * sebenarnya sama (mis. Foot Cream Besar 289 + Kecil 113 di outlet yang
+ * Foot Cream, FM (alias produk foot), dan Aloevera Cream. Ketiganya pasta atau
+ * cream, bukan minyak. Ukurannya tidak berarti apa-apa dan sebelumnya hanya
+ * bikin kasir asal pilih, sehingga stok terpecah jadi dua angka untuk produk
+ * yang sebenarnya sama (mis. Foot Cream Besar 289 + Kecil 113 di outlet yang
  * sama). SIZE_NONE dipakai untuk produk ini.
+ *
+ * JANGAN masukkan produk minyak di sini. Aromatic Oil misalnyang punya
+ * Kecil/Besar dan stoknya terpisah per ukuran — ia tetap minyak biasa.
  *
  * PENTING: nilai harus dipakai apa adanya sebagai `oil_size` yang dikirim ke
  * database, bukan null. Kolom `oil_inventory.size` bagian dari primary key dan
