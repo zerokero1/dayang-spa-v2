@@ -525,6 +525,43 @@ export async function getRevenueCommissionBook({ startDate, endDate, outletId })
   const commissionTotal = commissionByTherapist.reduce((s, t) => s + t.komisi, 0);
   const omzetTotal = commissionByTherapist.reduce((s, t) => s + t.omzet, 0);
 
+  // ---------------------------------------------------------- BELUM BAYAR
+  // Semua angka omzet & komisi di laporan ini dihitung dari `paid` saja —
+  // jadi omzet di sini = yang benar-benar sudah masuk kas. Itu beda dengan
+  // Laporan Keuangan yang menghitung semua transaksi non-batal termasuk yang
+  // masih ngutang, jadi omzetnya lebih besar.
+  //
+  // Tanpa baris ini,兩 laporan terlihat bertentangan padahal tidak: orang
+  // membandingkan angka dan mengira ada yang salah hitung. Ditampilkan
+  // eksplisit supaya selisihnya jelas: belum bayar = omzet total - omzet lunas.
+  const unpaid = rows.filter((r) => !r.paid);
+  const unpaidByOutlet = {};
+  unpaid.forEach((r) => {
+    const o = unpaidByOutlet[r.outlet_id] = unpaidByOutlet[r.outlet_id]
+      || { outlet: outletName(r.outlet_id), trx: 0, omzet: 0, komisi: 0 };
+    o.trx++;
+    o.omzet += Number(r.treatment_price) || 0;
+    o.komisi += Number(r.commission_amount) || 0;
+  });
+  const unpaidTotal = {
+    trx: unpaid.length,
+    omzet: unpaid.reduce((s, r) => s + (Number(r.treatment_price) || 0), 0),
+    komisi: unpaid.reduce((s, r) => s + (Number(r.commission_amount) || 0), 0),
+    byOutlet: Object.values(unpaidByOutlet).sort((a, b) => b.omzet - a.omzet)
+  };
+
+  // Total seluruh transaksi (lunas + belum bayar) — pembanding langsung dengan
+  // Laporan Keuangan. Dihitung dari semua baris, bukan dari penjumlahan dua
+  // angka di atas, supaya tidak selisih karena pembulatan.
+  const allByOutlet = {};
+  rows.forEach((r) => {
+    const o = allByOutlet[r.outlet_id] = allByOutlet[r.outlet_id]
+      || { outlet: outletName(r.outlet_id), trx: 0, omzet: 0, komisi: 0 };
+    o.trx++;
+    o.omzet += Number(r.treatment_price) || 0;
+    o.komisi += Number(r.commission_amount) || 0;
+  });
+
   // Cek%: kalau tarif tidak seragam, mis. ada treatment 10 dan 20, ini terlihat.
   const rateSet = new Set(paid.map((r) => Number(r.commission_percent) || 0));
 
@@ -551,8 +588,18 @@ export async function getRevenueCommissionBook({ startDate, endDate, outletId })
     oncallCommission,
     commissionTotal,
     omzetTotal,
+    unpaidTotal,
+    allTotal: {
+      trx: rows.length,
+      omzet: rows.reduce((s, r) => s + (Number(r.treatment_price) || 0), 0),
+      komisi: rows.reduce((s, r) => s + (Number(r.commission_amount) || 0), 0),
+      byOutlet: Object.values(allByOutlet).sort((a, b) => b.omzet - a.omzet)
+    },
     ratesUsed: [...rateSet].sort((a, b) => a - b),
     caveats: [
+      `Omzet di laporan ini = ${MONEY(grandTotal.omzet)} dari transaksi yang SUDAH LUNAS. `
+      + `Ada ${unpaid.length} transaksi belum dibayar senilai ${MONEY(unpaidTotal.omzet)}. `
+      + `Total seluruh transaksi (lunas + belum bayar) = ${MONEY(rows.reduce((s, r) => s + (Number(r.treatment_price) || 0), 0))}.`,
       rateSet.size > 1
         ? `Tarif komisi tidak seragam (${[...rateSet].join('%, ')}%).`
         : null,

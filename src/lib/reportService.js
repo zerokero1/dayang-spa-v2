@@ -222,6 +222,8 @@ export async function getCombinedDailyReport(startDate, endDate) {
   let grandOncallRevenue = 0;
   let grandOncallCount = 0;
   let grandOncallCommission = 0;
+  let grandUnpaidRevenue = 0;
+  let grandUnpaidCount = 0;
   const therapistCommissions = {};
 
   const bookingsAll = endDate ? await getAllBookingsRange(startDate, endDate) : await getAllDailyBookings(startDate);
@@ -237,6 +239,10 @@ export async function getCombinedDailyReport(startDate, endDate) {
     grandOncallRevenue += summary.oncallRevenue || 0;
     grandOncallCount += summary.oncallCount || 0;
     grandOncallCommission += summary.oncallCommission || 0;
+    // Dipakai supaya Laporan Keuangan bisa menunjukkan berapa omzet yang
+    // sudah lunas saja — itulah angka yang dipakai Laporan Keseluruhan.
+    grandUnpaidRevenue += summary.unpaidRevenue || 0;
+    grandUnpaidCount += summary.unpaidCount || 0;
 
     // Gabungkan komisi per terapis lintas outlet (nama terapis + jumlah)
     for (const oId of Object.keys(summary.byTherapist)) {
@@ -259,6 +265,8 @@ export async function getCombinedDailyReport(startDate, endDate) {
     grandOncallRevenue,
     grandOncallCount,
     grandOncallCommission,
+    grandUnpaidRevenue,
+    grandUnpaidCount,
     therapistCommissions
   };
 }

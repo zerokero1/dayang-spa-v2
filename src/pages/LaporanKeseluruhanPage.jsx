@@ -150,10 +150,17 @@ export default function LaporanKeseluruhanPage({ active }) {
         <>
           <section className="summary-cards">
             <div className="card">
-              <span className="card-label">Revenue</span>
+              <span className="card-label">Revenue (lunas)</span>
               <strong>{rupiah(totals.revenue)}</strong>
-              <span className="muted">{totals.trx} transaksi</span>
+              <span className="muted">{totals.trx} transaksi sudah dibayar</span>
             </div>
+            {rc?.unpaidTotal?.trx > 0 && (
+              <div className="card">
+                <span className="card-label">Belum dibayar</span>
+                <strong style={{ color: 'var(--busy)' }}>{rupiah(rc.unpaidTotal.omzet)}</strong>
+                <span className="muted">{rc.unpaidTotal.trx} transaksi menunggu</span>
+              </div>
+            )}
             <div className="card">
               <span className="card-label">Komisi 10%</span>
               <strong>{rupiah(totals.komisi)}</strong>
@@ -374,7 +381,7 @@ export default function LaporanKeseluruhanPage({ active }) {
             <p className="muted">Income per hari dan grand total per outlet.</p>
 
             <details open>
-              <summary>Grand Total per Outlet — {rupiah(rc.grandTotal.omzet)}</summary>
+              <summary>Grand Total per Outlet — {rupiah(rc.grandTotal.omzet)} <span style={{ fontWeight: 400 }}>(sudah lunas)</span></summary>
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -402,6 +409,78 @@ export default function LaporanKeseluruhanPage({ active }) {
                 </table>
               </div>
             </details>
+
+            {rc.unpaidTotal && (
+              <details open={rc.unpaidTotal.trx > 0}>
+                <summary>
+                  Belum dibayar — {rupiah(rc.unpaidTotal.omzet)}{' '}
+                  <span style={{ fontWeight: 400 }}>({rc.unpaidTotal.trx} transaksi)</span>
+                </summary>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr><th>Outlet</th><th>Transaksi</th><th>Omzet belum dibayar</th><th>Komisi terkait</th></tr>
+                    </thead>
+                    <tbody>
+                      {rc.unpaidTotal.byOutlet.map((u, i) => (
+                        <tr key={i}>
+                          <td>{u.outlet}</td><td>{u.trx}</td>
+                          <td style={{ color: 'var(--busy)', fontWeight: 600 }}>{rupiah(u.omzet)}</td>
+                          <td>{rupiah(u.komisi)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td><strong>TOTAL</strong></td>
+                        <td><strong>{rc.unpaidTotal.trx}</strong></td>
+                        <td><strong style={{ color: 'var(--busy)' }}>{rupiah(rc.unpaidTotal.omzet)}</strong></td>
+                        <td><strong>{rupiah(rc.unpaidTotal.komisi)}</strong></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </details>
+            )}
+
+            {rc.allTotal && (
+              <details open>
+                <summary>
+                  Rekonsiliasi dengan Laporan Keuangan — total semua transaksi{' '}
+                  {rupiah(rc.allTotal.omzet)}
+                </summary>
+                <p className="muted" style={{ fontSize: 12 }}>
+                  Omzet di laporan ini hanya yang sudah lunas, sedangkan Laporan Keuangan
+                  menghitung semua transaksi termasuk yang masih ngutang. Karena itu
+                  angkanya berbeda. Selisihnya harus sama persis dengan jumlah
+                  belum bayar di atas.
+                </p>
+                <div className="table-wrap">
+                  <table>
+                    <tbody>
+                      <tr>
+                        <td>Sudah lunas (angka laporan ini)</td>
+                        <td style={{ textAlign: 'right' }}>{rupiah(rc.omzetTotal)}</td>
+                      </tr>
+                      <tr>
+                        <td>Belum dibayar</td>
+                        <td style={{ textAlign: 'right', color: 'var(--busy)' }}>{rupiah(rc.unpaidTotal?.omzet || 0)}</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Total semua transaksi (= Laporan Keuangan)</strong></td>
+                        <td style={{ textAlign: 'right' }}>
+                          <strong>{rupiah(rc.allTotal.omzet)}</strong>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td><strong>Komisi total (lunas + belum bayar)</strong></td>
+                        <td style={{ textAlign: 'right' }}><strong>{rupiah(rc.allTotal.komisi)}</strong></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            )}
 
             <details>
               <summary>Income Per Hari ({rc.dailyRows.length} baris)</summary>

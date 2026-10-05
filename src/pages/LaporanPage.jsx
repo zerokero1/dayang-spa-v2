@@ -132,6 +132,12 @@ export default function LaporanPage({ outletId, profile }) {
   return (
     <div className="kasir-page">
       <h2>Laporan Keuangan</h2>
+      <p className="muted">
+        Omzet di laporan ini menghitung <strong>semua</strong> transaksi yang tidak
+        dibatalkan, termasuk yang belum dibayar. Laporan Keseluruhan hanya menghitung
+        yang sudah lunas — jadi angkanya lebih kecil di sana. Selisihnya sama dengan
+        bagian "Belum dibayar" di Laporan Keuangan ini.
+      </p>
 
       <section>
         <p>Rentang tanggal</p>
@@ -221,6 +227,11 @@ export default function LaporanPage({ outletId, profile }) {
           {combined.grandOncallCount > 0 && (
             <p>Omzet oncall (tersendiri): {rp(combined.grandOncallRevenue)} ({combined.grandOncallCount} transaksi)</p>
           )}
+          <p>Belum dibayar: {rp(combined.grandUnpaidRevenue)} ({combined.grandUnpaidCount} transaksi)</p>
+          <p style={{ fontWeight: 600, color: 'var(--primary-dark)' }}>
+            Omzet lunas saja (= Laporan Keseluruhan):{' '}
+            {rp(combined.grandTotalRevenue - combined.grandUnpaidRevenue)}
+          </p>
           <p>Total komisi: {rp(combined.grandTotalCommission)}</p>
           {combined.grandTotalHotelCommission > 0 && (
             <p>Total komisi hotel (oncall): {rp(combined.grandTotalHotelCommission)}</p>
