@@ -113,6 +113,39 @@ export async function getDailyBookingsRange(outletId, startDate, endDate) {
   return all;
 }
 
+/**
+ * Booking yang paid = false dalam rentang tanggal (semua outlet, atau satu
+ * outlet kalau outletId diisi).
+ *
+ * Dipakai halaman "Belum Ditandai" untuk mencocokkan uang kas dengan sistem.
+ * Bedanya dengan getAllBookingsRange: booking yang sudah lunas TIDAK ikut,
+ * supaya hasilnya langsung daftar yang perlu ditindaklanjuti.
+ *
+ * Kolom `status` penting: yang `selesai` berarti treatment sudah=rampung tapi
+ * uangnya belum ditandai — itu yang paling perlu dicek ke kasir. Yang
+ * `berjalan` masih aktif, jadi wajar belum bayar.
+ */
+export async function getUnpaidRange(startDate, endDate, outletId) {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  const all = [];
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dateStr = fmtLocalDate(d);
+    const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
+    let q = supabase
+      .from('bookings')
+      .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, original_price, discount_pct, discount_reason, commission_percent, commission_amount, hotel_commission, paid, payment_method, status, customer_name, booking_source, created_at')
+      .eq('paid', false)
+      .gte('created_at', startUtc.toISOString())
+      .lte('created_at', endUtc.toISOString());
+    if (outletId) q = q.eq('outlet_id', outletId);
+    const { data, error } = await q;
+    if (error) { console.warn('getUnpaidRange error', dateStr, error); continue; }
+    all.push(...(data || []).map(mapBooking));
+  }
+  return all.filter((b) => b.status !== 'batal');
+}
+
 export function summarizeDailyBookings(bookings) {
   const counted = bookings.filter((b) => b.status !== 'batal');
   const oncallRows = counted.filter((b) => b.bookingSource === 'oncall');

@@ -22,6 +22,7 @@ const ReservasiPage = lazy(() => import('./pages/ReservasiPage'));
 const KelolaTerapisPage = lazy(() => import('./pages/KelolaTerapisPage'));
 const LaporanAbsensiPage = lazy(() => import('./pages/LaporanAbsensiPage'));
 const LaporanInventoryPage = lazy(() => import('./pages/LaporanInventoryPage'));
+const LaporanBelumDitandaiPage = lazy(() => import('./pages/LaporanBelumDitandaiPage'));
 const AmbilOrderPage = lazy(() => import('./pages/AmbilOrderPage'));
 const StrukPage = lazy(() => import('./pages/StrukPage'));
 const RingkasanTransaksiPage = lazy(() => import('./pages/RingkasanTransaksiPage'));
@@ -55,6 +56,7 @@ const PAGES = {
   laporanKeseluruhan: { label: 'Laporan Keseluruhan', icon: '📚', Component: LaporanKeseluruhanPage, global: true, officeOnly: true },
   laporanAbsensi: { label: 'Laporan Absensi', icon: '📋', Component: LaporanAbsensiPage, global: true },
   laporanInventory: { label: 'Laporan Inventory', icon: '📦', Component: LaporanInventoryPage, global: true },
+  belumDitandai: { label: 'Belum Ditandai Lunas', icon: '🚩', Component: LaporanBelumDitandaiPage, global: true },
   kelolaTerapis: { label: 'Kelola Terapis', icon: '👥', Component: KelolaTerapisPage, global: true, adminOnly: true },
   koreksiBooking: { label: 'Koreksi Booking', icon: '✏️', Component: KoreksiBookingPage, global: true, officeOnly: true },
   koreksiOncall: { label: 'Koreksi Oncall', icon: '🏨', Component: EditOncallPage, global: true, officeOnly: true },
