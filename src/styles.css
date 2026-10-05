@@ -660,7 +660,9 @@ section > button {
   cursor: pointer;
 }
 .unpaid-banner-min-toggle:hover { background: rgba(255, 255, 255, 0.3); }
-/* Ruang kosong di bawah konten = tinggi banner + jarak aman + tinggi tab bawah. */
+/* Ruang di bawah konten = tinggi banner + jarak aman + tinggi tab bawah.
+   Di mode kasir (tab bawah 62px) banner duduk DI ATAS tab, jadi keduanya
+   harus dijumlahkan — lihat aturan .kasir-shell di bawah. */
 .content.has-banner { padding-bottom: calc(var(--unpaid-banner-h, 0px) + 24px); }
 
 .sidebar-user {
@@ -1006,8 +1008,12 @@ section > button {
 
 /* Banner pengingat tidak menutupi tab bawah */
 .kasir-shell .unpaid-banner { bottom: 62px; }
-/* Ruam di bawah konten: tinggi banner + tinggi tab bawah + jarak aman. */
-.kasir-shell .kasir-content.has-banner { padding-bottom: calc(var(--unpaid-banner-h, 0px) + 84px); }
+/* Ruang di bawah konten: tinggi banner + 62px tab bawah (banner duduk di atas
+   tab) + 22px jarak aman. Total 84px sudah cukup untuk semua tinggi banner,
+   jadi angka ini tidak perlu diubah saat banner menambah/menghapus baris. */
+.kasir-shell .kasir-content.has-banner {
+  padding-bottom: calc(var(--unpaid-banner-h, 0px) + 84px);
+}
 
 /* ---------- Panel "Lainnya" ---------- */
 .kasir-more-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); z-index: 25; }

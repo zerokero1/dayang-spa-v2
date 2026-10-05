@@ -1,16 +1,36 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
+
+const DISMISS_KEY = 'dayang_unpaid_banner_dismissed';
 
 export default function UnpaidReminder({ count, overdue, onOpen }) {
   const ref = useRef(null);
   const [minimized, setMinimized] = useState(false);
+  // Disimpan per perangkat, bukan per sesi, supaya kasir yang sedang mengisi
+  // form panjang (Absensi, Koreksi Booking) tidak perlu dismissal ulang tiap
+  // reload. Kuncinya berisi jumlah tagihan, jadi kalau muncul tagihan baru
+  // banner muncul lagi dengan sendirinya.
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(DISMISS_KEY) === String(overdue);
+    } catch {
+      return false;
+    }
+  });
 
   // Banner ini position:fixed, jadi tingginya harus ikut dihitung supaya konten
-  // di bawahnya (mis. tabel dashboard) tidak tertutup. Kita publishes tinggi
-  // banner sebagai CSS variable --unpaid-banner-h yang dipakai .has-banner.
+  // di bawahnya (tombol Simpan di halaman Absensi) tidak tertutup. Kita publish
+  // tinggi banner sebagai CSS variable --unpaid-banner-h yang dipakai
+  // .has-banner.
+  //
+  // UnpaidReminder di-render di dua tempat (layout kasir & layout biasa), jadi
+  // keduanya menulis variable yang sama. Kalau salah satu di-unmount,
+  // menghapus variable akan membuat banner yang masih tampil kehilangan ruang
+  // kosongnya sehingga konten langsung tertutup. Karena itu tinggi tidak
+  // dihapus saat unmount, hanya ditulis ulang 0px.
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el) return;
     const root = document.documentElement;
+    if (!el) return undefined;
 
     const publish = () => {
       const h = el.offsetHeight || 0;
@@ -25,12 +45,24 @@ export default function UnpaidReminder({ count, overdue, onOpen }) {
     return () => {
       ro.disconnect();
       window.removeEventListener('resize', publish);
-      root.style.removeProperty('--unpaid-banner-h');
-      root.style.removeProperty('--unpaid-banner-visible');
+      root.style.setProperty('--unpaid-banner-h', '0px');
+      root.style.setProperty('--unpaid-banner-visible', '0');
     };
-  }, [overdue, minimized]);
+  }, [overdue, minimized, dismissed]);
 
-  if (overdue === 0) return null;
+  function dismiss() {
+    setDismissed(true);
+    try {
+      localStorage.setItem(DISMISS_KEY, String(overdue));
+    } catch {
+      /* localStorage penuh atau dinonaktifkan — dismissal tetap berlaku sesi ini */
+    }
+  }
+
+  // Saat banner disembunyikan, komponen tidak dirender sama sekali. Effect
+  // di atas sudah menaruh --unpaid-banner-h = 0px, jadi .has-banner langsung
+  // melepas ruang kosong yang sebelumnya dipesan untuk banner.
+  if (overdue === 0 || dismissed) return null;
 
   const label =
     overdue === 1
@@ -68,6 +100,14 @@ export default function UnpaidReminder({ count, overdue, onOpen }) {
           title="Perkecil banner"
         >
           ▼
+        </button>
+        <button
+          className="unpaid-banner-min-toggle"
+          onClick={dismiss}
+          aria-label="Sembunyikan banner"
+          title="Sembunyikan banner sampai muncul tagihan baru"
+        >
+          ✕
         </button>
       </div>
     </div>

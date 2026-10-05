@@ -28,7 +28,9 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
   const [selTherapistId, setSelTherapistId] = useState(null);
   const [selOutletId, setSelOutletId] = useState(booking.outletId);
   const [commission, setCommission] = useState(String(booking.commissionPercent ?? ''));
+  const [discountMode, setDiscountMode] = useState('pct');
   const [discount, setDiscount] = useState(booking.discountPct != null ? String(booking.discountPct) : '');
+  const [discountAmount, setDiscountAmount] = useState('');
   const [discountReason, setDiscountReason] = useState(booking.discountReason || '');
   const [selUsesOil, setSelUsesOil] = useState(booking.usesOil !== undefined ? booking.usesOil : (booking.oilType != null));
   const [selOil, setSelOil] = useState(booking.oilType);
@@ -51,8 +53,24 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
   }
 
   const treatmentsInCategory = treatments.filter((t) => t.category === category);
+
   const activeTreatment = selTreatment || treatments.find((tt) => tt.id === booking.treatmentId) || null;
   const needsOil = activeTreatment ? treatmentUsesOil(activeTreatment) : selUsesOil;
+
+  // Harga dasar diskon: harga treatment baru kalau dipilih, kalau tidak
+  // pakai harga tersimpan. Ini basis yang sama dengan yang dipakai server.
+  const basePrice = selTreatment
+    ? (selTreatment.price || 0)
+    : (activeTreatment ? (activeTreatment.price || 0) : (booking.originalPrice ?? booking.treatmentPrice ?? 0));
+
+  // Potongan dalam rupiah, baik dari mode persen maupun mode nominal.
+  // Dipakai untuk menampilkan ekuivalennya di layar.
+  const potongRupiah = (() => {
+    const base = basePrice || 0;
+    if (discountMode === 'amount') return Number(discountAmount) || 0;
+    return Math.round(base * (Number(discount) || 0) / 100);
+  })();
+  const persenEkuivalen = basePrice > 0 ? Math.round((potongRupiah / basePrice) * 1000) / 10 : 0;
 
   async function handleSave() {
     const t = selTreatment || treatments.find((tt) => tt.id === booking.treatmentId) || {
@@ -64,15 +82,39 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
       setError('Komisi % tidak valid.');
       return;
     }
-    const discountVal = discount !== '' ? Number(discount) : null;
-    if (discountVal !== null && (isNaN(discountVal) || discountVal < 0 || discountVal > 100)) {
-      setError('Diskon % harus antara 0 dan 100.');
-      return;
+
+    let discountPctVal = null;
+    let discountAmountVal = null;
+
+    if (discountMode === 'amount') {
+      // Mode nominal: nominal yang dikirim, persen=null supaya server tidak
+      // ikut menghitung dan tidak terjadi pembulatan ganda.
+      const clean = String(discountAmount).replace(/[^\d]/g, '');
+      discountAmountVal = clean === '' ? 0 : Number(clean);
+      if (discountAmountVal < 0) {
+        setError('Potongan rupiah tidak valid.');
+        return;
+      }
+      if (discountAmountVal > basePrice) {
+        setError(`Potongan (Rp${discountAmountVal.toLocaleString('id-ID')}) tidak boleh melebihi harga dasar (Rp${basePrice.toLocaleString('id-ID')}).`);
+        return;
+      }
+    } else {
+      // Mode persen: persis seperti sebelumnya, 0 = hapus diskon.
+      const discountVal = discount !== '' ? Number(discount) : null;
+      if (discountVal !== null && (isNaN(discountVal) || discountVal < 0 || discountVal > 100)) {
+        setError('Diskon % harus antara 0 dan 100.');
+        return;
+      }
+      discountPctVal = discountVal;
     }
-    if (discountVal !== null && discountVal > 0 && !discountReason.trim()) {
+
+    const potongFinal = discountMode === 'amount' ? discountAmountVal : potongRupiah;
+    if (potongFinal > 0 && !discountReason.trim()) {
       setError('Alasan diskon wajib diisi.');
       return;
     }
+
     setSaving(true);
     setError('');
     try {
@@ -83,8 +125,9 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
         usesOil: needsOil,
         oilType: needsOil ? selOil : null,
         oilSize: needsOil ? selSize : null,
-        discountPct: discountVal,
-        discountReason: discountVal != null && discountVal > 0 ? discountReason.trim() : null,
+        discountPct: discountPctVal,
+        discountAmount: discountAmountVal,
+        discountReason: potongFinal > 0 ? discountReason.trim() : null,
         newOutletId: selOutletId !== booking.outletId ? selOutletId : null
       });
       onSave();
@@ -127,15 +170,68 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
       </div>
 
       <div className="koreksi-box">
-        <p className="koreksi-label">Diskon % (kosongkan = tidak diubah · 0 = hapus diskon)</p>
+        <p className="koreksi-label">Diskon (kosongkan = tidak diubah)</p>
         {booking.originalPrice != null && booking.originalPrice > booking.treatmentPrice && (
           <p className="koreksi-note koreksi-note-info">
             Saat ini: diskon {booking.discountPct != null ? `${booking.discountPct}%` : ''} — harga {rp(booking.treatmentPrice)} dari {rp(booking.originalPrice)}
             {booking.discountReason ? ` (${booking.discountReason})` : ''}
           </p>
         )}
-        <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" style={{ margin: '0 0 10px' }} />
-        <input type="text" value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="Alasan diskon (wajib bila >0)" style={{ margin: 0, width: '100%' }} />
+
+        <div className="koreksi-chips" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+          <button
+            className={discountMode === 'pct' ? 'pos-chip active' : 'pos-chip'}
+            onClick={() => setDiscountMode('pct')}
+          >
+            Persen %
+          </button>
+          <button
+            className={discountMode === 'amount' ? 'pos-chip active' : 'pos-chip'}
+            onClick={() => setDiscountMode('amount')}
+          >
+            Potong Rp
+          </button>
+        </div>
+
+        {discountMode === 'amount' ? (
+          <div>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="0"
+              value={discountAmount}
+              onChange={(e) => setDiscountAmount(e.target.value.replace(/[^\d]/g, ''))}
+              style={{ margin: '0 0 6px' }}
+            />
+            <p className="koreksi-note" style={{ marginTop: 0 }}>
+              Harga dasar {rp(basePrice)}
+              {potongRupiah > 0 && ` · ekuivalen ${persenEkuivalen}% → bayar ${rp(Math.max(0, basePrice - potongRupiah))}`}
+            </p>
+          </div>
+        ) : (
+          <div>
+            <input
+              type="number"
+              value={discount}
+              onChange={(e) => setDiscount(e.target.value)}
+              placeholder="0"
+              style={{ margin: '0 0 6px' }}
+            />
+            <p className="koreksi-note" style={{ marginTop: 0 }}>
+              {potongRupiah > 0
+                ? `Potong ${rp(potongRupiah)} dari ${rp(basePrice)} → bayar ${rp(Math.max(0, basePrice - potongRupiah))}`
+                : 'Isi 0 untuk menghapus diskon yang ada.'}
+            </p>
+          </div>
+        )}
+
+        <input
+          type="text"
+          value={discountReason}
+          onChange={(e) => setDiscountReason(e.target.value)}
+          placeholder="Alasan diskon (wajib bila ada potongan)"
+          style={{ margin: 0, width: '100%' }}
+        />
       </div>
 
       {needsOil && (

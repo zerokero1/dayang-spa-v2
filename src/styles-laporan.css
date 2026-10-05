@@ -301,7 +301,12 @@
 .kasir-page .att-month-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  max-height: 70vh;
+  /* Area tabel dikurangi sebesar tinggi banner + tinggi tab bawah. Baris
+     paling bawah — termasuk editor sel yang berisi tombol "Simpan" — akan
+     tertutup banner merah yang position:fixed di bawah layar kalau tidak
+     dikurangi, sehingga kasir tidak bisa menekan Simpan.
+     Tanpa banner, --unpaid-banner-h = 0px dan tinggi tetap 70vh. */
+  max-height: calc(70vh - var(--unpaid-banner-h, 0px) - 84px);
 }
 .kasir-page .att-month-grid {
   border-collapse: separate;
