@@ -126,6 +126,186 @@ export async function getItemLedger(outletId, startDate, dayCount = 7) {
 }
 
 // ============================================================
+// BUKU STOK GABUNGAN SEMUA OUTLET
+// ------------------------------------------------------------
+// Memakai helper yang sama dengan Laporan Produk, tapi dirangkai ulang dengan
+// outlet sebagai bagian dari nama item. Tujuannya satu angka stok untuk rekap
+// gabungan — bukan dijumlahkan setelah tabel selesai, karena itu akan salah
+// kalau ada nama barang sama di dua outlet.
+// ============================================================
+
+/** Awalan nama supaya baris dari tiap outlet tidak tertukar. */
+function prefixOutlet(outletId, label) {
+  return `[${outletId}] ${label}`;
+}
+
+/**
+ * Buku stok gabungan 6 outlet untuk rentang tanggal bebas.
+ *
+ * `startDate`/`endDate` inklusif batas hari WIB. Setiap outlet punya rantai
+ * mundur sendiri yang diturunkan dari stok terkini outlet itu, lalu digabung
+ * setelah itu — jadi angka akhirnya tetap sama dengan penjumlahan stok
+ * outlet-outlet tersebut, dan untuk periode yang tidak ada pergerakannya
+ * nilainya sama persis dengan stok hari ini.
+ */
+export async function getAllOutletLedger(outletIds, startDate, endDate) {
+  const days = eachDay(startDate, endDate);
+  if (!days.length) {
+    return { days: [], oil: { rows: [], variants: [], coverageFrom: null }, item: { rows: [], items: [], coverageFrom: null } };
+  }
+
+  const perOutlet = await Promise.all(
+    outletIds.map(async (id) => {
+      const [oil, item] = await Promise.all([
+        getOilLedgerRange(id, startDate, endDate),
+        getItemLedgerRange(id, startDate, endDate)
+      ]);
+      return { id, oil, item };
+    })
+  );
+
+  // oil_inventory_logs dipakai untuk In/Out tiap hari; trigger
+  // oil_inventory per outlet terpisah, lalu digabung di sini. Cakupan
+  // (coverageFrom) diambil yang paling awal — kalau satu outlet punya log lebih
+  // awal dari yang lain, hari-hari sebelum itu tidak bisa diverifikasi untuk
+  // outlet itu, jadi angka paling awal di seluruh laporan ikut dikosongkan.
+  const oilCoverage = perOutlet
+    .map((o) => o.oil.coverageFrom)
+    .filter(Boolean)
+    .sort()[0] || null;
+  const itemCoverage = perOutlet
+    .map((o) => o.item.coverageFrom)
+    .filter(Boolean)
+    .sort()[0] || null;
+
+  const oilVariants = [];
+  const oilRows = [];
+  perOutlet.forEach(({ id, oil }) => {
+    oil.variants.forEach((v) => {
+      oilVariants.push({ oilType: v.oilType, size: v.size, outletId: id, label: prefixOutlet(id, `${v.oilType} (${v.size})`) });
+    });
+    oil.rows.forEach((r) => {
+      oilRows.push({
+        ...r,
+        outletId: id,
+        label: prefixOutlet(id, `${r.oilType} (${r.size})`)
+      });
+    });
+  });
+
+  const items = [];
+  const itemRows = [];
+  perOutlet.forEach(({ id, item }) => {
+    item.items.forEach((it) => {
+      items.push({
+        ...it,
+        outletId: id,
+        label: prefixOutlet(id, it.unit ? `${it.name} (${it.unit})` : it.name)
+      });
+    });
+    item.rows.forEach((r) => {
+      itemRows.push({
+        ...r,
+        outletId: id,
+        label: prefixOutlet(id, it.unit ? `${r.name} (${r.unit})` : r.name)
+      });
+    });
+  });
+
+  return {
+    days,
+    oil: {
+      rows: oilRows,
+      variants: oilVariants.sort((a, b) => a.label.localeCompare(b.label)),
+      coverageFrom: oilCoverage
+    },
+    item: {
+      rows: itemRows,
+      items: items.sort((a, b) => a.label.localeCompare(b.label)),
+      coverageFrom: itemCoverage
+    }
+  };
+}
+
+export async function getOilLedgerRange(outletId, startDate, endDate) {
+  const days = eachDay(startDate, endDate);
+  const from = dayStrUtc(startDate);
+  const to = dayStrUtc(endDate) + 24 * 3600000 - 1;
+  const fromIso = new Date(from).toISOString();
+  const toIso = new Date(to).toISOString();
+
+  const [stockRes, logRes] = await Promise.all([
+    supabase.from('oil_inventory').select('oil_type, size, stock').eq('outlet_id', outletId),
+    supabase
+      .from('oil_inventory_logs')
+      .select('oil_type, size, type, qty, created_at')
+      .eq('outlet_id', outletId)
+      .gte('created_at', fromIso)
+      .lte('created_at', toIso)
+  ]);
+
+  const variants = (stockRes.data || []).map((r) => ({
+    oilType: r.oil_type,
+    size: r.size,
+    stock: Number(r.stock) || 0
+  }));
+  const logs = (logRes.data || []).map((r) => ({
+    key: r.oil_type, sub: r.size, type: r.type, qty: r.qty, created_at: r.created_at
+  }));
+  const coverageFrom = firstLogDay(logs);
+
+  return {
+    days,
+    rows: buildOilLedgerDays({ days, variants, coverageFrom, logs }),
+    variants: variants.sort((a, b) => a.oilType.localeCompare(b.oilType) || a.size.localeCompare(b.size)),
+    coverageFrom
+  };
+}
+
+export async function getItemLedgerRange(outletId, startDate, endDate) {
+  const days = eachDay(startDate, endDate);
+  const from = dayStrUtc(startDate);
+  const to = dayStrUtc(endDate) + 24 * 3600000 - 1;
+  const fromIso = new Date(from).toISOString();
+  const toIso = new Date(to).toISOString();
+
+  const [itemRes, logRes] = await Promise.all([
+    supabase.from('inventory').select('id, name, unit, stock, category').eq('outlet_id', outletId),
+    supabase
+      .from('inventory_logs')
+      .select('item_id, type, qty, created_at')
+      .eq('outlet_id', outletId)
+      .gte('created_at', fromIso)
+      .lte('created_at', toIso)
+  ]);
+
+  const items = (itemRes.data || []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    unit: r.unit,
+    stock: Number(r.stock) || 0,
+    category: r.category || 'Produk'
+  }));
+  const byId = {};
+  items.forEach((it) => { byId[it.id] = it; });
+
+  const logs = (logRes.data || [])
+    .filter((r) => byId[r.item_id])
+    .map((r) => {
+      const it = byId[r.item_id];
+      return { key: it.name, sub: it.unit, type: r.type, qty: r.qty, created_at: r.created_at };
+    });
+  const coverageFrom = firstLogDay(logs);
+
+  return {
+    days,
+    rows: buildItemLedgerDays({ days, items, coverageFrom, logs }),
+    items: items.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)),
+    coverageFrom
+  };
+}
+
+// ============================================================
 // Pemakaian BARANG KONSUMABLE per treatment (Hole Sheet, Single
 // Sheet, Face Cradle, dll). Aturan pemakaiannya disimpan di tabel
 // treatment_consumables; tiap baris = 1 treatment memakai qty item.

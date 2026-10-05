@@ -57,6 +57,31 @@ export function keyOf(a, b) {
   return `${a}|${b}`;
 }
 
+const DOW = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+/** Geser tanggal YYYY-MM-DD sejumlah hari (boleh negatif). */
+export function shiftDate(dateStr, delta) {
+  return new Date(new Date(`${dateStr}T00:00:00Z`).getTime() + delta * 86400000)
+    .toISOString()
+    .slice(0, 10);
+}
+
+/**
+ * Mulai minggu di hari Senin, supaya posisinya stabil tiap minggu.
+ * Kalau tanggal pilihan bukan Senin, dikembalikan ke Senin minggu itu.
+ */
+export function startOfWeek(dateStr) {
+  const mundur = (new Date(`${dateStr}T00:00:00Z`).getUTCDay() + 6) % 7;
+  return shiftDate(dateStr, -mundur);
+}
+
+/** Label tanggal untuk header laporan: "04/10" atau "Sen 04/10". */
+export function labelHari(dateStr, withDay = false) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  const angka = `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  return withDay ? `${DOW[d.getUTCDay()]} ${angka}` : angka;
+}
+
 /** Susun movements[key][date] = { in, out } dari daftar log. */
 function movementsByDay(logs) {
   const move = {};
@@ -87,6 +112,15 @@ export function firstLogDay(logs) {
  * `entry`  = { key, sub, stock, ... } — `stock` wajib, itu titik jangkar.
  * `extra`  = field tambahan yang ikut disalin ke tiap baris
  *            (mis. oilType/size untuk minyak, name/unit untuk barang).
+ *
+ * Angka dijepit di 0. Rantai diturunkan mundur, dan hari-hari paling awal
+ * sering tidak punya catatan pergerakan — sehingga hasil hitung mundurnya bisa
+ * negatif (stok sekarang 18, tapi log hari itu menunjukkan 29 keluar tanpa
+ * ada 29 masuk yang tercatat, karena stok awal periode memang nol).
+ * Negatif di sini berarti "tidak diketahui", bukan benar-benar stok minus:
+ * database tidak pernah menyimpan stok negatif (selalu dijepit GREATEST 0).
+ * Menampilkan 0 lebih jujur daripada -11, dan tidak membuat orang salah
+ * menghitung total.
  */
 function chainBackwards({ days, entry, move, coverageFrom, extra }) {
   const k = keyOf(entry.key, entry.sub);
@@ -97,14 +131,17 @@ function chainBackwards({ days, entry, move, coverageFrom, extra }) {
   for (let i = days.length - 1; i >= 0; i--) {
     const date = days[i];
     const m = (move[k] && move[k][date]) || { in: 0, out: 0 };
-    const stock = close - m.in + m.out;
+    const raw = close - m.in + m.out;
     const belumTercover = coverageFrom !== null && date < coverageFrom;
+    const stock = Math.max(0, raw);
     rows.push({
       date,
       ...extra,
       stock: belumTercover ? null : stock,
       in: belumTercover ? null : m.in,
       out: belumTercover ? null : m.out,
+      // Sisa tetap angka riil hasil stopper, bukan yang dijepit: sisa hari ini
+      // adalah titik jangkar dan harus persis sama dengan stok di database.
       sisa: belumTercover ? null : close
     });
     close = stock;

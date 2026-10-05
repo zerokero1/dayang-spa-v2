@@ -2,29 +2,12 @@ import { useMemo, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import { getConsumableUsage, getItemLedger, getOilLedger } from '../lib/stockUsageService';
 import { exportExcelReport, exportStockLedger } from '../lib/excelExport';
+import { labelHari, shiftDate, startOfWeek } from '../lib/stokLedger';
 
 const DAY_COUNT = 7;
 const SUB_HEADERS = ['Stock', 'In', 'Out', 'Sisa'];
 
 const todayId = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
-const shiftDate = (dateStr, delta) =>
-  new Date(new Date(`${dateStr}T00:00:00Z`).getTime() + delta * 86400000)
-    .toISOString()
-    .slice(0, 10);
-
-// Mulai minggu di hari Senin supaya posisinya stabil tiap minggu.
-const startOfWeek = (dateStr) => {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  const mundur = (d.getUTCDay() + 6) % 7;
-  return shiftDate(dateStr, -mundur);
-};
-
-const labelHari = (dateStr, withDay = false) => {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  const nama = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][d.getUTCDay()];
-  const angka = `${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
-  return withDay ? `${nama} ${angka}` : angka;
-};
 
 const sel = (v) => (v === null || v === undefined ? '–' : v);
 
