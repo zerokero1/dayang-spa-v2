@@ -17,6 +17,24 @@ const STATUS_OPTIONS = [
   { value: ATTENDANCE_TYPES.LIBUR, label: 'Libur' }
 ];
 
+// Petunjuk cara menginput lembur. Kolom "Lembur (menit)" ada DI DALAM kotak
+// edit sel — tidak ada tombol terpisah untuk itu, jadi kasir yang belum pernah
+// memakai halaman ini tidak akan tahu ke mana harus mengisi.
+const CARA_INPUT_LEMBUR = (
+  <>
+    <strong>Cara input lembur (overtime):</strong>
+    <ol style={{ margin: '4px 0 0', paddingLeft: 20 }}>
+      <li>Klik <strong>sel tanggal</strong> pada baris terapis — misal kolom <strong>4</strong> untuk tanggal 4.</li>
+      <li>Kotak edit muncul di bawah. Isi kolom <strong>“Lembur (menit)”</strong> dengan angka menit, lalu <strong>Simpan</strong>.</li>
+      <li>Angkanya langsung muncul di sel sebagai <span className="ot">+63</span>. Mengosongkan kolom dan Simpan akan menghapus catatan lembur.</li>
+    </ol>
+    <p style={{ margin: '6px 0 0' }}>
+      Status kehadiran diisi terpisah di kotak yang sama. <strong>Lembur bukan status</strong> — terapis tetap “Hadir” lalu diisi menitnya.
+      Menu <strong>⏱️ Overtime</strong> menampilkan rekapnya, tapi hanya untuk akun Office.
+    </p>
+  </>
+);
+
 function todayWib() {
   return new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
 }
@@ -223,13 +241,18 @@ export default function AbsensiPage({ outletId, active, user }) {
       </div>
 
       {tab === 'bulanan' ? (
-        <AbsensiBulanan
-          active={active}
-          employees={employees}
-          outletFilter={outletFilter}
-          onOutletChange={setOutletFilter}
-          user={user}
-        />
+        <>
+          <section className="oil-card" style={{ textAlign: 'left', marginBottom: 12 }}>
+            {CARA_INPUT_LEMBUR}
+          </section>
+          <AbsensiBulanan
+            active={active}
+            employees={employees}
+            outletFilter={outletFilter}
+            onOutletChange={setOutletFilter}
+            user={user}
+          />
+        </>
       ) : (
         <>
       <p className="muted">

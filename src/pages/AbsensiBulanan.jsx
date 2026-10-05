@@ -9,7 +9,7 @@ import { daysOfMonth, thisMonthWib } from '../lib/attendanceGrid';
  * Isi grid, editor sel, dan rekap S/A/I/Off ada di components/AbsensiGrid.jsx
  * supaya Laporan Absensi memakai tabel yang sama, bukan versi terpisah.
  */
-export default function AbsensiBulanan({ active, employees, outletFilter, onOutletChange, user }) {
+export default function AbsensiBulanan({ active, employees, outletFilter, onOutletChange, user, hint }) {
   const [month, setMonth] = useState(thisMonthWib);
 
   const days = useMemo(() => daysOfMonth(month), [month]);
@@ -27,6 +27,7 @@ export default function AbsensiBulanan({ active, employees, outletFilter, onOutl
       first={first}
       last={last}
       showBulk
+      hint={hint}
       controls={(
         <label>
           Bulan

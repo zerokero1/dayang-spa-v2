@@ -354,6 +354,9 @@ export default function AbsensiGrid({
             <strong> OFF</strong> libur. Angka setelahnya = menit telat, <span className="out">/..</span> jam pulang,
             <span className="ot">+..</span> menit lembur. Kolom di kanan
             dihitung otomatis dari sel yang sudah terisi.
+            <br />
+            <strong>Lembur diisi di dalam kotak edit sel</strong>, bukan di kolom terpisah: klik sel →
+            isi “Lembur (menit)” → Simpan. Terapis tetap berstatus Hadir.
           </>
         )}
       </p>
