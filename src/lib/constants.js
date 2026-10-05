@@ -8,11 +8,43 @@ export const OUTLETS = [
 ];
 
 export const OIL_TYPES = [
-  'Relaxing', 'Refreshing', 'Herbal', 'Hot Oil', 'Cem-Ceman', 'Aromatic Oil', 'Aloevera Cream'
+  'Relaxing', 'Refreshing', 'Herbal', 'Hot Oil', 'Cem-Ceman', 'Aloevera Cream'
 ];
 export const OIL_SIZES = ['Kecil', 'Besar']; // Kecil = 10ml, Besar = 30ml
 
 export const FOOT_PRODUCTS = ['Foot Cream', 'FM'];
+
+/**
+ * Produk yang HANYA ADA SATU JENIS — tidak punya varian Kecil/Besar.
+ *
+ * Foot Cream, FM (alias produk foot), dan Aloevera Cream pasta/cream, bukan
+ * minyak. Sizedaya tidak berarti apa-apa dan sebelumnya hanya bikin kasir
+ * asal pilih, sehingga stok terpecah jadi dua angka untuk produk yang
+ * sebenarnya sama (mis. Foot Cream Besar 289 + Kecil 113 di outlet yang
+ * sama). SIZE_NONE dipakai untuk produk ini.
+ *
+ * PENTING: nilai harus dipakai apa adanya sebagai `oil_size` yang dikirim ke
+ * database, bukan null. Kolom `oil_inventory.size` bagian dari primary key dan
+ * `not null`, dan RPC create_booking hanya memotong stok bila size tidak null
+ * — kalau null, stok diam-diam tidak berkurang.
+ */
+export const SIZE_NONE = '-';
+
+/** Produk yang tidak punya pilihan ukuran. */
+export const SINGLE_SIZE_PRODUCTS = [...FOOT_PRODUCTS, 'Aloevera Cream'];
+
+/** Apakah produk ini cuma satu jenis (tidak punya Kecil/Besar)? */
+export function isSingleSizeProduct(product) {
+  return SINGLE_SIZE_PRODUCTS.includes(String(product || '').trim());
+}
+
+/**
+ * Ukuran yang boleh dipilih untuk sebuah produk.
+ * Produk biasa → ['Kecil', 'Besar']; produk satu jenis → ['-'].
+ */
+export function sizesForProduct(product) {
+  return isSingleSizeProduct(product) ? [SIZE_NONE] : OIL_SIZES;
+}
 
 // Kategori barang inventory. 'Produk' = produk treatment yang terpakai otomatis
 // ( Facial, Pedicure Produk, ... ). 'Laundry' = barang linen/equipment (Face Cradle, Hole Sheet, ...).

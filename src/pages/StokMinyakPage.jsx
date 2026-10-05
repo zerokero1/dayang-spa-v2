@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listenOilInventory, setOilStock, adjustOilStock } from '../lib/oilInventoryService';
+import { isSingleSizeProduct, SIZE_NONE } from '../lib/constants';
 
 export default function StokMinyakPage({ outletId, active }) {
   const [oils, setOils] = useState([]);
@@ -26,7 +27,7 @@ export default function StokMinyakPage({ outletId, active }) {
     setBusyId(oil.id);
     try {
       await setOilStock(outletId, oil.oilType, oil.size, num);
-      setMessage(`${oil.oilType} (${oil.size}) diset ke ${num}`);
+      setMessage(`${oil.oilType}${isSingleSizeProduct(oil.oilType) ? '' : ` (${oil.size})`} diset ke ${num}`);
     } finally {
       setBusyId(null);
     }
@@ -40,7 +41,7 @@ export default function StokMinyakPage({ outletId, active }) {
       <div className="grid-2">
         {oils.map((oil) => (
           <div key={oil.id} className="oil-card">
-            <div>{oil.oilType} ({oil.size})</div>
+            <div>{oil.oilType}{isSingleSizeProduct(oil.oilType) ? '' : ` (${oil.size})`}</div>
             <div className="row" style={{ alignItems: 'center', gap: 8 }}>
               <button
                 disabled={busyId === oil.id}

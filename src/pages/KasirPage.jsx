@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, PAYMENT_METHODS, PAYMENT_METHOD_LABEL,
+  sizesForProduct, isSingleSizeProduct,
   treatmentUsesOil, oilChoicesFor,
   HAPPY_HOUR_PRICE, HAPPY_HOUR_REASON, HAPPY_HOUR_TIMEZONE,
   isHappyHourTime, isHappyHourTreatment
@@ -396,9 +397,9 @@ function addLine(t, tera, opts = {}) {
             )}
             <div className="pos-chip-list">
               {oilChoicesFor(pendingTreatment).flatMap((oil) =>
-                OIL_SIZES.map((size) => (
+                sizesForProduct(oil).map((size) => (
                   <button key={`${oil}-${size}`} className="pos-chip" onClick={() => handlePickOil(oil, size)}>
-                    {oil} · {size}
+                    {isSingleSizeProduct(oil) ? oil : `${oil} · ${size}`}
                   </button>
                 ))
               )}

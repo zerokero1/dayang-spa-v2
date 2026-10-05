@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { OUTLETS, OIL_SIZES, TREATMENT_CATEGORIES, PAYMENT_METHOD_LABEL, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
+import { OUTLETS, OIL_SIZES, TREATMENT_CATEGORIES, PAYMENT_METHOD_LABEL, treatmentUsesOil, oilChoicesFor, sizesForProduct, isSingleSizeProduct } from '../lib/constants';
 import { listenTreatments } from '../lib/treatmentService';
 import { listenAllTherapists } from '../lib/therapistService';
 import { getDailyBookings } from '../lib/reportService';
@@ -144,13 +144,13 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
           <div className="koreksi-chips" style={{ display: 'flex', flexWrap: 'wrap' }}>
             {oilChoicesFor(activeTreatment).map((oil) => (
               <div key={oil} style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap', marginRight: 10, marginBottom: 8 }}>
-                {OIL_SIZES.map((size) => (
+                {sizesForProduct(oil).map((size) => (
                   <button
                     key={size}
                     className={selOil === oil && selSize === size ? 'pos-chip active' : 'pos-chip'}
                     onClick={() => { setSelOil(oil); setSelSize(size); }}
                   >
-                    {oil} ({size})
+                    {isSingleSizeProduct(oil) ? oil : `${oil} (${size})`}
                   </button>
                 ))}
               </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listenAllTherapists, setTherapistStatusManual } from '../lib/therapistService';
-import { THERAPIST_STATUS, OUTLETS, OIL_TYPES, OIL_SIZES, PAYMENT_METHOD_LABEL, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
+import { THERAPIST_STATUS, OUTLETS, OIL_TYPES, OIL_SIZES, PAYMENT_METHOD_LABEL, treatmentUsesOil, oilChoicesFor, isSingleSizeProduct, SIZE_NONE } from '../lib/constants';
 import { completeBooking, cancelBookingFull, cancelBookingPartial, markBookingPaid, continueTreatment, completeBookingGroup, markGroupPaid, openWhatsAppMessage } from '../lib/bookingService';
 import { listenTreatments } from '../lib/treatmentService';
 import { getTherapistDailyReport } from '../lib/reportService';
@@ -975,17 +975,31 @@ export default function StatusTerapisPage({ active, profile }) {
 
             {cTreatment && treatmentUsesOil(cTreatment) && (
               <div style={{ marginBottom: 14 }}>
-                <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Pilih minyak & ukuran (wajib)</p>
+                <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+                  Pilih minyak{isSingleSizeProduct(cOil) ? ' (wajib)' : ' & ukuran (wajib)'}
+                </p>
                 <div className="grid-2">
                   {oilChoicesFor(cTreatment).map((oil) => (
-                    <button key={oil} className={cOil === oil ? 'active' : ''} onClick={() => setCOil(oil)} style={{ fontSize: 12 }}>{oil}</button>
+                    <button
+                      key={oil}
+                      className={cOil === oil ? 'active' : ''}
+                      // Produk satu jenis tidak punya ukuran, jadi ikut memasang
+                      // size-nya di sini — kalau tidak, size lama dari produk lain
+                      // ikut terkirim dan tidak cocok.
+                      onClick={() => { setCOil(oil); if (isSingleSizeProduct(oil)) setCSize(SIZE_NONE); }}
+                      style={{ fontSize: 12 }}
+                    >
+                      {oil}
+                    </button>
                   ))}
                 </div>
-                <div className="grid-3" style={{ marginTop: 8 }}>
-                  {OIL_SIZES.map((sz) => (
-                    <button key={sz} className={cSize === sz ? 'active' : ''} onClick={() => setCSize(sz)} style={{ fontSize: 12 }}>{sz}</button>
-                  ))}
-                </div>
+                {!isSingleSizeProduct(cOil) && (
+                  <div className="grid-3" style={{ marginTop: 8 }}>
+                    {OIL_SIZES.map((sz) => (
+                      <button key={sz} className={cSize === sz ? 'active' : ''} onClick={() => setCSize(sz)} style={{ fontSize: 12 }}>{sz}</button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

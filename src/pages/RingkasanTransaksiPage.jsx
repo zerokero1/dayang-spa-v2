@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { OUTLETS, OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
+import { OUTLETS, OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor, sizesForProduct, isSingleSizeProduct } from '../lib/constants';
 import { listenTreatments } from '../lib/treatmentService';
 import { getDailyBookingsRange } from '../lib/reportService';
 import { editBookingDetails } from '../lib/bookingService';
@@ -76,14 +76,14 @@ function EditRow({ booking, treatments, onSave, onCancel }) {
         <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Minyak</p>
         {oilChoicesFor(activeTreatment).map((oil) => (
           <div key={oil} style={{ display: 'inline-block', marginRight: 6, marginBottom: 4 }}>
-            {OIL_SIZES.map((size) => (
+            {sizesForProduct(oil).map((size) => (
               <button
                 key={size}
                 className={selOil === oil && selSize === size ? 'pos-chip active' : 'pos-chip'}
                 onClick={() => { setSelOil(oil); setSelSize(size); }}
                 style={{ marginRight: 2 }}
               >
-                {oil} ({size})
+                {isSingleSizeProduct(oil) ? oil : `${oil} (${size})`}
               </button>
             ))}
           </div>
@@ -201,7 +201,11 @@ export default function RingkasanTransaksiPage({ active, profile }) {
                       Diskon {rp(Number(b.originalPrice) - Number(b.treatmentPrice))} (dari {rp(b.originalPrice)})
                     </div>
                   )}
-                  {b.oilType && <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Minyak: {b.oilType} ({b.oilSize})</div>}
+                  {b.oilType && (
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      Minyak: {b.oilType}{isSingleSizeProduct(b.oilType) ? '' : ` (${b.oilSize})`}
+                    </div>
+                  )}
                 </div>
                 <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => setEditingId(b.id)}>
                   Edit

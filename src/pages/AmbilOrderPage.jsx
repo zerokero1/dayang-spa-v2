@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { OUTLETS, OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor } from '../lib/constants';
+import { OUTLETS, OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor, sizesForProduct, isSingleSizeProduct, SIZE_NONE } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createBooking, createBookingsBatch } from '../lib/bookingService';
@@ -212,17 +212,27 @@ export default function AmbilOrderPage({ active }) {
           {oilChoicesFor(selTreatment).map((oil) => (
             <div key={oil} className="oil-card">
               <div>{oil}</div>
-              <div className="row">
-                {OIL_SIZES.map((size) => (
-                  <button
-                    key={size}
-                    className={selOil === oil && selSize === size ? 'active' : ''}
-                    onClick={() => { setSelOil(oil); setSelSize(size); setSelNoOil(false); }}
-                  >
-                    {size}
-                  </button>
-                ))}
-              </div>
+              {isSingleSizeProduct(oil) ? (
+                <button
+                  className={selOil === oil ? 'active' : ''}
+                  onClick={() => { setSelOil(oil); setSelSize(SIZE_NONE); setSelNoOil(false); }}
+                  style={{ width: '100%' }}
+                >
+                  Pakai
+                </button>
+              ) : (
+                <div className="row">
+                  {OIL_SIZES.map((size) => (
+                    <button
+                      key={size}
+                      className={selOil === oil && selSize === size ? 'active' : ''}
+                      onClick={() => { setSelOil(oil); setSelSize(size); setSelNoOil(false); }}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>

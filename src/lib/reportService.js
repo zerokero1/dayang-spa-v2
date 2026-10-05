@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { OUTLETS } from './constants';
+import { OUTLETS, SIZE_NONE } from './constants';
 
 function mapBooking(row) {
   return {
@@ -324,8 +324,11 @@ export async function getCommissionStaffReport(startDate, endDate) {
     .sort((a, b) => b.commissionTotal - a.commissionTotal);
 }
 
-// Ukuran botol: Kecil = 10ml, Besar = 30ml (keterangan saja; dipakai laporan produksi).
-export const OIL_BOTTLE_ML = { Kecil: 10, Besar: 30 };
+// Ukuran botol: Kecil = 10ml, Besar = 30ml (keterangan saja; dipakai laporan
+// produksi). SIZE_NONE = produk satu jenis (Foot Cream, FM, Aloevera Cream)
+// yang tidak punya varian ukuran — dihitung 1 botol, sama sepertiunits lain
+// yang tidak punya satuan ml.
+export const OIL_BOTTLE_ML = { Kecil: 10, Besar: 30, [SIZE_NONE]: 1 };
 
 // Ambil semua booking non-batal dalam rentang tanggal (semua outlet),
 // cukup untuk laporan produksi: nama treatment + pemakaian minyak per hari.
@@ -380,7 +383,9 @@ export function buildProductionReport(rows, outletIds) {
     bump(byDateTreatment, b.date, b.outletId, 1);
 
     if (b.oilType) {
-      const key = b.oilSize ? `${b.oilType} (${b.oilSize})` : b.oilType;
+      // Produk satu jenis (SIZE_NONE) ditulis tanpa ukuran supaya baris
+      // "Foot Cream (-)" tidak pernah muncul di laporan.
+      const key = (b.oilSize && b.oilSize !== SIZE_NONE) ? `${b.oilType} (${b.oilSize})` : b.oilType;
       // 1 treatment memakai minyak = 1 botol (Kecil 10ml / Besar 30ml).
       bump(byOil, key, b.outletId, 1);
       bump(byDateOil, b.date, b.outletId, 1);
