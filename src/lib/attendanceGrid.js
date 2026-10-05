@@ -1,5 +1,4 @@
 import { ATTENDANCE_TYPES } from './constants';
-import { minutesToClock } from './shiftService';
 
 /**
  * Bagian "purnama" dari grid absensi: token status, daftar hari, dan
@@ -98,14 +97,26 @@ export function daysOfRange(start, end) {
   return out;
 }
 
-/** Teks yang tampil di dalam sel. */
+/**
+ * Teks yang tampil di dalam sel.
+ *
+ * Untuk yang hadir/telat, sel berisi ANGKA BERTANDA, bukan huruf status:
+ *   0    = hadir tepat waktu
+ *   -17  = telat 17 menit
+ * Dahulu selnya "H0" dan "T17m". Format lama memakai huruf, jadi angka
+ * menit telat tidak bisa langsung dijumlahkan — harus dibaca manual satu
+ * per satu. Sekarang jadi angka: total sel = 0 - 17 + 25 (lembur) = 8,
+ * dan jumlah kolom bisa dipakai untuk hitung gaji tanpa menghitung ulang.
+ *
+ * Status yang bukan kehadiran (Sakit/Izin/Alpha/Libur) tetap memakai huruf,
+ * karena tidak ada angka yang mewakili untuk "tidak masuk".
+ */
 export function cellText(rec) {
   if (!rec) return '';
   const t = TOKEN[rec.type] || '';
   if (rec.type === ATTENDANCE_TYPES.HADIR || rec.type === ATTENDANCE_TYPES.TELAT) {
-    // Tampilkan menit telat kalau ada, bukan jam datang.
-    if (rec.lateMinutes != null && rec.lateMinutes > 0) return `${t}${rec.lateMinutes}m`;
-    return `${t}0`;
+    const late = Number(rec.lateMinutes) || 0;
+    return late > 0 ? `-${late}` : '0';
   }
   return t;
 }
@@ -175,15 +186,20 @@ export function buildRecMap(records) {
 }
 
 /**
- * Teks lengkap satu sel, sama persis dengan yang dirender layar: token status
- * (dengan menit telat), lalu jam pulang "/.." dan menit lembur "+.." kalau ada.
- * Layar menulis spans-nya sebagai elemen terpisah supaya bisa diberi warna;
+ * Teks lengkap satu sel, sama persis dengan yang dirender layar: angka
+ * kehadiran bertanda (0 / -17) lalu menit lembur "+..".
+ *
+ * Jam pulang sengaja TIDAK ikut. Selnya jadi "-17/22:00+25" — terlalu panjang
+ * untuk kolom setipis ini dan sulit dibaca. Jam pulang masih bisa diisi dan
+ * dilihat di kotak edit sel, dan tersimpan di database, hanya tidak
+ * dicetak di grid.
+ *
+ * Layar menulis tiap bagian sebagai span terpisah supaya bisa diberi warna;
  * file Excel tidak bisa, jadi di sini digabung jadi satu teks.
  */
 export function gridCellText(rec) {
   if (!rec) return '';
   let out = cellText(rec);
-  if (rec.checkOut != null) out += `/${minutesToClock(rec.checkOut)}`;
   if (rec.overtimeMinutes > 0) out += `+${rec.overtimeMinutes}`;
   return out;
 }

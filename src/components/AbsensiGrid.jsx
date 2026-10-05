@@ -309,10 +309,18 @@ export default function AbsensiGrid({
                   </td>
                   {list.map((d) => {
                     const rec = recMap[`${e.id}|${d.date}`];
+                    // Jam pulang tidak dicetak di sel (hanya "0"/"-17" dan
+                    // "+menit lembur"). Tetap tersimpan dan bisa dilihat di
+                    // kotak edit — judul tooltip menampilkan nilainya.
+                    const jamPulang = rec && rec.checkOut != null ? minutesToClock(rec.checkOut) : null;
                     return (
-                      <td key={d.date} className={cellClass(rec)} onClick={() => openCell(e, d.date)}>
+                      <td
+                        key={d.date}
+                        className={cellClass(rec)}
+                        onClick={() => openCell(e, d.date)}
+                        title={jamPulang ? `Jam pulang ${jamPulang}` : undefined}
+                      >
                         {cellText(rec)}
-                        {rec && rec.checkOut != null && <span className="out">/{minutesToClock(rec.checkOut)}</span>}
                         {rec && rec.overtimeMinutes > 0 && <span className="ot">+{rec.overtimeMinutes}</span>}
                       </td>
                     );
@@ -351,9 +359,11 @@ export default function AbsensiGrid({
           <>
             Klik sel untuk mengisi. <strong>H</strong> hadir, <strong>T</strong> telat,
             <strong> S</strong> sakit, <strong>I</strong> izin, <strong>A</strong> alpha,
-            <strong> OFF</strong> libur. Angka setelahnya = menit telat, <span className="out">/..</span> jam pulang,
-            <span className="ot">+..</span> menit lembur. Kolom di kanan
-            dihitung otomatis dari sel yang sudah terisi.
+            <strong> OFF</strong> libur. Angka di sel = menit telat dengan tanda
+            minus (<strong>-17</strong> = telat 17 menit, <strong>0</strong> = tepat waktu),
+            <span className="ot">+..</span> = menit lembur. Jam pulang tersimpan tapi
+            tidak dicetak di sel — lihat judul sel saat ditahan kursor.
+            Kolom di kanan dihitung otomatis dari sel yang sudah terisi.
             <br />
             <strong>Lembur diisi di dalam kotak edit sel</strong>, bukan di kolom terpisah: klik sel →
             isi “Lembur (menit)” → Simpan. Terapis tetap berstatus Hadir.

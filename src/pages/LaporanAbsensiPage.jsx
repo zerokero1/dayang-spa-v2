@@ -138,8 +138,10 @@ export default function LaporanAbsensiPage({ active, user }) {
         recapColumns: recapCols.map((c) => ({ label: c.label, title: c.title || c.label })),
         recapTotals: recapCols.map((c) => gridRecapTotals[c.key] || 0),
         presentByDay: days.map((d) => presentCount(records, d.date) || ''),
-        note: 'H = hadir, T = telat, S = sakit, I = izin, A = alpha, OFF = libur. '
-          + 'Angka setelah H/T = menit telat, /.. = jam pulang, +.. = menit lembur dari input absensi. '
+        note: 'Sel berisi angka bertanda: 0 = hadir tepat waktu, -17 = telat 17 menit, '
+          + '+25 = lembur 25 menit (bisa digabung, mis. -17+25). '
+          + 'S = sakit, I = izin, A = alpha, OFF = libur. '
+          + 'Jam pulang tersimpan di data tapi tidak dicetak di grid. '
           + 'Kolom rekap: H = jumlah hari hadir, S/A/I/Off = jumlah hari masing-masing, '
           + 'Lm = total menit lembur absensi, Lo = total menit lembur otomatis dari booking, Tot = Lm + Lo. '
           + 'Baris TOTAL: angka per tanggal = jumlah orang yang hadir hari itu.'
@@ -216,10 +218,10 @@ export default function LaporanAbsensiPage({ active, user }) {
           <>
             Periode <strong>{periodLabel}</strong> · {days.length} hari · {employees.length} karyawan.
             Klik sel untuk mengisi atau mengoreksi — datanya sama dengan halaman Absensi.
-            <strong>H</strong> hadir, <strong>T</strong> telat, <strong>S</strong> sakit,
-            <strong> I</strong> izin, <strong>A</strong> alpha, <strong>OFF</strong> libur.
-            Angka setelah <strong>H/T</strong> = menit telat, <span className="out">/..</span> jam pulang,
-            <span className="ot">+..</span> menit lembur. Kolom rekap dan baris <strong>TOTAL</strong> dihitung otomatis.
+            <strong>S</strong> sakit, <strong>I</strong> izin, <strong>A</strong> alpha, <strong>OFF</strong> libur.
+            Sel hadir berisi angka bertanda: <strong>0</strong> tepat waktu,
+            <strong>-17</strong> telat 17 menit, <span className="ot">+25</span> lembur 25 menit.
+            Kolom rekap dan baris <strong>TOTAL</strong> dihitung otomatis.
           </>
         )}
       />
