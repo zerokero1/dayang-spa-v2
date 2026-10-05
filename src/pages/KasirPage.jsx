@@ -14,6 +14,15 @@ import { forecastStockAlerts, describeStockAlerts } from '../lib/stockForecast';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
+// Diskon nominal dianggap sebagai berapa persen dari harga daftar, supaya
+// kasir bisa membandingkan dengan chip persen. Satu desimal, sama dengan
+// rumus yang dipakai RPC create_booking di server.
+const pctOfAmount = (line) => {
+  const base = line.treatment?.price || 0;
+  if (!base) return 0;
+  return Math.round((line.discountAmount / base) * 1000) / 10;
+};
+
 /* ============================================================
    MEMORI CEPAT (localStorage per perangkat)
    Gunanya supaya kasir tidak mengetik/mengetuk hal yang sama
@@ -206,6 +215,11 @@ function addLine(t, tera, opts = {}) {
       size: pakaiMinyak ? (opts.size || null) : null,
       noOil: !!opts.noOilChosen,
       happyHour,
+      // Cara diskon diinput kasir: 'pct' (chip persen) atau 'amount' (potong
+      // rupiah). Dipisah eksplisit, bukan ditebak dari nilai: kalau kedua
+      // kolomnya tampil bersamaan, kasir tidak tahu mana yang benar-benar
+      // dipakai dan chip "0" selalu kelihatan aktif padahal diskonnya nominal.
+      discountMode: 'pct',
       // Selalu 0: Happy Hour sudah berupa harga flat (Rp 250.000), bukan
       // persen, dan treatment lain TIDAK dapat diskon otomatis.
       discountPct: 0,
@@ -237,20 +251,44 @@ function addLine(t, tera, opts = {}) {
   // sudah dibekukan saat item masuk keranjang; treatment lain memakai harga
   // daftar dikali diskon manual yang dipilih kasir.
   //
-  // Diskon bisa persen (chip) ATAU nominal rupiah. Nominal_WINNING kalau diisi:
-  // kasir sering perlu memotong tepat Rp 100.000, dan chip persen tidak akan
-  // pernah menghasilkan angka bulat itu (480.000 jadi 380.000 butuh 20,83%).
+  // Mode diskon mengikuti UI: 'pct' baca discountPct, 'amount' baca
+  // discountAmount. Nominal tetap menang kalau somehow keduanya menyala —
+  // lebih mungkin kasir bermaksud memotong rupiah daripada memilih persen
+  // yang tidak terlihat.
   function discountedPrice(line) {
     const base = line.treatment.price || 0;
     if (line.happyHour) return HAPPY_HOUR_PRICE;
     const amount = line.discountAmount || 0;
-    if (amount > 0) return Math.max(0, Math.round(base - amount));
     const pct = line.discountPct || 0;
+    const pakaiNominal = line.discountMode === 'amount' || amount > 0;
+    if (pakaiNominal && amount > 0) return Math.max(0, Math.round(base - amount));
     return Math.round(base * (1 - pct / 100));
   }
 
   function hasDiscount(line) {
     return (line.discountPct || 0) > 0 || (line.discountAmount || 0) > 0;
+  }
+
+  /**
+   * Ganti cara input diskon. Nilai di mode yang ditinggalkan DIBUANG, bukan
+   * disimpan diam-diam: kalau tidak, kasir melepas diskon karena salah pilih
+   * mode, lalu memilih mode itu lagi — nomornya muncul lagi padahal kasir
+   * sudah melaporkannya.
+   */
+  function handleDiscountMode(index, mode) {
+    setCart((c) => c.map((l, i) => {
+      if (i !== index) return l;
+      if (l.happyHour) return l;
+      if (mode === l.discountMode) return l;
+      const sisa = mode === 'pct' ? l.discountPct : l.discountAmount;
+      return {
+        ...l,
+        discountMode: mode,
+        discountPct: mode === 'pct' ? l.discountPct : 0,
+        discountAmount: mode === 'amount' ? l.discountAmount : 0,
+        discountReason: sisa > 0 ? l.discountReason : ''
+      };
+    }));
   }
 
   // Harga Happy Hour sudah flat (Rp 250.000) jadi chip persen tidak boleh
@@ -260,7 +298,13 @@ function addLine(t, tera, opts = {}) {
     setCart((c) => c.map((l, i) => {
       if (i !== index) return l;
       if (l.happyHour) return l;
-      return { ...l, discountPct: pct, discountAmount: 0, discountReason: pct === 0 ? '' : l.discountReason };
+      return {
+        ...l,
+        discountMode: 'pct',
+        discountPct: pct,
+        discountAmount: 0,
+        discountReason: pct === 0 ? '' : l.discountReason
+      };
     }));
   }
 
@@ -275,6 +319,7 @@ function addLine(t, tera, opts = {}) {
       const amount = clean === '' ? 0 : Math.min(Math.max(0, Number(clean)), base);
       return {
         ...l,
+        discountMode: 'amount',
         discountAmount: amount,
         discountPct: 0,
         discountReason: amount === 0 ? '' : l.discountReason
@@ -507,7 +552,10 @@ function addLine(t, tera, opts = {}) {
               Klik treatment di tengah untuk mulai
             </p>
           )}
-          {cartWithTimes.map((line, i) => (
+          {cartWithTimes.map((line, i) => {
+            const modePct = line.discountMode !== 'amount';
+            const modeAmount = line.discountMode === 'amount';
+            return (
             <div key={i} className="pos-cart-item">
               <div>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>{line.treatment.name}</div>
@@ -523,35 +571,73 @@ function addLine(t, tera, opts = {}) {
                   </div>
                 ) : (
                   <>
-                    <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-                      {[0, 5, 10, 15, 20, 25].map((p) => (
+                    <div style={{ display: 'flex', gap: 4, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Diskon:</span>
+                      <button
+                        className={modePct ? 'pos-chip active' : 'pos-chip'}
+                        onClick={() => handleDiscountMode(i, 'pct')}
+                        style={{ fontSize: 11, padding: '2px 8px' }}
+                      >
+                        Persen %
+                      </button>
+                      <button
+                        className={modeAmount ? 'pos-chip active' : 'pos-chip'}
+                        onClick={() => handleDiscountMode(i, 'amount')}
+                        style={{ fontSize: 11, padding: '2px 8px' }}
+                      >
+                        Potong Rp
+                      </button>
+                      {hasDiscount(line) && (
                         <button
-                          key={p}
-                          className={line.discountPct === p && !(line.discountAmount > 0) ? 'pos-chip active' : 'pos-chip'}
-                          onClick={() => handleDiscount(i, p)}
+                          className="pos-chip"
+                          onClick={() => {
+                            handleDiscountMode(i, modeAmount ? 'pct' : 'amount');
+                            if (modeAmount) handleDiscount(i, 0);
+                          }}
                           style={{ fontSize: 11, padding: '2px 8px' }}
                         >
-                          {p === 0 ? '-' : `${p}%`}
+                          ✕
                         </button>
-                      ))}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                      <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Potong Rp</span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="0"
-                        value={line.discountAmount > 0 ? String(line.discountAmount) : ''}
-                        onChange={(e) => handleDiscountAmount(i, e.target.value)}
-                        style={{ fontSize: 12, padding: '4px 8px', width: 110 }}
-                      />
-                      {line.discountAmount > 0 && (
-                        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                          ({(Math.round((line.discountAmount / (line.treatment.price || 1)) * 1000) / 10).toFixed(1)}%)
-                        </span>
                       )}
                     </div>
-                    {(line.discountPct > 0 || line.discountAmount > 0) && (
+
+                    {modePct ? (
+                      <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                        {[5, 10, 15, 20, 25].map((p) => (
+                          <button
+                            key={p}
+                            className={line.discountPct === p ? 'pos-chip active' : 'pos-chip'}
+                            onClick={() => handleDiscount(i, p)}
+                            style={{ fontSize: 11, padding: '2px 8px' }}
+                          >
+                            {p}%
+                          </button>
+                        ))}
+                        {line.discountPct > 0 && (
+                          <span style={{ fontSize: 11, color: 'var(--text-secondary)', alignSelf: 'center' }}>
+                            potong {rp(Math.round((line.treatment.price || 0) * line.discountPct / 100))}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={line.discountAmount > 0 ? String(line.discountAmount) : ''}
+                          onChange={(e) => handleDiscountAmount(i, e.target.value)}
+                          style={{ fontSize: 12, padding: '4px 8px', width: 120 }}
+                        />
+                        {line.discountAmount > 0 && (
+                          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                            ({pctOfAmount(line).toFixed(1)}%)
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {hasDiscount(line) && (
                       <input
                         placeholder="Alasan diskon (wajib)"
                         value={line.discountReason}
@@ -587,7 +673,8 @@ function addLine(t, tera, opts = {}) {
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {error && <p className="error">{error}</p>}

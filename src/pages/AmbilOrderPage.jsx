@@ -45,7 +45,21 @@ export default function AmbilOrderPage({ active }) {
   const usesOil = (t) => treatmentUsesOil(t);
   const lineNeedsOil = usesOil(selTreatment);
   const canAddLine = selTreatment && selTherapist && (!lineNeedsOil || selNoOil || (selOil && selSize));
-  const discountedPrice = (line) => Math.round((line.treatment.price || 0) * (1 - (line.discountPct || 0) / 100));
+  // Sama dengan Kasir: mode menentukan kolom mana yang dibaca, bukan ditebak
+  // dari nilai. Nominal menang kalau somehow keduanya menyala.
+  const discountedPrice = (line) => {
+    const base = line.treatment.price || 0;
+    const amount = line.discountAmount || 0;
+    const pakaiNominal = line.discountMode === 'amount' || amount > 0;
+    if (pakaiNominal && amount > 0) return Math.max(0, Math.round(base - amount));
+    return Math.round(base * (1 - (line.discountPct || 0) / 100));
+  };
+  const hasDiscount = (line) => (line.discountPct || 0) > 0 || (line.discountAmount || 0) > 0;
+  const pctOfAmount = (line) => {
+    const base = line.treatment?.price || 0;
+    if (!base) return 0;
+    return Math.round((line.discountAmount / base) * 1000) / 10;
+  };
   const cartTotal = cart.reduce((sum, l) => sum + discountedPrice(l), 0);
   const grandTotal = cartTotal + (canAddLine ? selTreatment.price : 0);
 
@@ -56,7 +70,11 @@ export default function AmbilOrderPage({ active }) {
   function handleAddToCart() {
     if (!canAddLine) return;
     const useOil = usesOil(selTreatment) && !selNoOil;
-    setCart((c) => [...c, { therapist: selTherapist, treatment: selTreatment, oil: useOil ? selOil : null, size: useOil ? selSize : null, noOil: selNoOil, discountPct: 0 }]);
+    setCart((c) => [...c, {
+      therapist: selTherapist, treatment: selTreatment,
+      oil: useOil ? selOil : null, size: useOil ? selSize : null, noOil: selNoOil,
+      discountMode: 'pct', discountPct: 0, discountAmount: 0, discountReason: ''
+    }]);
     resetLineSelection();
   }
 
@@ -64,8 +82,49 @@ export default function AmbilOrderPage({ active }) {
     setCart((c) => c.filter((_, i) => i !== index));
   }
 
+  // Nilai di mode yang ditinggalkan dibuang, supaya tidak muncul kembali
+  // setelah kasir ganti mode lalu ganti balik.
+  function handleDiscountMode(index, mode) {
+    setCart((c) => c.map((l, i) => {
+      if (i !== index) return l;
+      if (mode === l.discountMode) return l;
+      const sisa = mode === 'pct' ? l.discountPct : l.discountAmount;
+      return {
+        ...l,
+        discountMode: mode,
+        discountPct: mode === 'pct' ? l.discountPct : 0,
+        discountAmount: mode === 'amount' ? l.discountAmount : 0,
+        discountReason: sisa > 0 ? l.discountReason : ''
+      };
+    }));
+  }
+
   function handleDiscount(index, pct) {
-    setCart((c) => c.map((l, i) => (i === index ? { ...l, discountPct: pct } : l)));
+    setCart((c) => c.map((l, i) => (
+      i === index
+        ? { ...l, discountMode: 'pct', discountPct: pct, discountAmount: 0, discountReason: pct === 0 ? '' : l.discountReason }
+        : l
+    )));
+  }
+
+  function handleDiscountAmount(index, raw) {
+    const clean = String(raw).replace(/[^\d]/g, '');
+    setCart((c) => c.map((l, i) => {
+      if (i !== index) return l;
+      const base = l.treatment.price || 0;
+      const amount = clean === '' ? 0 : Math.min(Math.max(0, Number(clean)), base);
+      return {
+        ...l,
+        discountMode: 'amount',
+        discountAmount: amount,
+        discountPct: 0,
+        discountReason: amount === 0 ? '' : l.discountReason
+      };
+    }));
+  }
+
+  function handleDiscountReason(index, reason) {
+    setCart((c) => c.map((l, i) => (i === index ? { ...l, discountReason: reason } : l)));
   }
 
   async function handleSaveAll() {
@@ -78,20 +137,34 @@ export default function AmbilOrderPage({ active }) {
         }]
       : cart;
     if (finalCart.length === 0) return;
+    // Semua item berdiskon (persen ATAU nominal) wajib punya alasan.
+    const missingReason = finalCart.find((l) => hasDiscount(l) && !(l.discountReason || '').trim());
+    if (missingReason) {
+      setError(`Alasan diskon wajib diisi untuk "${missingReason.treatment.name}".`);
+      return;
+    }
     setSaving(true);
     setError('');
     setMessage('');
     try {
       const items = finalCart.map((line) => {
         const useOil = treatmentUsesOil(line.treatment) && !line.noOil;
+        const listPrice = line.treatment.price || 0;
+        const harga = discountedPrice(line);
+        // original_price hanya diisi kalau harga bayar benar-benar lebih kecil
+        // dari harga daftar. Versi lama memakai `line.discountPct ?` sehingga
+        // diskon nominal (discountPct 0) terkirim null: diskonnya hilang dari
+        // laporan dan komisi dihitung dari harga daftar.
+        const isDiscounted = harga < listPrice;
         return {
           outletId,
           therapistId: line.therapist.id,
           therapistName: line.therapist.name,
           treatmentId: line.treatment.id,
           treatmentName: line.treatment.name,
-          treatmentPrice: discountedPrice(line),
-          originalPrice: line.discountPct ? (line.treatment.price || 0) : null,
+          treatmentPrice: harga,
+          originalPrice: isDiscounted ? listPrice : null,
+          discountReason: isDiscounted ? (line.discountReason || null) : null,
           commissionPercent: line.treatment.commissionPercent,
           durationMinutes: line.treatment.durationMinutes,
           usesOil: useOil,
@@ -141,7 +214,10 @@ export default function AmbilOrderPage({ active }) {
       {cart.length > 0 && (
         <section>
           <p>Treatment sudah ditambahkan ({cart.length})</p>
-          {cart.map((line, i) => (
+          {cart.map((line, i) => {
+            const modePct = line.discountMode !== 'amount';
+            const modeAmount = line.discountMode === 'amount';
+            return (
             <div key={i} className="oil-card" style={{ marginBottom: 6, padding: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: 13 }}>
@@ -149,9 +225,14 @@ export default function AmbilOrderPage({ active }) {
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 400 }}>
                     {line.oil ? `Minyak ${line.oil} (${line.size}) · ` : (line.noOil ? 'Tanpa minyak · ' : '')}
                     <strong>{rp(discountedPrice(line))}</strong>
-                    {line.discountPct ? (
-                      <span style={{ color: 'var(--danger)' }}> (diskon {line.discountPct}%)</span>
-                    ) : null}
+                    {hasDiscount(line) && (
+                      <span style={{ color: 'var(--danger)' }}>
+                        {' '}(potong {modeAmount
+                          ? rp(line.discountAmount)
+                          : `${line.discountPct}%`}
+                        {modeAmount ? ` = ${pctOfAmount(line)}%` : ''})
+                      </span>
+                    )}
                   </div>
                 </div>
                 <button
@@ -161,20 +242,66 @@ export default function AmbilOrderPage({ active }) {
                   Hapus
                 </button>
               </div>
-              <div style={{ display: 'flex', gap: 4, marginTop: 8, flexWrap: 'wrap' }}>
-                {[0, 5, 10, 15, 20, 25].map((p) => (
-                  <button
-                    key={p}
-                    className={line.discountPct === p ? 'pos-chip active' : 'pos-chip'}
-                    onClick={() => handleDiscount(i, p)}
-                    style={{ fontSize: 11, padding: '2px 8px' }}
-                  >
-                    {p === 0 ? '-' : `${p}%`}
-                  </button>
-                ))}
+
+              <div style={{ display: 'flex', gap: 4, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Diskon:</span>
+                <button
+                  className={modePct ? 'pos-chip active' : 'pos-chip'}
+                  onClick={() => handleDiscountMode(i, 'pct')}
+                  style={{ fontSize: 11, padding: '2px 8px' }}
+                >
+                  Persen %
+                </button>
+                <button
+                  className={modeAmount ? 'pos-chip active' : 'pos-chip'}
+                  onClick={() => handleDiscountMode(i, 'amount')}
+                  style={{ fontSize: 11, padding: '2px 8px' }}
+                >
+                  Potong Rp
+                </button>
               </div>
+
+              {modePct ? (
+                <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                  {[5, 10, 15, 20, 25].map((p) => (
+                    <button
+                      key={p}
+                      className={line.discountPct === p ? 'pos-chip active' : 'pos-chip'}
+                      onClick={() => handleDiscount(i, p)}
+                      style={{ fontSize: 11, padding: '2px 8px' }}
+                    >
+                      {p}%
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={line.discountAmount > 0 ? String(line.discountAmount) : ''}
+                    onChange={(e) => handleDiscountAmount(i, e.target.value)}
+                    style={{ fontSize: 12, padding: '4px 8px', width: 120 }}
+                  />
+                  {line.discountAmount > 0 && (
+                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>({pctOfAmount(line)}%)</span>
+                  )}
+                </div>
+              )}
+
+              {hasDiscount(line) && (
+                <input
+                  type="text"
+                  placeholder="Alasan diskon (wajib)"
+                  value={line.discountReason || ''}
+                  onChange={(e) => handleDiscountReason(i, e.target.value)}
+                  style={{ marginTop: 6, fontSize: 12, padding: '6px 8px' }}
+                />
+              )}
             </div>
-          ))}
+            );
+          })}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, padding: '8px 4px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
             <span>Subtotal</span>
             <span>{rp(cartTotal)}</span>
