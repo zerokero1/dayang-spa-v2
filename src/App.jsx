@@ -30,6 +30,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const KoreksiBookingPage = lazy(() => import('./pages/KoreksiBookingPage'));
 const EditOncallPage = lazy(() => import('./pages/EditOncallPage'));
 const OvertimePage = lazy(() => import('./pages/OvertimePage'));
+const LaporanOvertimePage = lazy(() => import('./pages/LaporanOvertimePage'));
 const LaporanPemakaianStokPage = lazy(() => import('./pages/LaporanPemakaianStokPage'));
 const DashboardTerapisPage = lazy(() => import('./pages/DashboardTerapisPage'));
 const LogAktivitasPage = lazy(() => import('./pages/LogAktivitasPage'));
@@ -61,6 +62,7 @@ const PAGES = {
   koreksiBooking: { label: 'Koreksi Booking', icon: '✏️', Component: KoreksiBookingPage, global: true, officeOnly: true },
   koreksiOncall: { label: 'Koreksi Oncall', icon: '🏨', Component: EditOncallPage, global: true, officeOnly: true },
   overtime: { label: 'Overtime', icon: '⏱️', Component: OvertimePage, global: true, officeOnly: true },
+  laporanOvertime: { label: 'Laporan Overtime', icon: '🕐', Component: LaporanOvertimePage, global: true },
   laporanPemakaianStok: { label: 'Laporan Produk', icon: '📉', Component: LaporanPemakaianStokPage, global: true },
   dashboardTerapis: { label: 'Dashboard Terapis', icon: '🧑‍⚕️', Component: DashboardTerapisPage, global: true },
   laporanProduksi: { label: 'Laporan Produksi', icon: '🎯', Component: LaporanProduksiPage, global: true },
