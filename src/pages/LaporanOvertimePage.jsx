@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import { getAttendanceRange } from '../lib/attendanceService';
-import { getOvertimeByEmployee } from '../lib/overtimeService';
 import { listenAllTherapists } from '../lib/therapistService';
 import { exportExcelReport } from '../lib/excelExport';
 
@@ -28,19 +27,14 @@ const hint = { fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0' }
 const OUTLET_NAME = Object.fromEntries(OUTLETS.map((o) => [o.id, o.name]));
 
 /**
- * Laporan Overtime — diambil dari data absensi, sama persis dengan kolom
- * rekap "Lm" / "Lo" / "Tot" di Laporan Absensi.
+ * Laporan Overtime — hanya lembur yang dicatat MANUAL di halaman Absensi.
  *
- * Dua sumber, sengaja tidak digabung diam-diam:
- *   Lm (manual)  = menit yang kasir isi di kotak edit sel Absensi.
- *                  Disimpan di tabel attendance_overtime.
- *   Lo (otomatis)= kelebihan treatment di atas jam selesai shift, dihitung
- *                  dari data booking.
- *   Tot          = Lm + Lo, sama seperti kolom "Tot" di Laporan Absensi.
- *
- * Bedanya dengan halaman Overtime (khusus Office): halaman itu menampilkan
- * angka OTOMATIS saja. Halaman ini menampilkan yang kasir catat sendiri —
- * itu yang dipakai untuk menghitung gaji.
+ * Angka di sini sama persis dengan kolom "Lm" di Laporan Absensi, karena
+ * keduanya memanggil getAttendanceRange() yang sama. Tidak ada kolom lembur
+ * otomatis: hitungan otomatis dari jam selesai treatment (yang di halaman
+ * Overtime untuk Office) sengaja tidak ikut karena bisa berbeda jauh dari
+ * yang dicatat kasir, dan untuk menghitung gaji yang dipakai angka yang
+ * dicatat manusia.
  */
 export default function LaporanOvertimePage({ active, profile }) {
   const isKasir = profile?.role === 'kasir';
@@ -50,11 +44,9 @@ export default function LaporanOvertimePage({ active, profile }) {
   const [startDate, setStartDate] = useState(() => `${thisMonthWib()}-01`);
   const [endDate, setEndDate] = useState(todayWib);
   const [records, setRecords] = useState(null);
-  const [autoOt, setAutoOt] = useState({});
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showAuto, setShowAuto] = useState(true);
 
   const target = isKasir ? myOutletId : outletId;
   const outletLabel = target === ALL_OUTLETS ? 'Semua Outlet' : (OUTLET_NAME[target] || target);
@@ -70,12 +62,7 @@ export default function LaporanOvertimePage({ active, profile }) {
     setError('');
     try {
       const scope = target === ALL_OUTLETS ? undefined : target;
-      const [att, auto] = await Promise.all([
-        getAttendanceRange(startDate, endDate, scope),
-        getOvertimeByEmployee(startDate, endDate)
-      ]);
-      setRecords(att);
-      setAutoOt(auto || {});
+      setRecords(await getAttendanceRange(startDate, endDate, scope));
     } catch (e) {
       setRecords(null);
       setError(e?.message || 'Gagal memuat data absensi.');
@@ -88,8 +75,7 @@ export default function LaporanOvertimePage({ active, profile }) {
     if (active) load();
   }, [active, load]);
 
-  // Rekap per orang. Sumber manual dihitung dari record absensi (kolom Lm di
-  // Laporan Absensi), otomatis dari autoOt (kolom Lo).
+  // Rekap per orang dari menit lembur yang tercatat di absensi (kolom Lm).
   const perTherapist = useMemo(() => {
     if (!records) return [];
 
@@ -98,21 +84,16 @@ export default function LaporanOvertimePage({ active, profile }) {
       (listByEmp[r.employeeId] = listByEmp[r.employeeId] || []).push(r);
     });
 
-    const ids = new Set([
-      ...employees.map((e) => e.id),
-      ...Object.keys(listByEmp),
-      ...Object.keys(autoOt)
-    ]);
+    const ids = new Set([...employees.map((e) => e.id), ...Object.keys(listByEmp)]);
 
     const out = [];
     ids.forEach((id) => {
       const emp = employees.find((e) => e.id === id);
       const list = listByEmp[id] || [];
-      const manual = list.reduce((s, r) => s + (Number(r.overtimeMinutes) || 0), 0);
-      const auto = Number(autoOt[id]?.totalOvertimeMinutes) || 0;
-      if (manual <= 0 && auto <= 0) return;
+      const total = list.reduce((s, r) => s + (Number(r.overtimeMinutes) || 0), 0);
+      if (total <= 0) return;
 
-      const hari = list.filter((r) => (Number(r.overtimeMinutes) || 0) > 0).length;
+      const catatan = list.filter((r) => (Number(r.overtimeMinutes) || 0) > 0).length;
       const belumDitinjau = list.filter(
         (r) => (Number(r.overtimeMinutes) || 0) > 0 && r.overtimeVerified === false
       ).length;
@@ -121,52 +102,36 @@ export default function LaporanOvertimePage({ active, profile }) {
         id,
         name: list[0]?.employeeName || emp?.name || '(tanpa nama)',
         shift: emp?.shift || '',
-        hari,
-        manual,
-        auto,
-        total: manual + auto,
+        catatan,
+        total,
         belumDitinjau
       });
     });
 
     return out.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
-  }, [records, employees, autoOt]);
+  }, [records, employees]);
 
   const totals = useMemo(() => perTherapist.reduce((acc, t) => {
-    acc.manual += t.manual;
-    acc.auto += t.auto;
     acc.total += t.total;
-    acc.hari += t.hari;
+    acc.catatan += t.catatan;
     acc.belumDitinjau += t.belumDitinjau;
     return acc;
-  }, { manual: 0, auto: 0, total: 0, hari: 0, belumDitinjau: 0 }), [perTherapist]);
+  }, { total: 0, catatan: 0, belumDitinjau: 0 }), [perTherapist]);
 
   async function handleDownload() {
     if (!perTherapist.length) return;
-    const headers = [
-      'Nama', 'Shift', 'Hari ada lembur', 'Lm (manual menit)', 'Lm (manual)',
-      showAuto ? 'Lo (otomatis menit)' : null, showAuto ? 'Lo (otomatis)' : null,
-      'Total menit', 'Total', 'Belum ditinjau'
-    ].filter(Boolean);
-
+    const headers = ['Nama', 'Shift', 'Jumlah catatan', 'Total menit', 'Total', 'Perlu ditinjau'];
     const body = perTherapist.map((t) => [
       t.name,
       t.shift ? t.shift.toUpperCase() : '-',
-      t.hari,
-      t.manual,
-      durasi(t.manual),
-      ...(showAuto ? [t.auto, durasi(t.auto)] : []),
+      t.catatan,
       t.total,
       durasi(t.total),
       t.belumDitinjau || ''
     ]);
 
     body.push([]);
-    body.push([
-      'TOTAL', '', totals.hari, totals.manual, durasi(totals.manual),
-      ...(showAuto ? [totals.auto, durasi(totals.auto)] : []),
-      totals.total, durasi(totals.total), totals.belumDitinjau || ''
-    ]);
+    body.push(['TOTAL', '', totals.catatan, totals.total, durasi(totals.total), totals.belumDitinjau || '']);
 
     await exportExcelReport({
       filename: `Laporan-Overtime-Absensi-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${startDate}_${endDate}`,
@@ -174,9 +139,7 @@ export default function LaporanOvertimePage({ active, profile }) {
       subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
       headers,
       rows: body,
-      currencyColumns: headers
-        .map((h, i) => (/menit|^\d/.test(h) && i >= 2 ? i : -1))
-        .filter((i) => i >= 0),
+      currencyColumns: [3],
       totalRowIndex: body.length - 1
     });
   }
@@ -185,10 +148,10 @@ export default function LaporanOvertimePage({ active, profile }) {
     <div className="kasir-page">
       <h2>Laporan Overtime</h2>
       <p className="muted">
-        Diambil dari data absensi — angka <strong>Lm</strong> di sini sama dengan
-        kolom <strong>Lm</strong> di Laporan Absensi. Lm = menit yang kasir isi
-        manual di kotak edit sel Absensi. Lo = lembur otomatis yang dihitung dari
-        jam selesai treatment (opsional, bisa dimatikan lewat tombol di bawah).
+        Hanya lembur yang <strong>dicatat manual</strong> di halaman Absensi — kolom
+        <strong> Lm</strong> di Laporan Absensi. Angka di sini memakai data yang
+        sama, jadi tidak mungkin berbeda. Lembur otomatis dari jam selesai
+        treatment tidak dihitung di laporan ini.
       </p>
 
       <section>
@@ -254,29 +217,21 @@ export default function LaporanOvertimePage({ active, profile }) {
         <>
           <section className="summary-chips" style={{ margin: '12px 0' }}>
             <span className="chip chip-purple">Total {durasi(totals.total)}</span>
-            <span className="chip">Lm manual {durasi(totals.manual)}</span>
-            {showAuto && <span className="chip">Lo otomatis {durasi(totals.auto)}</span>}
+            <span className="chip">{totals.total} menit</span>
             <span className="chip">{perTherapist.length} orang</span>
-            <span className="chip">{totals.hari} hari terlPembayar</span>
+            <span className="chip">{totals.catatan} catatan lembur</span>
           </section>
 
           {totals.belumDitinjau > 0 && (
             <div className="message warn" style={{ marginBottom: 12 }}>
               ⚠ <strong>{totals.belumDitinjau} catatan lembur</strong> berlabel
-              “TANPA booking pendukung – perlu ditinjau”. Angkannya masuk di Lm
-              tapi belum ada bukti treatment yang mendukung. Perlu dicek sebelum
-              dibayar.
+              “TANPA booking pendukung – perlu ditinjau”. Angkanya sudah masuk di
+              total di bawah, tapi belum ada bukti treatment yang mendukung.
+              Perlu dicek sebelum dibayar.
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
-            <button
-              className={showAuto ? 'pos-chip active' : 'pos-chip'}
-              onClick={() => setShowAuto((v) => !v)}
-              style={{ fontSize: 12 }}
-            >
-              {showAuto ? 'Sembunyikan otomatis (Lo)' : 'Tampilkan otomatis (Lo)'}
-            </button>
+          <div style={{ marginBottom: 10 }}>
             <button style={navBtn} onClick={handleDownload} disabled={!perTherapist.length}>
               ⬇ Download Excel
             </button>
@@ -291,10 +246,9 @@ export default function LaporanOvertimePage({ active, profile }) {
                   <tr>
                     <th>Nama</th>
                     <th>Shift</th>
-                    <th>Hari</th>
-                    <th>Lm manual</th>
-                    {showAuto && <th>Lo otomatis</th>}
+                    <th>Catatan</th>
                     <th>Total</th>
+                    <th>Menit</th>
                     {totals.belumDitinjau > 0 && <th>Perlu ditinjau</th>}
                   </tr>
                 </thead>
@@ -303,18 +257,9 @@ export default function LaporanOvertimePage({ active, profile }) {
                     <tr key={t.id}>
                       <td><strong>{t.name}</strong></td>
                       <td>{t.shift ? t.shift.toUpperCase() : '-'}</td>
-                      <td>{t.hari}</td>
-                      <td>
-                        {durasi(t.manual)}
-                        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}> ({t.manual}m)</span>
-                      </td>
-                      {showAuto && (
-                        <td style={{ color: 'var(--text-secondary)' }}>
-                          {durasi(t.auto)}
-                          <span style={{ fontSize: 11 }}> ({t.auto}m)</span>
-                        </td>
-                      )}
+                      <td>{t.catatan}</td>
                       <td style={{ fontWeight: 700 }}>{durasi(t.total)}</td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{t.total}</td>
                       {totals.belumDitinjau > 0 && (
                         <td style={{ color: t.belumDitinjau ? 'var(--busy)' : undefined, fontWeight: t.belumDitinjau ? 600 : undefined }}>
                           {t.belumDitinjau || '-'}
@@ -326,10 +271,9 @@ export default function LaporanOvertimePage({ active, profile }) {
                 <tfoot>
                   <tr>
                     <td colSpan={2}><strong>TOTAL</strong></td>
-                    <td><strong>{totals.hari}</strong></td>
-                    <td style={{ fontWeight: 700 }}>{durasi(totals.manual)}</td>
-                    {showAuto && <td style={{ fontWeight: 700 }}>{durasi(totals.auto)}</td>}
+                    <td><strong>{totals.catatan}</strong></td>
                     <td style={{ fontWeight: 800, color: 'var(--primary-dark)' }}>{durasi(totals.total)}</td>
+                    <td style={{ fontWeight: 700 }}>{totals.total}</td>
                     {totals.belumDitinjau > 0 && (
                       <td style={{ fontWeight: 700, color: 'var(--busy)' }}>{totals.belumDitinjau}</td>
                     )}
@@ -340,8 +284,9 @@ export default function LaporanOvertimePage({ active, profile }) {
           )}
 
           <p style={hint}>
-            Angka dalam kurung adalah menitmentara. <strong>Hari</strong> =
-            berapa kali lembur tercatat untuk orang itu, bukan jumlah hari kerja.
+            <strong>Catatan</strong> = berapa kali lembur dicatat untuk orang itu,
+            bukan jumlah hari kerja. Kolom <strong>Perlu ditinjau</strong> menghitung
+            catatan berlabel “TANPA booking pendukung”.
           </p>
         </>
       )}
