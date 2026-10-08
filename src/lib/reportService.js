@@ -63,7 +63,7 @@ async function getAllDailyBookings(dateStr) {
   const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
   const { data, error } = await supabase
     .from('bookings')
-    .select('outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, commission_percent, commission_amount, status, paid, payment_method, original_price, booking_source, hotel_commission, booking_source, created_at')
+    .select('outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, commission_percent, commission_amount, status, paid, payment_method, original_price, booking_source, hotel_commission, booking_source, created_at, oil_type, uses_oil, wib_date')
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString());
   if (error) throw error;
@@ -243,6 +243,85 @@ export async function getTherapistDailyReport(dateStr) {
     commissions[b.therapistId] = (commissions[b.therapistId] || 0) + (b.commissionAmount || 0);
   });
   return { totals, commissions };
+}
+
+// Nama treatment di katalog selalu membawa durasi, misalnya
+// "Lombok Massage (60 Min)". Buku laporan menuliskannya tanpa durasi
+// ("LOMBOK MASSAGE") jadi sufix kurung dibuang di sini, bukan di file.
+function stripDuration(name) {
+  return String(name || '').replace(/\s*\([^)]*\)\s*$/, '').trim() || String(name || '');
+}
+
+/**
+ * Laporan revenue + komisi HARIAN, satu blok per tanggal — mengikuti format
+ * "laporan revenue per hari" yang biasa dipakai kasir: tiap hari didaftarkan
+ * treatment per baris lengkap dengan minyak yang dipakai, lalu ada total
+ * harian dan rekap komisi per terapis di sebelah kanan.
+ *
+ * Bedanya dengan getCommissionStaffReport: ini satu blok per HARI, bukan satu
+ * baris per orang untuk seluruh periode. Dipakai untuk menggaji per hari
+ * dan cocok dengan format yang sudah biasa dipakai kasir.
+ *
+ * Booking `batal` dilewati. Oncall tetap ikut karena komisi terapis di sana
+ * juga bagian gaji.
+ */
+export async function getDailyRevenueCommissionReport(startDate, endDate) {
+  const days = [];
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  const grand = { treatmentCount: 0, charge: 0, commission: 0, net: 0 };
+
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dateStr = fmtLocalDate(d);
+    let rows = [];
+    try {
+      rows = await getAllDailyBookings(dateStr);
+    } catch (e) {
+      console.warn('getDailyRevenueCommissionReport error', dateStr, e);
+      continue;
+    }
+    const items = rows
+      .filter((b) => b.status !== 'batal')
+      .map((b) => ({
+        treatmentName: stripDuration(b.treatmentName),
+        oilType: b.oilType || '',
+        qty: 1,
+        therapistName: b.therapistName || 'Tanpa terapis',
+        charge: b.treatmentPrice || 0,
+        commission: b.commissionAmount || 0
+      }))
+      // Urut dari harga tertinggi supaya baris paling mudah dicocokkan dengan buku.
+      .sort((a, b) => b.charge - a.charge || a.treatmentName.localeCompare(b.treatmentName));
+
+    const charge = items.reduce((s, x) => s + x.charge, 0);
+    const commission = items.reduce((s, x) => s + x.commission, 0);
+
+    // Rekap per terapis untuk hari itu: jumlah treatment + komisi.
+    const byTherapist = {};
+    items.forEach((x) => {
+      if (!byTherapist[x.therapistName]) byTherapist[x.therapistName] = { treatmentCount: 0, commission: 0 };
+      byTherapist[x.therapistName].treatmentCount += x.qty;
+      byTherapist[x.therapistName].commission += x.commission;
+    });
+
+    grand.treatmentCount += items.length;
+    grand.charge += charge;
+    grand.commission += commission;
+    grand.net += charge - commission;
+
+    days.push({
+      date: dateStr,
+      items,
+      charge,
+      commission,
+      net: charge - commission,
+      therapists: Object.entries(byTherapist)
+        .map(([name, v]) => ({ name, ...v }))
+        .sort((a, b) => b.commission - a.commission)
+    });
+  }
+
+  return { days, grand };
 }
 
 export async function getCombinedDailyReport(startDate, endDate) {

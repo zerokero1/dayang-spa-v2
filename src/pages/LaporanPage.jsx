@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import {
-  getDailyBookingsRange, summarizeDailyBookings, getCombinedDailyReport, getCommissionStaffReport
+  getDailyBookingsRange, summarizeDailyBookings, getCombinedDailyReport, getCommissionStaffReport,
+  getDailyRevenueCommissionReport
 } from '../lib/reportService';
-import { exportExcelReport } from '../lib/excelExport';
+import { exportExcelReport, exportDailyRevenueCommission } from '../lib/excelExport';
 
 function todayId() {
   // Tanggal LOKAL WIB (UTC+7) — konsisten dengan reportService
@@ -21,6 +22,7 @@ export default function LaporanPage({ outletId, profile }) {
   const [rawBookings, setRawBookings] = useState([]);
   const [combined, setCombined] = useState(null);
   const [staffCommissions, setStaffCommissions] = useState(null);
+  const [dailyRevenue, setDailyRevenue] = useState(null);
 
   const rangeLabel = startDate === endDate ? startDate : `${startDate} s/d ${endDate}`;
 
@@ -50,6 +52,9 @@ export default function LaporanPage({ outletId, profile }) {
     try {
       const result = await getCommissionStaffReport(startDate, endDate);
       setStaffCommissions(result);
+      // Format buku (blok per hari) diambil bersamaan supaya tombol download
+      // tidak perlu query ulang saat ditekan.
+      setDailyRevenue(await getDailyRevenueCommissionReport(startDate, endDate));
     } finally {
       setLoading(false);
     }
@@ -130,6 +135,20 @@ export default function LaporanPage({ outletId, profile }) {
       headers, rows,
       currencyColumns: [2, 3, 4],
       totalRowIndex: rows.length - 1
+    });
+  }
+
+  async function handleDownloadKomisiHarian() {
+    if (!dailyRevenue || !dailyRevenue.days.length) return;
+    await exportDailyRevenueCommission({
+      filename: `Laporan-Revenue-Komisi-Harian-${startDate}_${endDate}`,
+      title: 'Laporan Revenue dan Komisi Harian — Dayang Spa',
+      subtitle: `Semua Outlet · ${rangeLabel}`,
+      days: dailyRevenue.days,
+      sheetName: 'Revenue & Komisi',
+      note: 'Charge = harga yang dibayar pelanggan (sudah diskon). Komisi = 10% dari Charge. '
+        + 'Gran Total = Charge - Komisi. Transaksi batal tidak dihitung. '
+        + 'Kolom TOTAL PENDAPATAN berisi komisi per terapis untuk hari tersebut.'
     });
   }
 
@@ -255,9 +274,14 @@ export default function LaporanPage({ outletId, profile }) {
         <section style={{ marginTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <h3 style={{ margin: 0 }}>Komisi Staff</h3>
-            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={handleDownloadKomisi}>
-              ⬇ Download Excel
-            </button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={handleDownloadKomisi}>
+                ⬇ Ringkasan per Staff
+              </button>
+              <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12 }} onClick={handleDownloadKomisiHarian}>
+                ⬇ Download Excel
+              </button>
+            </div>
           </div>
 
           {staffCommissions.length === 0 ? (

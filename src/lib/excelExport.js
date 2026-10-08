@@ -380,6 +380,219 @@ export async function exportAbsensiGrid({
  * @param {string} sheetName - nama tab (opsional, default "Laporan")
  * @param {string} note - catatan kaki di bawah tabel (opsional)
  */
+/**
+ * Export LAPORAN REVENUE + KOMISI PER HARI — mengikuti format buku laporan
+ * yang biasa dipakai kasir, bukan `exportExcelReport`.
+ *
+ * Bentuknya: satu blok per tanggal, di dalam blok ada
+ *   - tabel kiri  : Tanggal | Treatment | Minyak | Qty | Therapist | Charge |
+ *                   Komisi | Gran Total   (satu baris per treatment)
+ *   - total harian di bawah tabel kiri
+ *   - tabel kanan : TERAPIS | BANYAK TREATMENT | TOTAL PENDAPATAN
+ *                   (= komisi), ditulis di baris yang sama dengan tabel kiri
+ * lalu satu baris TOTAL untuk seluruh periode di akhir sheet.
+ *
+ * Kolom "KET" pada buku manual sengaja tidak dibuat: isinya sama persis
+ * dengan kolom Komisi (persentase dari Charge), jadi mengulangnya hanya menambah
+ * satu kolom lagi yang harus dicocokkan.
+ *
+ * Angka dikirim sebagai number asli (bukan teks) supaya kolom Charge, Komisi,
+ * dan Gran Total bisa dijumlahkan sendiri di Excel.
+ *
+ * @param {string} filename - nama file (tanpa .xlsx)
+ * @param {string} title - judul di baris paling atas
+ * @param {string} subtitle - sub-judul (mis. periode)
+ * @param {Array<{date:string, items:Array<{treatmentName:string,oilType:string,qty:number,therapistName:string,charge:number,commission:number}>, charge:number, commission:number, net:number, therapists:Array<{name:string,treatmentCount:number,commission:number}>}>} days
+ * @param {string} sheetName - nama tab (opsional)
+ * @param {string} note - catatan kaki di bawah seluruh tabel (opsional)
+ */
+export async function exportDailyRevenueCommission({
+  filename, title, subtitle, days = [], sheetName, note
+}) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Dayang Spa';
+
+  const ITEM_HEADERS = ['Tanggal', 'Treatment', 'Minyak', 'Qty', 'Therapist', 'Charge', 'Komisi', 'Gran Total'];
+  const RECAP_HEADERS = ['TERAPIS', 'BANYAK TREATMENT', 'TOTAL PENDAPATAN'];
+  const ITEM_CURRENCY = [5, 6, 7];           // 0-based: Charge, Komisi, Gran Total
+  const recapStartCol = ITEM_HEADERS.length + 1;
+  const colCount = ITEM_HEADERS.length + RECAP_HEADERS.length;
+
+  const sheet = workbook.addWorksheet(safeSheetName(sheetName, 'Revenue & Komisi'));
+  const cur = () => sheet.rowCount + 1;
+  const putMerged = (row, value, style) => {
+    sheet.mergeCells(row, 1, row, colCount);
+    const c = sheet.getCell(row, 1);
+    c.value = value;
+    Object.assign(c, style);
+    return c;
+  };
+  const styleHeader = (r) => {
+    const row = sheet.getRow(r);
+    row.height = 20;
+    for (let c = 1; c <= colCount; c++) {
+      const cell = row.getCell(c);
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = thinBorder;
+    }
+  };
+
+  putMerged(cur(), title || '', {
+    font: { bold: true, size: 14, color: { argb: BRAND } },
+    alignment: { horizontal: 'center' }
+  });
+  if (subtitle) {
+    putMerged(cur(), subtitle, {
+      font: { italic: true, size: 10, color: { argb: MUTED } },
+      alignment: { horizontal: 'center' }
+    });
+  }
+
+  let firstHeaderRow = null;
+
+  days.forEach((day, dayIdx) => {
+    if (dayIdx > 0) sheet.getRow(cur()).height = 8;   // baris kosong pemisah
+
+    // Judul blok = tanggal, supaya saat di-scroll tahu sedang di hari mana.
+    const titleRow = cur();
+    putMerged(titleRow, day.date, {
+      font: { bold: true, size: 11, color: { argb: BRAND } },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_LIGHT } },
+      alignment: { horizontal: 'left', vertical: 'middle' }
+    });
+    sheet.getRow(titleRow).height = 18;
+
+    const headerRowNum = cur();
+    if (firstHeaderRow === null) firstHeaderRow = headerRowNum;
+    const headerRow = sheet.getRow(headerRowNum);
+    ITEM_HEADERS.forEach((h, i) => { headerRow.getCell(i + 1).value = h; });
+    RECAP_HEADERS.forEach((h, i) => { headerRow.getCell(recapStartCol + i).value = h; });
+    styleHeader(headerRowNum);
+
+    // Baris treatment. Tanggal hanya ditulis di baris pertama blok supaya
+    // tidak berulang di setiap baris — mengikuti buku manual.
+    const firstItemRow = cur();
+    day.items.forEach((it, idx) => {
+      const values = [
+        idx === 0 ? day.date : '',
+        it.treatmentName,
+        it.oilType,
+        it.qty,
+        it.therapistName,
+        it.charge,
+        it.commission,
+        it.charge - it.commission
+      ];
+      const row = sheet.addRow(values);
+      for (let c = 1; c <= ITEM_HEADERS.length; c++) {
+        const cell = row.getCell(c);
+        cell.border = thinBorder;
+        if (ITEM_CURRENCY.includes(c - 1)) {
+          cell.numFmt = '#,##0';
+          cell.alignment = { horizontal: 'right' };
+        } else if (c === 4) {
+          cell.alignment = { horizontal: 'center' };
+        }
+      }
+    });
+
+    // Rekap terapis ditulis di kolom kanan, baris yang sama dengan tabel kiri.
+    day.therapists.forEach((t, idx) => {
+      const rowNum = firstItemRow + idx;
+      if (rowNum > sheet.rowCount) return;             // item lebih sedikit dari terapis
+      const row = sheet.getRow(rowNum);
+      row.getCell(recapStartCol).value = t.name;
+      row.getCell(recapStartCol + 1).value = t.treatmentCount;
+      row.getCell(recapStartCol + 2).value = t.commission;
+      for (let c = recapStartCol; c <= colCount; c++) {
+        const cell = row.getCell(c);
+        cell.border = thinBorder;
+        if (c === recapStartCol + 2) {
+          cell.numFmt = '#,##0';
+          cell.alignment = { horizontal: 'right' };
+        } else if (c === recapStartCol + 1) {
+          cell.alignment = { horizontal: 'center' };
+        }
+      }
+    });
+
+    // Total harian, melintasi kedua tabel.
+    const totalRowNum = cur();
+    const totalRow = sheet.getRow(totalRowNum);
+    totalRow.getCell(1).value = `TOTAL ${day.date} (${day.items.length} treatment)`;
+    totalRow.getCell(ITEM_HEADERS.length).value = day.charge;
+    totalRow.getCell(ITEM_HEADERS.length + 1).value = day.commission;
+    totalRow.getCell(ITEM_HEADERS.length + 2).value = day.net;
+    totalRow.getCell(recapStartCol).value = 'TOTAL';
+    totalRow.getCell(recapStartCol + 1).value = day.items.length;
+    totalRow.getCell(recapStartCol + 2).value = day.commission;
+    for (let c = 1; c <= colCount; c++) {
+      const cell = totalRow.getCell(c);
+      cell.font = { bold: true };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_LIGHT } };
+      cell.border = thinBorder;
+      if (ITEM_CURRENCY.includes(c - 1) || c === recapStartCol + 2) {
+        cell.numFmt = '#,##0';
+        cell.alignment = { horizontal: 'right' };
+      } else if (c === recapStartCol + 1) {
+        cell.alignment = { horizontal: 'center' };
+      }
+    }
+  });
+
+  // Total seluruh periode.
+  if (days.length) {
+    sheet.getRow(cur()).height = 8;
+    const g = days.reduce((a, d) => ({
+      treatmentCount: a.treatmentCount + d.items.length,
+      charge: a.charge + d.charge,
+      commission: a.commission + d.commission,
+      net: a.net + d.net
+    }), { treatmentCount: 0, charge: 0, commission: 0, net: 0 });
+
+    const gRow = sheet.getRow(cur());
+    gRow.getCell(1).value = `GRAND TOTAL (${days.length} hari)`;
+    gRow.getCell(ITEM_HEADERS.length).value = g.charge;
+    gRow.getCell(ITEM_HEADERS.length + 1).value = g.commission;
+    gRow.getCell(ITEM_HEADERS.length + 2).value = g.net;
+    gRow.getCell(recapStartCol + 1).value = g.treatmentCount;
+    gRow.getCell(recapStartCol + 2).value = g.commission;
+    for (let c = 1; c <= colCount; c++) {
+      const cell = gRow.getCell(c);
+      cell.font = { bold: true, size: 12, color: { argb: BRAND } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_LIGHT } };
+      cell.border = thinBorder;
+      if (ITEM_CURRENCY.includes(c - 1) || c === recapStartCol + 2) {
+        cell.numFmt = '#,##0';
+        cell.alignment = { horizontal: 'right' };
+      } else if (c === recapStartCol + 1) {
+        cell.alignment = { horizontal: 'center' };
+      }
+    }
+  }
+
+  if (note) {
+    sheet.getRow(cur());
+    putMerged(cur(), note, {
+      font: { italic: true, size: 9, color: { argb: MUTED } },
+      alignment: { horizontal: 'left', vertical: 'top', wrapText: true }
+    });
+  }
+
+  [14, 30, 16, 6, 14, 13, 12, 14].forEach((w, i) => { sheet.getColumn(i + 1).width = w; });
+  sheet.getColumn(recapStartCol).width = 14;
+  sheet.getColumn(recapStartCol + 1).width = 19;
+  sheet.getColumn(recapStartCol + 2).width = 19;
+  if (firstHeaderRow !== null) {
+    sheet.views = [{ state: 'frozen', ySplit: firstHeaderRow }];
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  triggerDownload(buffer, filename);
+}
+
 export async function exportExcelReport({
   filename, title, subtitle, headers, rows, currencyColumns = [], totalRowIndex,
   sheetName, note
