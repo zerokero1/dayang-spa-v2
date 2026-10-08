@@ -345,6 +345,9 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
 
   const start = new Date(startDate + 'T00:00:00');
   const end = new Date(endDate + 'T00:00:00');
+  // Outlet yang tidak terdaftar di OUTLETS. Dipisah ke sheet tersendiri di
+  // bawah, jadi harus lewat SELURUH loop (bukan per hari).
+  const others = [];
 
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const dateStr = fmtLocalDate(d);
@@ -356,21 +359,28 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
       continue;
     }
 
-    const items = rows.filter((b) => b.status !== 'batal').map((b) => ({
-      treatmentName: stripDuration(b.treatmentName),
-      oilType: b.oilType || '',
-      qty: 1,
-      therapistName: b.therapistName || 'Tanpa terapis',
-      outletId: b.outletId || '',
-      bookingSource: b.bookingSource || 'in_house',
-      charge: b.treatmentPrice || 0,
-      commission: b.commissionAmount || 0,
-      hotelCommission: b.hotelCommission || 0
-    }));
+    const items = rows.filter((b) => b.status !== 'batal').map((b) => {
+      const charge = b.treatmentPrice || 0;
+      const commission = b.commissionAmount || 0;
+      const hotelCommission = b.hotelCommission || 0;
+      return {
+        treatmentName: stripDuration(b.treatmentName),
+        oilType: b.oilType || '',
+        qty: 1,
+        therapistName: b.therapistName || 'Tanpa terapis',
+        outletId: b.outletId || '',
+        bookingSource: b.bookingSource || 'in_house',
+        charge,
+        commission,
+        hotelCommission,
+        // Gran Total / Sisa Spa per baris. Untuk outlet: charge - komisi.
+        // Untuk oncall komisi hotel ikut dipotong karena uangnya bukan untuk spa.
+        net: charge - commission - hotelCommission
+      };
+    });
 
     // Outlet mana pun yang tidak ada di OUTLETS tetap ikut dilaporkan, supaya
     // tidak ada transaksi yang hilang tanpa jejak.
-    const others = [];
     OUTLETS.forEach((o) => {
       const own = items
         .filter((b) => b.outletId === o.id && b.bookingSource !== 'oncall')

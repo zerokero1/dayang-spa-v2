@@ -448,17 +448,11 @@ function writeDailySheet(sheet, spec) {
       cell.border = thinBorder;
     }
 
-    // Baris treatment. Tanggal hanya ditulis di baris pertama blok supaya
-    // tidak berulang di setiap baris â€” mengikuti buku manual.
+// Baris treatment. Tanggal hanya ditulis di baris pertama blok supaya
+    // tidak berulang di setiap baris — mengikuti buku manual.
     const firstItemRow = cur();
     day.items.forEach((it, idx) => {
-      const values = columns.map((c) => (c.key === 'date' ? (idx === 0 ? day.date : '') : it[c.key]));
-      // Gran Total / Sisa Spa dihitung dari kolom uangnya supaya tidak relies
-      // pada nilai yang sudah dihitung di service.
-      columns.forEach((c, ci) => {
-        if (c.key === 'net') values[ci] = day.net;
-      });
-      const row = sheet.addRow(values);
+      const row = sheet.addRow(columns.map((c) => (c.key === 'date' ? (idx === 0 ? day.date : '') : it[c.key])));
       columns.forEach((c, ci) => {
         const cell = row.getCell(ci + 1);
         cell.border = thinBorder;
