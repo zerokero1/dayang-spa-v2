@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { OUTLETS, PAYMENT_METHOD_LABEL, DEFAULT_ONCALL_COMMISSION_PCT } from '../lib/constants';
+import { OUTLETS, PAYMENT_METHOD_LABEL, DEFAULT_ONCALL_COMMISSION_PCT, parseRupiah, sanitizeNominal } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { editOncallBooking, getOncallRange } from '../lib/oncallService';
 
@@ -33,6 +33,8 @@ function fmtWib(iso) {
 // Penting ikut ditampilkan supaya office tahu efeknya ke laporan komisi
 // sebelum menekan Simpan.
 function hitungKomisi(pct, price, hotelComm) {
+  // Number() dipakai di sini dengan sengaja karena argumennya sudah angka
+  // (hasil parseRupiah di pemanggil), bukan string dari input mentah.
   const p = Number(pct) || 0;
   const h = Number(hotelComm) || 0;
   const n = Number(price) || 0;
@@ -56,8 +58,12 @@ function EditOncallForm({ booking, therapists, onSaved, onCancel }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const harga = Number(price) || 0;
-  const komisiHotel = Number(hotelComm) || 0;
+  // Pakai parseRupiah, bukan Number(). Number("350.000") menghasilkan NaN yang
+  // jadi 0 dan memicu pesan "Harga harus lebih dari 0" padahal kasir sudah
+  // mengetik angka — sangat membingungkan.(parseFloat lebih buruk lagi:
+  // "350.000" jadi 350,數字 tersimpan 1000x terlalu kecil tanpa error.)
+  const harga = parseRupiah(price);
+  const komisiHotel = parseRupiah(hotelComm);
   const komisiBaru = hitungKomisi(pctAsli, harga, komisiHotel);
   const berubah =
     harga !== (booking.treatmentPrice || 0) || komisiHotel !== (booking.hotelCommission || 0);
@@ -132,11 +138,27 @@ function EditOncallForm({ booking, therapists, onSaved, onCancel }) {
       <div className="grid-2" style={{ marginTop: 8 }}>
         <div>
           <p className="koreksi-label">Harga (Rp)</p>
-          <input type="number" value={price} onChange={(e) => setPrice(e.target.value)} />
+          <input
+            type="text"
+            inputMode="numeric"
+            value={price}
+            onChange={(e) => setPrice(sanitizeNominal(e.target.value))}
+          />
+          {harga > 0 && (
+            <p className="koreksi-note" style={{ marginTop: 2 }}>Akan disimpan: {rp(harga)}</p>
+          )}
         </div>
         <div>
           <p className="koreksi-label">Komisi hotel (Rp)</p>
-          <input type="number" value={hotelComm} onChange={(e) => setHotelComm(e.target.value)} />
+          <input
+            type="text"
+            inputMode="numeric"
+            value={hotelComm}
+            onChange={(e) => setHotelComm(sanitizeNominal(e.target.value))}
+          />
+          {komisiHotel > 0 && (
+            <p className="koreksi-note" style={{ marginTop: 2 }}>Akan disimpan: {rp(komisiHotel)}</p>
+          )}
         </div>
       </div>
 

@@ -15,6 +15,44 @@ export const OIL_SIZES = ['Kecil', 'Besar']; // Kecil = 10ml, Besar = 30ml
 export const FOOT_PRODUCTS = ['Foot Cream', 'FM'];
 
 /**
+ * Bersihkan input nominal jadi angka murni (rupiah penuh, tanpa pemisah).
+ *
+ * Kasir mengetik dengan format berbeda-beda: ada yang "350000", ada yang
+ * "350.000" (pemisah ribuan ala Indonesia), ada juga "350,000". Angka seperti
+ * ini HARUS diterima semua dan menghasilkan nilai yang sama.
+ *
+ * Kenapa perlu fungsi ini, bukan parseFloat atau Number:
+ *   parseFloat("350.000") = 350      <- berhenti di titik, 1000x terlalu kecil
+ *   Number("350,000")    = NaN      <- ditolak
+ *
+ * Kalaupegang nilai seperti ini lalu disimpan, kasir menerima Rp350.000 tapi
+ * database mencatat Rp350 — omzet dan komisi hotel ikut salah, tanpa pesan
+ * error apa pun karena hasilnya masih lebih besar dari 0.
+ *
+ * Non-digit dibuang semua: titik, koma, spasi, dan "Rp" ikut hilang.
+ * Digit SEBELUM tanda baca pertama dipertahankan; setelahnya dibuang, jadi
+ * "1.000.000" menjadi 1000000 dan bukan 1000.
+ */
+export function parseRupiah(value) {
+  const digits = String(value ?? '').replace(/[^\d]/g, '');
+  return digits === '' ? 0 : Number(digits);
+}
+
+/**
+ * Input nominal: buang semua karakter yang bukan digit.
+ * Dipakai langsung di onChange supaya nilai di state tidak pernah terpotong
+ * sejak ketikan pertama — lebih aman daripada_membersihkan saat Calculate.
+ */
+export function sanitizeNominal(value) {
+  return String(value ?? '').replace(/[^\d]/g, '');
+}
+
+/** Tampilkan dengan pemisah ribuan, mis. 350000 -> "350.000". */
+export function formatRupiah(value) {
+  return (Number(value) || 0).toLocaleString('id-ID');
+}
+
+/**
  * Produk yang HANYA ADA SATU JENIS — tidak punya varian Kecil/Besar.
  *
  * Foot Cream, FM (alias produk foot), dan Aloevera Cream. Ketiganya pasta atau

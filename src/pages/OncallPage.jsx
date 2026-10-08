@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { PAYMENT_METHOD_LABEL } from '../lib/constants';
+import { PAYMENT_METHOD_LABEL, parseRupiah, sanitizeNominal, formatRupiah } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createOncallBookingMulti, editOncallBooking, cancelOncallBooking, selesaiOncallBooking, getTodayOncall, outletNames } from '../lib/oncallService';
@@ -81,9 +81,12 @@ export default function OncallPage({ outletId, active, isOffice, profile }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, outletId, showAllOutlets]);
 
-  const price = Number.isFinite(parseFloat(priceStr)) ? parseFloat(priceStr) : 0;
-  const durMinutes = Number.isFinite(parseFloat(durStr)) ? parseFloat(durStr) : 0;
-  const hotelComm = Number.isFinite(parseFloat(hotelCommStr)) ? parseFloat(hotelCommStr) : 0;
+  // Input nominal dibersihkan jadi digit penuh, bukan parseFloat. Kasir yang
+  // mengetik "350.000" sebelumnya tersimpan sebagai 350 karena parseFloat
+  // berhenti di titik — Rp350.000 masuk laci tapi dicatat Rp350, tanpa error.
+  const price = parseRupiah(priceStr);
+  const durMinutes = Number(durStr) || 0;
+  const hotelComm = parseRupiah(hotelCommStr);
   const fbTreatments = treatments
     .filter((t) => {
       if (!t.usesOil) return false;
@@ -387,24 +390,34 @@ export default function OncallPage({ outletId, active, isOffice, profile }) {
       <section>
         <p>Total harga treatment per terapis (Rp, input manual oleh kasir)</p>
         <input
-          type="number"
-          min="0"
+          type="text"
+          inputMode="numeric"
           value={priceStr}
-          onChange={(e) => setPriceStr(e.target.value)}
+          onChange={(e) => setPriceStr(sanitizeNominal(e.target.value))}
           placeholder="cth: 450000"
           style={{ maxWidth: 200 }}
         />
+        <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>
+          {price > 0
+            ? <>Akan disimpan: <strong>{rp(price)}</strong> per terapis × {selEntries.length} terapis = <strong>{rp(totalPrice)}</strong></>
+            : 'Ketik angkanya saja, pemisah titik boleh dipakai atau tidak.'}
+        </p>
       </section>
 
       <section>
         <p>Komisi hotel (Rp, per terapis)</p>
         <input
-          type="number"
-          min="0"
+          type="text"
+          inputMode="numeric"
           value={hotelCommStr}
-          onChange={(e) => setHotelCommStr(e.target.value)}
+          onChange={(e) => setHotelCommStr(sanitizeNominal(e.target.value))}
           style={{ maxWidth: 200 }}
         />
+        {hotelComm > 0 && (
+          <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>
+            Akan disimpan: <strong>{rp(hotelComm)}</strong> per terapis
+          </p>
+        )}
       </section>
 
       <section>
