@@ -104,7 +104,7 @@ begin
       raise exception 'Potongan rupiah tidak boleh negatif.';
     end if;
     if p_discount_amount > v_base then
-      raise exception 'Potongan rupiah (Rp%) tidak boleh melebihi harga dasar (Rp%).',
+      raise exception 'Potongan rupiah (%) tidak boleh melebihi harga dasar (%).',
         p_discount_amount, v_base;
     end if;
     if p_discount_amount > 0 and coalesce(p_discount_reason, '') = '' then
@@ -128,7 +128,7 @@ begin
   elsif p_discount_pct is not null then
     -- Mode persen (logika lama, tidak berubah).
     if p_discount_pct < 0 or p_discount_pct > 100 then
-      raise exception 'Diskon harus antara 0 dan 100%.';
+      raise exception 'Diskon harus antara 0 dan 100 persen.';
     end if;
     if p_discount_pct > 0 and coalesce(p_discount_reason, '') = '' then
       raise exception 'Alasan diskon wajib diisi.';
