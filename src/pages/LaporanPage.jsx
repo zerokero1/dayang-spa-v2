@@ -139,15 +139,13 @@ export default function LaporanPage({ outletId, profile }) {
   }
 
   async function handleDownloadKomisiHarian() {
-    if (!dailyRevenue || !dailyRevenue.days.length) return;
+    if (!dailyRevenue || !dailyRevenue.sheets.length) return;
     await exportDailyRevenueCommission({
       filename: `Laporan-Revenue-Komisi-Harian-${startDate}_${endDate}`,
-      title: 'Laporan Revenue dan Komisi Harian — Dayang Spa',
       subtitle: `Semua Outlet · ${rangeLabel}`,
-      days: dailyRevenue.days,
-      sheetName: 'Revenue & Komisi',
+      sheets: dailyRevenue.sheets,
       note: 'Charge = harga yang dibayar pelanggan (sudah diskon). Komisi = 10% dari Charge. '
-        + 'Gran Total = Charge - Komisi. Transaksi batal tidak dihitung. '
+        + 'Transaksi batal tidak dihitung. Oncall tidak termasuk di sheet outlet. '
         + 'Kolom TOTAL PENDAPATAN berisi komisi per terapis untuk hari tersebut.'
     });
   }

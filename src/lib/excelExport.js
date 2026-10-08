@@ -1,7 +1,7 @@
-import ExcelJS from 'exceljs';
+﻿import ExcelJS from 'exceljs';
 import { DOW } from './attendanceGrid';
 
-// Warna brand — satu-satunya palet yang dipakai semua laporan.
+// Warna brand â€” satu-satunya palet yang dipakai semua laporan.
 const BRAND = 'FF0F6E56';
 const BRAND_LIGHT = 'FFE6F3EF';
 const MUTED = 'FF6B7280';
@@ -211,7 +211,7 @@ const CELL_FONT = {
 };
 
 /**
- * Export GRID ABSENSI — bentuknya meniru tabel di halaman Absensi:
+ * Export GRID ABSENSI â€” bentuknya meniru tabel di halaman Absensi:
  * baris = orang, kolom = tanggal. Bedanya dengan `exportExcelReport` ada di
  * header-nya yang DUA baris (nama hari di atas, angka tanggal di bawah) dan
  * kolom rekap yang menyatu dua baris itu, jadi writer-nya terpisah supaya
@@ -219,7 +219,7 @@ const CELL_FONT = {
  *
  * Nilai setiap sel sudah dikirim dari halaman sebagai teks jadi (lihat
  * `gridCellText`), sehingga angka di file dijamin sama dengan yang tampil di
- * layar — bukan dihitung ulang di sini dan risking berbeda.
+ * layar â€” bukan dihitung ulang di sini dan risking berbeda.
  *
  * @param {string} filename - nama file (tanpa .xlsx)
  * @param {string} title - judul di baris paling atas
@@ -300,7 +300,7 @@ export async function exportAbsensiGrid({
       cell.border = thinBorder;
     }
   });
-  // Judul kolom rekap dibuat tooltips, karena labelnya singkat (H/S/A/…).
+  // Judul kolom rekap dibuat tooltips, karena labelnya singkat (H/S/A/â€¦).
   recapColumns.forEach((rc, i) => {
     const cell = sheet.getCell(h1, firstRecapCol + i);
     cell.note = rc.title || rc.label;
@@ -381,44 +381,23 @@ export async function exportAbsensiGrid({
  * @param {string} note - catatan kaki di bawah tabel (opsional)
  */
 /**
- * Export LAPORAN REVENUE + KOMISI PER HARI — mengikuti format buku laporan
- * yang biasa dipakai kasir, bukan `exportExcelReport`.
+ * Tulis satu sheet laporan harian (satu blok per tanggal) ke worksheet yang
+ * sudah dibuat. Dipisah dari exportDailyRevenueCommission supaya 7 sheet
+ * memakai persis kode yang sama.
  *
- * Bentuknya: satu blok per tanggal, di dalam blok ada
- *   - tabel kiri  : Tanggal | Treatment | Minyak | Qty | Therapist | Charge |
- *                   Komisi | Gran Total   (satu baris per treatment)
+ * Bentuk tiap blok tanggal:
+ *   - tabel kiri  : Tanggal | Treatment | Minyak | Qty | Therapist | [Outlet] |
+ *                   Charge | Komisi | [Komisi Hotel] | Gran Total
  *   - total harian di bawah tabel kiri
- *   - tabel kanan : TERAPIS | BANYAK TREATMENT | TOTAL PENDAPATAN
- *                   (= komisi), ditulis di baris yang sama dengan tabel kiri
- * lalu satu baris TOTAL untuk seluruh periode di akhir sheet.
- *
- * Kolom "KET" pada buku manual sengaja tidak dibuat: isinya sama persis
- * dengan kolom Komisi (persentase dari Charge), jadi mengulangnya hanya menambah
- * satu kolom lagi yang harus dicocokkan.
- *
- * Angka dikirim sebagai number asli (bukan teks) supaya kolom Charge, Komisi,
- * dan Gran Total bisa dijumlahkan sendiri di Excel.
- *
- * @param {string} filename - nama file (tanpa .xlsx)
- * @param {string} title - judul di baris paling atas
- * @param {string} subtitle - sub-judul (mis. periode)
- * @param {Array<{date:string, items:Array<{treatmentName:string,oilType:string,qty:number,therapistName:string,charge:number,commission:number}>, charge:number, commission:number, net:number, therapists:Array<{name:string,treatmentCount:number,commission:number}>}>} days
- * @param {string} sheetName - nama tab (opsional)
- * @param {string} note - catatan kaki di bawah seluruh tabel (opsional)
+ *   - tabel kanan : TERAPIS | BANYAK TREATMENT | TOTAL PENDAPATAN (= komisi),
+ *                   ditulis di baris yang sama dengan tabel kiri
  */
-export async function exportDailyRevenueCommission({
-  filename, title, subtitle, days = [], sheetName, note
-}) {
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Dayang Spa';
-
-  const ITEM_HEADERS = ['Tanggal', 'Treatment', 'Minyak', 'Qty', 'Therapist', 'Charge', 'Komisi', 'Gran Total'];
+function writeDailySheet(sheet, spec) {
+  const columns = spec.columns;
+  const headers = columns.map((c) => c.header);
   const RECAP_HEADERS = ['TERAPIS', 'BANYAK TREATMENT', 'TOTAL PENDAPATAN'];
-  const ITEM_CURRENCY = [5, 6, 7];           // 0-based: Charge, Komisi, Gran Total
-  const recapStartCol = ITEM_HEADERS.length + 1;
-  const colCount = ITEM_HEADERS.length + RECAP_HEADERS.length;
-
-  const sheet = workbook.addWorksheet(safeSheetName(sheetName, 'Revenue & Komisi'));
+  const recapStartCol = columns.length + 1;
+  const colCount = columns.length + RECAP_HEADERS.length;
   const cur = () => sheet.rowCount + 1;
   const putMerged = (row, value, style) => {
     sheet.mergeCells(row, 1, row, colCount);
@@ -427,30 +406,20 @@ export async function exportDailyRevenueCommission({
     Object.assign(c, style);
     return c;
   };
-  const styleHeader = (r) => {
-    const row = sheet.getRow(r);
-    row.height = 20;
-    for (let c = 1; c <= colCount; c++) {
-      const cell = row.getCell(c);
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND } };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      cell.border = thinBorder;
-    }
-  };
 
-  putMerged(cur(), title || '', {
+  putMerged(cur(), spec.title || '', {
     font: { bold: true, size: 14, color: { argb: BRAND } },
     alignment: { horizontal: 'center' }
   });
-  if (subtitle) {
-    putMerged(cur(), subtitle, {
+  if (spec.subtitle) {
+    putMerged(cur(), spec.subtitle, {
       font: { italic: true, size: 10, color: { argb: MUTED } },
       alignment: { horizontal: 'center' }
     });
   }
 
   let firstHeaderRow = null;
+  const days = spec.days || [];
 
   days.forEach((day, dayIdx) => {
     if (dayIdx > 0) sheet.getRow(cur()).height = 8;   // baris kosong pemisah
@@ -467,35 +436,39 @@ export async function exportDailyRevenueCommission({
     const headerRowNum = cur();
     if (firstHeaderRow === null) firstHeaderRow = headerRowNum;
     const headerRow = sheet.getRow(headerRowNum);
-    ITEM_HEADERS.forEach((h, i) => { headerRow.getCell(i + 1).value = h; });
+    headers.forEach((h, i) => { headerRow.getCell(i + 1).value = h; });
     RECAP_HEADERS.forEach((h, i) => { headerRow.getCell(recapStartCol + i).value = h; });
-    styleHeader(headerRowNum);
+    const hr = sheet.getRow(headerRowNum);
+    hr.height = 20;
+    for (let c = 1; c <= colCount; c++) {
+      const cell = hr.getCell(c);
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = thinBorder;
+    }
 
     // Baris treatment. Tanggal hanya ditulis di baris pertama blok supaya
-    // tidak berulang di setiap baris — mengikuti buku manual.
+    // tidak berulang di setiap baris â€” mengikuti buku manual.
     const firstItemRow = cur();
     day.items.forEach((it, idx) => {
-      const values = [
-        idx === 0 ? day.date : '',
-        it.treatmentName,
-        it.oilType,
-        it.qty,
-        it.therapistName,
-        it.charge,
-        it.commission,
-        it.charge - it.commission
-      ];
+      const values = columns.map((c) => (c.key === 'date' ? (idx === 0 ? day.date : '') : it[c.key]));
+      // Gran Total / Sisa Spa dihitung dari kolom uangnya supaya tidak relies
+      // pada nilai yang sudah dihitung di service.
+      columns.forEach((c, ci) => {
+        if (c.key === 'net') values[ci] = day.net;
+      });
       const row = sheet.addRow(values);
-      for (let c = 1; c <= ITEM_HEADERS.length; c++) {
-        const cell = row.getCell(c);
+      columns.forEach((c, ci) => {
+        const cell = row.getCell(ci + 1);
         cell.border = thinBorder;
-        if (ITEM_CURRENCY.includes(c - 1)) {
+        if (c.money) {
           cell.numFmt = '#,##0';
           cell.alignment = { horizontal: 'right' };
-        } else if (c === 4) {
+        } else if (c.center) {
           cell.alignment = { horizontal: 'center' };
         }
-      }
+      });
     });
 
     // Rekap terapis ditulis di kolom kanan, baris yang sama dengan tabel kiri.
@@ -519,12 +492,12 @@ export async function exportDailyRevenueCommission({
     });
 
     // Total harian, melintasi kedua tabel.
-    const totalRowNum = cur();
-    const totalRow = sheet.getRow(totalRowNum);
+    const totalRow = sheet.getRow(cur());
     totalRow.getCell(1).value = `TOTAL ${day.date} (${day.items.length} treatment)`;
-    totalRow.getCell(ITEM_HEADERS.length).value = day.charge;
-    totalRow.getCell(ITEM_HEADERS.length + 1).value = day.commission;
-    totalRow.getCell(ITEM_HEADERS.length + 2).value = day.net;
+    columns.forEach((c, ci) => {
+      if (!c.money) return;
+      totalRow.getCell(ci + 1).value = c.key === 'net' ? day.net : (day[c.key] || 0);
+    });
     totalRow.getCell(recapStartCol).value = 'TOTAL';
     totalRow.getCell(recapStartCol + 1).value = day.items.length;
     totalRow.getCell(recapStartCol + 2).value = day.commission;
@@ -533,7 +506,7 @@ export async function exportDailyRevenueCommission({
       cell.font = { bold: true };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_LIGHT } };
       cell.border = thinBorder;
-      if (ITEM_CURRENCY.includes(c - 1) || c === recapStartCol + 2) {
+      if (c === recapStartCol + 2 || columns.some((x, xi) => x.money && xi + 1 === c)) {
         cell.numFmt = '#,##0';
         cell.alignment = { horizontal: 'right' };
       } else if (c === recapStartCol + 1) {
@@ -542,21 +515,22 @@ export async function exportDailyRevenueCommission({
     }
   });
 
-  // Total seluruh periode.
+  // Total seluruh periode untuk sheet ini.
   if (days.length) {
     sheet.getRow(cur()).height = 8;
-    const g = days.reduce((a, d) => ({
-      treatmentCount: a.treatmentCount + d.items.length,
-      charge: a.charge + d.charge,
-      commission: a.commission + d.commission,
-      net: a.net + d.net
-    }), { treatmentCount: 0, charge: 0, commission: 0, net: 0 });
+    const g = {
+      treatmentCount: days.reduce((a, d) => a + d.treatmentCount, 0),
+      charge: days.reduce((a, d) => a + d.charge, 0),
+      commission: days.reduce((a, d) => a + d.commission, 0),
+      hotelCommission: days.reduce((a, d) => a + (d.hotelCommission || 0), 0)
+    };
+    g.net = g.charge - g.commission - g.hotelCommission;
 
     const gRow = sheet.getRow(cur());
     gRow.getCell(1).value = `GRAND TOTAL (${days.length} hari)`;
-    gRow.getCell(ITEM_HEADERS.length).value = g.charge;
-    gRow.getCell(ITEM_HEADERS.length + 1).value = g.commission;
-    gRow.getCell(ITEM_HEADERS.length + 2).value = g.net;
+    columns.forEach((c, ci) => {
+      if (c.money) gRow.getCell(ci + 1).value = g[c.key] || 0;
+    });
     gRow.getCell(recapStartCol + 1).value = g.treatmentCount;
     gRow.getCell(recapStartCol + 2).value = g.commission;
     for (let c = 1; c <= colCount; c++) {
@@ -564,7 +538,7 @@ export async function exportDailyRevenueCommission({
       cell.font = { bold: true, size: 12, color: { argb: BRAND } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_LIGHT } };
       cell.border = thinBorder;
-      if (ITEM_CURRENCY.includes(c - 1) || c === recapStartCol + 2) {
+      if (c === recapStartCol + 2 || columns.some((x, xi) => x.money && xi + 1 === c)) {
         cell.numFmt = '#,##0';
         cell.alignment = { horizontal: 'right' };
       } else if (c === recapStartCol + 1) {
@@ -573,26 +547,55 @@ export async function exportDailyRevenueCommission({
     }
   }
 
-  if (note) {
+  if (spec.note) {
     sheet.getRow(cur());
-    putMerged(cur(), note, {
+    putMerged(cur(), spec.note, {
       font: { italic: true, size: 9, color: { argb: MUTED } },
       alignment: { horizontal: 'left', vertical: 'top', wrapText: true }
     });
   }
 
-  [14, 30, 16, 6, 14, 13, 12, 14].forEach((w, i) => { sheet.getColumn(i + 1).width = w; });
+  columns.forEach((c, i) => { sheet.getColumn(i + 1).width = c.width || 14; });
   sheet.getColumn(recapStartCol).width = 14;
   sheet.getColumn(recapStartCol + 1).width = 19;
   sheet.getColumn(recapStartCol + 2).width = 19;
   if (firstHeaderRow !== null) {
     sheet.views = [{ state: 'frozen', ySplit: firstHeaderRow }];
   }
+}
+
+/**
+ * Export LAPORAN REVENUE + KOMISI PER HARI â€” mengikuti format buku laporan
+ * yang biasa dipakai kasir, bukan `exportExcelReport`.
+ *
+ * Satu file berisi 7 sheet: 6 outlet (D1, D2, DP, DR, RR, Y) + 1 sheet Oncall.
+ * Oncall tidak ikut dihitung di sheet outlet manapun supaya tidak dobel; di
+ * sheet Oncall ada kolom Outlet sebagai asal transaksinya.
+ *
+ * Kolom "KET" pada buku manual sengaja tidak dibuat: isinya sama persis dengan
+ * kolom Komisi (persentase dari Charge), jadi mengulangnya hanya menambah satu
+ * kolom lagi yang harus dicocokkan.
+ *
+ * Angka dikirim sebagai number asli (bukan teks) supaya kolom uangnya bisa
+ * dijumlahkan sendiri di Excel.
+ *
+ * @param {string} filename - nama file (tanpa .xlsx)
+ * @param {string} subtitle - sub-judul (mis. periode)
+ * @param {Array<{sheetName:string,title:string,columns:Array<{key:string,header:string,width?:number,money?:boolean,center?:boolean}>,days:Array}>} sheets
+ * @param {string} note - catatan kaki di bawah tiap sheet (opsional)
+ */
+export async function exportDailyRevenueCommission({ filename, subtitle, sheets = [], note }) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Dayang Spa';
+
+  sheets.forEach((spec, i) => {
+    const sheet = workbook.addWorksheet(safeSheetName(spec.sheetName, `Sheet${i + 1}`));
+    writeDailySheet(sheet, { ...spec, subtitle, note });
+  });
 
   const buffer = await workbook.xlsx.writeBuffer();
   triggerDownload(buffer, filename);
 }
-
 export async function exportExcelReport({
   filename, title, subtitle, headers, rows, currencyColumns = [], totalRowIndex,
   sheetName, note
@@ -622,7 +625,7 @@ export async function exportExcelWorkbook({ filename, sheets = [] }) {
 }
 
 /**
- * Export LAPORAN PRODUK — mengikuti template tabel (bukan format laporan
+ * Export LAPORAN PRODUK â€” mengikuti template tabel (bukan format laporan
  * standar): dua blok tabel dalam satu worksheet, dan header DUA BARIS
  * yang di-merge per grup tanggal.
  *
@@ -640,7 +643,7 @@ export async function exportExcelWorkbook({ filename, sheets = [] }) {
  * @param {string[]} dates - label grup tanggal, mis. ['02 Okt', ...]
  * @param {Array<{title:string, note?:string, rows:Array<Array>}>} blocks
  *        `rows` sudah termasuk kolom No + nama di depan, lalu 4 angka
- *        per tanggal. Nilai null ditulis sebagai teks "–".
+ *        per tanggal. Nilai null ditulis sebagai teks "â€“".
  * @param {string} note - catatan kaki di bawah seluruh tabel (opsional)
  */
 export async function exportStockLedger({
@@ -709,7 +712,7 @@ export async function exportStockLedger({
     });
 
     // No + Produk Treatment diturunkan sampai baris sub-judul (rowSpan 2).
-    // Baris 2 harus dibuat dulu, baru di-merge — jangan mergeCells(a, a)
+    // Baris 2 harus dibuat dulu, baru di-merge â€” jangan mergeCells(a, a)
     // karena itu bikin ExcelJS menolak merge yang sebenarnya.
     sheet.getCell(h1, 1).value = 'No';
     sheet.getCell(h1, 2).value = 'Produk Treatment';
@@ -729,10 +732,10 @@ export async function exportStockLedger({
     });
 
     block.rows.forEach((values) => {
-      // null = belum ada catatan, bukan nol. Di Excel ditulis "–" supaya
+      // null = belum ada catatan, bukan nol. Di Excel ditulis "â€“" supaya
       // tidak salah dibaca sebagai "tidak ada barang keluar".
       const row = sheet.addRow(values.map((v, i) => (
-        i >= 2 && (v === null || v === undefined) ? '–' : v
+        i >= 2 && (v === null || v === undefined) ? 'â€“' : v
       )));
       row.eachCell((cell, colNumber) => {
         cell.border = thinBorder;

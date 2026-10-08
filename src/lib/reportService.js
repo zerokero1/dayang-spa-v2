@@ -252,24 +252,99 @@ function stripDuration(name) {
   return String(name || '').replace(/\s*\([^)]*\)\s*$/, '').trim() || String(name || '');
 }
 
+// Kolom tabel laporan harian. `key` dipakai writer untuk menjumlahkan baris
+// TOTAL, `money` menandai kolom yang diformat ribuan.
+const DAILY_OUTLET_COLUMNS = [
+  { key: 'date', header: 'Tanggal', width: 14 },
+  { key: 'treatmentName', header: 'Treatment', width: 30 },
+  { key: 'oilType', header: 'Minyak', width: 16 },
+  { key: 'qty', header: 'Qty', width: 6, center: true },
+  { key: 'therapistName', header: 'Therapist', width: 14 },
+  { key: 'charge', header: 'Charge', width: 13, money: true },
+  { key: 'commission', header: 'Komisi', width: 12, money: true },
+  { key: 'net', header: 'Gran Total', width: 14, money: true }
+];
+
+// Oncall punya kolom tambahan: asal outlet dan komisi hotel. Sisa Spa =
+// charge - komisi terapis - komisi hotel, jadi yang benar-benar diterima spa.
+const DAILY_ONCALL_COLUMNS = [
+  { key: 'date', header: 'Tanggal', width: 14 },
+  { key: 'treatmentName', header: 'Treatment', width: 28 },
+  { key: 'oilType', header: 'Minyak', width: 16 },
+  { key: 'qty', header: 'Qty', width: 6, center: true },
+  { key: 'therapistName', header: 'Therapist', width: 14 },
+  { key: 'outletId', header: 'Outlet', width: 8, center: true },
+  { key: 'charge', header: 'Charge', width: 13, money: true },
+  { key: 'commission', header: 'Komisi Terapis', width: 13, money: true },
+  { key: 'hotelCommission', header: 'Komisi Hotel', width: 13, money: true },
+  { key: 'net', header: 'Sisa Spa', width: 14, money: true }
+];
+
+function buildDailyDay(date, items) {
+  const charge = items.reduce((s, x) => s + x.charge, 0);
+  const commission = items.reduce((s, x) => s + x.commission, 0);
+  const hotelCommission = items.reduce((s, x) => s + (x.hotelCommission || 0), 0);
+
+  // Rekap per terapis untuk hari itu: jumlah treatment + komisi.
+  const byTherapist = {};
+  items.forEach((x) => {
+    if (!byTherapist[x.therapistName]) byTherapist[x.therapistName] = { treatmentCount: 0, commission: 0 };
+    byTherapist[x.therapistName].treatmentCount += x.qty;
+    byTherapist[x.therapistName].commission += x.commission;
+  });
+
+  return {
+    date,
+    items,
+    treatmentCount: items.length,
+    charge,
+    commission,
+    hotelCommission,
+    net: charge - commission - hotelCommission,
+    therapists: Object.entries(byTherapist)
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => b.commission - a.commission)
+  };
+}
+
+function sumDayField(days, key) {
+  return days.reduce((s, d) => s + (d[key] || 0), 0);
+}
+
 /**
  * Laporan revenue + komisi HARIAN, satu blok per tanggal — mengikuti format
  * "laporan revenue per hari" yang biasa dipakai kasir: tiap hari didaftarkan
  * treatment per baris lengkap dengan minyak yang dipakai, lalu ada total
  * harian dan rekap komisi per terapis di sebelah kanan.
  *
- * Bedanya dengan getCommissionStaffReport: ini satu blok per HARI, bukan satu
- * baris per orang untuk seluruh periode. Dipakai untuk menggaji per hari
- * dan cocok dengan format yang sudah biasa dipakai kasir.
+ * Hasilnya dipecah menjadi 7 sheet: satu per outlet (6 outlet) dan satu
+ * sheet Oncall. Oncall tidak ikut dihitung di sheet outlet manapun supaya tidak
+ * dobel — di sheet Oncall baru muncul outlet asalnya.
  *
- * Booking `batal` dilewati. Oncall tetap ikut karena komisi terapis di sana
- * juga bagian gaji.
+ * Booking `batal` dilewati. Oncall tetap dihitung karena komisi terapis di
+ * sana juga bagian gaji.
  */
 export async function getDailyRevenueCommissionReport(startDate, endDate) {
-  const days = [];
+  const sheets = [
+    ...OUTLETS.map((o) => ({
+      key: o.id,
+      sheetName: o.id,
+      title: `Laporan ${o.id} — ${o.name}`,
+      columns: DAILY_OUTLET_COLUMNS,
+      days: []
+    })),
+    {
+      key: 'oncall',
+      sheetName: 'Oncall',
+      title: 'Laporan Oncall (Hotel)',
+      columns: DAILY_ONCALL_COLUMNS,
+      days: []
+    }
+  ];
+  const byKey = Object.fromEntries(sheets.map((s) => [s.key, s]));
+
   const start = new Date(startDate + 'T00:00:00');
   const end = new Date(endDate + 'T00:00:00');
-  const grand = { treatmentCount: 0, charge: 0, commission: 0, net: 0 };
 
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const dateStr = fmtLocalDate(d);
@@ -280,48 +355,64 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
       console.warn('getDailyRevenueCommissionReport error', dateStr, e);
       continue;
     }
-    const items = rows
-      .filter((b) => b.status !== 'batal')
-      .map((b) => ({
-        treatmentName: stripDuration(b.treatmentName),
-        oilType: b.oilType || '',
-        qty: 1,
-        therapistName: b.therapistName || 'Tanpa terapis',
-        charge: b.treatmentPrice || 0,
-        commission: b.commissionAmount || 0
-      }))
-      // Urut dari harga tertinggi supaya baris paling mudah dicocokkan dengan buku.
-      .sort((a, b) => b.charge - a.charge || a.treatmentName.localeCompare(b.treatmentName));
 
-    const charge = items.reduce((s, x) => s + x.charge, 0);
-    const commission = items.reduce((s, x) => s + x.commission, 0);
+    const items = rows.filter((b) => b.status !== 'batal').map((b) => ({
+      treatmentName: stripDuration(b.treatmentName),
+      oilType: b.oilType || '',
+      qty: 1,
+      therapistName: b.therapistName || 'Tanpa terapis',
+      outletId: b.outletId || '',
+      bookingSource: b.bookingSource || 'in_house',
+      charge: b.treatmentPrice || 0,
+      commission: b.commissionAmount || 0,
+      hotelCommission: b.hotelCommission || 0
+    }));
 
-    // Rekap per terapis untuk hari itu: jumlah treatment + komisi.
-    const byTherapist = {};
-    items.forEach((x) => {
-      if (!byTherapist[x.therapistName]) byTherapist[x.therapistName] = { treatmentCount: 0, commission: 0 };
-      byTherapist[x.therapistName].treatmentCount += x.qty;
-      byTherapist[x.therapistName].commission += x.commission;
+    // Outlet mana pun yang tidak ada di OUTLETS tetap ikut dilaporkan, supaya
+    // tidak ada transaksi yang hilang tanpa jejak.
+    const others = [];
+    OUTLETS.forEach((o) => {
+      const own = items
+        .filter((b) => b.outletId === o.id && b.bookingSource !== 'oncall')
+        // Urut dari harga tertinggi supaya baris paling mudah dicocokkan dengan buku.
+        .sort((a, b) => b.charge - a.charge || a.treatmentName.localeCompare(b.treatmentName))
+        .map((x) => ({ ...x, date: dateStr, outletId: o.id }));
+      byKey[o.id].days.push(buildDailyDay(dateStr, own));
     });
 
-    grand.treatmentCount += items.length;
-    grand.charge += charge;
-    grand.commission += commission;
-    grand.net += charge - commission;
+    const oncall = items
+      .filter((b) => b.bookingSource === 'oncall')
+      .sort((a, b) => b.charge - a.charge || a.treatmentName.localeCompare(b.treatmentName))
+      .map((x) => ({ ...x, date: dateStr }));
+    byKey.oncall.days.push(buildDailyDay(dateStr, oncall));
 
-    days.push({
-      date: dateStr,
-      items,
-      charge,
-      commission,
-      net: charge - commission,
-      therapists: Object.entries(byTherapist)
-        .map(([name, v]) => ({ name, ...v }))
-        .sort((a, b) => b.commission - a.commission)
+    items.filter((b) => b.bookingSource !== 'oncall' && !OUTLETS.some((o) => o.id === b.outletId))
+      .forEach((x) => others.push({ ...x, date: dateStr, outletId: x.outletId || '?' }));
+  }
+
+  if (others.length) {
+    sheets.push({
+      key: 'lainnya',
+      sheetName: 'Lainnya',
+      title: 'Laporan Outlet Lainnya',
+      columns: [
+        ...DAILY_OUTLET_COLUMNS.slice(0, 5),
+        { key: 'outletId', header: 'Outlet', width: 10, center: true },
+        ...DAILY_OUTLET_COLUMNS.slice(5)
+      ],
+      days: [buildDailyDay('(tidak ada tanggal outlet)', others)]
     });
   }
 
-  return { days, grand };
+  const grand = {
+    treatmentCount: sheets.reduce((s, x) => s + sumDayField(x.days, 'treatmentCount'), 0),
+    charge: sheets.reduce((s, x) => s + sumDayField(x.days, 'charge'), 0),
+    commission: sheets.reduce((s, x) => s + sumDayField(x.days, 'commission'), 0),
+    hotelCommission: sheets.reduce((s, x) => s + sumDayField(x.days, 'hotelCommission'), 0)
+  };
+  grand.net = grand.charge - grand.commission - grand.hotelCommission;
+
+  return { sheets, grand };
 }
 
 export async function getCombinedDailyReport(startDate, endDate) {
