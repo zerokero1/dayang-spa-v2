@@ -111,18 +111,27 @@ export default function LaporanPage({ outletId, profile }) {
   }
 
   async function handleDownloadKomisi() {
-    const headers = ['Staff', 'Jumlah Treatment', 'Total Komisi', 'Outlet'];
+    const headers = [
+      'Staff', 'Jumlah Treatment', 'Total Omzet', 'Total Komisi',
+      'Belum Bayar (trx)', 'Belum Bayar (Rp)', 'Komisi Hotel', 'Outlet'
+    ];
     const rows = staffCommissions.map((s) => [
-      s.therapistName, s.treatmentCount, s.commissionTotal, s.outlets.join(', ')
+      s.therapistName, s.treatmentCount, s.revenueTotal, s.commissionTotal,
+      s.unpaidCount, s.unpaidTotal, s.hotelCommissionTotal, s.outlets.join(', ')
     ]);
     const totalKomisi = staffCommissions.reduce((sum, s) => sum + s.commissionTotal, 0);
-    rows.push(['TOTAL', staffCommissions.reduce((sum, s) => sum + s.treatmentCount, 0), totalKomisi, '']);
+    const totalOmzet = staffCommissions.reduce((sum, s) => sum + s.revenueTotal, 0);
+    const totalUnpaid = staffCommissions.reduce((sum, s) => sum + s.unpaidTotal, 0);
+    const totalUnpaidTrx = staffCommissions.reduce((sum, s) => sum + s.unpaidCount, 0);
+    const totalHotel = staffCommissions.reduce((sum, s) => sum + s.hotelCommissionTotal, 0);
+    const totalTrx = staffCommissions.reduce((sum, s) => sum + s.treatmentCount, 0);
+    rows.push(['TOTAL', totalTrx, totalOmzet, totalKomisi, totalUnpaidTrx, totalUnpaid, totalHotel, '']);
     await exportExcelReport({
       filename: `Laporan-Komisi-Staff-${startDate}_${endDate}`,
       title: 'Laporan Komisi Staff — Dayang Spa',
       subtitle: `Semua Outlet · ${rangeLabel}`,
       headers, rows,
-      currencyColumns: [2],
+      currencyColumns: [2, 3, 5, 6],
       totalRowIndex: rows.length - 1
     });
   }
@@ -247,21 +256,72 @@ export default function LaporanPage({ outletId, profile }) {
 
       {mode === 'komisi' && staffCommissions && (
         <section style={{ marginTop: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <h3 style={{ margin: 0 }}>Komisi Staff</h3>
             <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={handleDownloadKomisi}>
               ⬇ Download Excel
             </button>
           </div>
+
           {staffCommissions.length === 0 ? (
             <p>Tidak ada data komisi untuk rentang tanggal ini.</p>
           ) : (
-            staffCommissions.map((s, i) => (
-              <p key={i}>
-                {s.therapistName}: {s.treatmentCount} Treatment - Komisi {rp(s.commissionTotal)}
-                {s.outlets.length > 0 && <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}> - Outlet: {s.outlets.join(', ')}</span>}
-              </p>
-            ))
+            <>
+              <div className="summary-chips" style={{ margin: '12px 0' }}>
+                <span className="chip">{staffCommissions.length} orang</span>
+                <span className="chip">
+                  Total treatment {staffCommissions.reduce((s, x) => s + x.treatmentCount, 0)}
+                </span>
+                <span className="chip">Omzet {rp(staffCommissions.reduce((s, x) => s + x.revenueTotal, 0))}</span>
+                <span className="chip chip-purple">Komisi {rp(staffCommissions.reduce((s, x) => s + x.commissionTotal, 0))}</span>
+                {staffCommissions.some((s) => s.unpaidCount > 0) && (
+                  <span className="chip chip-warn">
+                    Belum bayar {rp(staffCommissions.reduce((s, x) => s + x.unpaidTotal, 0))}
+                  </span>
+                )}
+              </div>
+
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Staff</th>
+                      <th>Trx</th>
+                      <th>Omzet</th>
+                      <th>Komisi</th>
+                      <th>Belum bayar</th>
+                      <th>Outlet</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staffCommissions.map((s) => (
+                      <tr key={s.therapistName}>
+                        <td><strong>{s.therapistName}</strong></td>
+                        <td style={{ textAlign: 'center' }}>{s.treatmentCount}</td>
+                        <td style={{ textAlign: 'right' }}>{rp(s.revenueTotal)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{rp(s.commissionTotal)}</td>
+                        <td style={{ textAlign: 'right', color: s.unpaidCount ? 'var(--busy)' : undefined }}>
+                          {s.unpaidCount ? `${s.unpaidCount} trx · ${rp(s.unpaidTotal)}` : '-'}
+                        </td>
+                        <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.outlets.join(', ')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td><strong>TOTAL</strong></td>
+                      <td style={{ textAlign: 'center' }}><strong>{staffCommissions.reduce((s, x) => s + x.treatmentCount, 0)}</strong></td>
+                      <td style={{ textAlign: 'right' }}><strong>{rp(staffCommissions.reduce((s, x) => s + x.revenueTotal, 0))}</strong></td>
+                      <td style={{ textAlign: 'right', fontWeight: 700 }}><strong>{rp(staffCommissions.reduce((s, x) => s + x.commissionTotal, 0))}</strong></td>
+                      <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--busy)' }}>
+                        <strong>{rp(staffCommissions.reduce((s, x) => s + x.unpaidTotal, 0))}</strong>
+                      </td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </>
           )}
         </section>
       )}

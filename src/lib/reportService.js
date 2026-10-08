@@ -346,11 +346,29 @@ export async function getCommissionStaffReport(startDate, endDate) {
     if (b.status === 'batal') return;
     const key = b.therapistName || String(b.therapistId);
     if (!staff[key]) {
-      staff[key] = { therapistName: key, treatmentCount: 0, commissionTotal: 0, outlets: {} };
+      // Umzet dan tunggakan ikut dikumpulkan supaya daftar gaji bisa langsung
+      // dipakai: komisi yang benar tapi omzetnya belum masuk kas adalah dua
+      // masalah berbeda, dan kasir biasanya hanya melihat yang kedua.
+      staff[key] = {
+        therapistName: key,
+        treatmentCount: 0,
+        commissionTotal: 0,
+        revenueTotal: 0,
+        hotelCommissionTotal: 0,
+        unpaidCount: 0,
+        unpaidTotal: 0,
+        outlets: {}
+      };
     }
     const s = staff[key];
     s.treatmentCount += 1;
     s.commissionTotal += b.commissionAmount || 0;
+    s.revenueTotal += b.treatmentPrice || 0;
+    s.hotelCommissionTotal += b.hotelCommission || 0;
+    if (!b.paid) {
+      s.unpaidCount += 1;
+      s.unpaidTotal += b.treatmentPrice || 0;
+    }
     s.outlets[b.outletId] = true;
   });
   return Object.values(staff)
@@ -358,6 +376,10 @@ export async function getCommissionStaffReport(startDate, endDate) {
       therapistName: s.therapistName,
       treatmentCount: s.treatmentCount,
       commissionTotal: s.commissionTotal,
+      revenueTotal: s.revenueTotal,
+      hotelCommissionTotal: s.hotelCommissionTotal,
+      unpaidCount: s.unpaidCount,
+      unpaidTotal: s.unpaidTotal,
       outlets: Object.keys(s.outlets)
         .map((oid) => OUTLETS.find((o) => o.id === oid)?.name || oid)
         .sort()
