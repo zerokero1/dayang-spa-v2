@@ -112,26 +112,23 @@ export default function LaporanPage({ outletId, profile }) {
 
   async function handleDownloadKomisi() {
     const headers = [
-      'Staff', 'Jumlah Treatment', 'Total Omzet', 'Total Komisi',
-      'Belum Bayar (trx)', 'Belum Bayar (Rp)', 'Komisi Hotel', 'Outlet'
+      'Staff', 'Jumlah Treatment', 'Total Omzet', 'Total Komisi', 'Komisi Hotel', 'Outlet'
     ];
     const rows = staffCommissions.map((s) => [
       s.therapistName, s.treatmentCount, s.revenueTotal, s.commissionTotal,
-      s.unpaidCount, s.unpaidTotal, s.hotelCommissionTotal, s.outlets.join(', ')
+      s.hotelCommissionTotal, s.outlets.join(', ')
     ]);
     const totalKomisi = staffCommissions.reduce((sum, s) => sum + s.commissionTotal, 0);
     const totalOmzet = staffCommissions.reduce((sum, s) => sum + s.revenueTotal, 0);
-    const totalUnpaid = staffCommissions.reduce((sum, s) => sum + s.unpaidTotal, 0);
-    const totalUnpaidTrx = staffCommissions.reduce((sum, s) => sum + s.unpaidCount, 0);
     const totalHotel = staffCommissions.reduce((sum, s) => sum + s.hotelCommissionTotal, 0);
     const totalTrx = staffCommissions.reduce((sum, s) => sum + s.treatmentCount, 0);
-    rows.push(['TOTAL', totalTrx, totalOmzet, totalKomisi, totalUnpaidTrx, totalUnpaid, totalHotel, '']);
+    rows.push(['TOTAL', totalTrx, totalOmzet, totalKomisi, totalHotel, '']);
     await exportExcelReport({
       filename: `Laporan-Komisi-Staff-${startDate}_${endDate}`,
       title: 'Laporan Komisi Staff — Dayang Spa',
       subtitle: `Semua Outlet · ${rangeLabel}`,
       headers, rows,
-      currencyColumns: [2, 3, 5, 6],
+      currencyColumns: [2, 3, 4],
       totalRowIndex: rows.length - 1
     });
   }
@@ -274,11 +271,6 @@ export default function LaporanPage({ outletId, profile }) {
                 </span>
                 <span className="chip">Omzet {rp(staffCommissions.reduce((s, x) => s + x.revenueTotal, 0))}</span>
                 <span className="chip chip-purple">Komisi {rp(staffCommissions.reduce((s, x) => s + x.commissionTotal, 0))}</span>
-                {staffCommissions.some((s) => s.unpaidCount > 0) && (
-                  <span className="chip chip-warn">
-                    Belum bayar {rp(staffCommissions.reduce((s, x) => s + x.unpaidTotal, 0))}
-                  </span>
-                )}
               </div>
 
               <div className="table-wrap">
@@ -289,7 +281,7 @@ export default function LaporanPage({ outletId, profile }) {
                       <th>Trx</th>
                       <th>Omzet</th>
                       <th>Komisi</th>
-                      <th>Belum bayar</th>
+                      <th>Komisi Hotel</th>
                       <th>Outlet</th>
                     </tr>
                   </thead>
@@ -300,8 +292,8 @@ export default function LaporanPage({ outletId, profile }) {
                         <td style={{ textAlign: 'center' }}>{s.treatmentCount}</td>
                         <td style={{ textAlign: 'right' }}>{rp(s.revenueTotal)}</td>
                         <td style={{ textAlign: 'right', fontWeight: 600 }}>{rp(s.commissionTotal)}</td>
-                        <td style={{ textAlign: 'right', color: s.unpaidCount ? 'var(--busy)' : undefined }}>
-                          {s.unpaidCount ? `${s.unpaidCount} trx · ${rp(s.unpaidTotal)}` : '-'}
+                        <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>
+                          {s.hotelCommissionTotal > 0 ? rp(s.hotelCommissionTotal) : '-'}
                         </td>
                         <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.outlets.join(', ')}</td>
                       </tr>
@@ -313,9 +305,7 @@ export default function LaporanPage({ outletId, profile }) {
                       <td style={{ textAlign: 'center' }}><strong>{staffCommissions.reduce((s, x) => s + x.treatmentCount, 0)}</strong></td>
                       <td style={{ textAlign: 'right' }}><strong>{rp(staffCommissions.reduce((s, x) => s + x.revenueTotal, 0))}</strong></td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}><strong>{rp(staffCommissions.reduce((s, x) => s + x.commissionTotal, 0))}</strong></td>
-                      <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--busy)' }}>
-                        <strong>{rp(staffCommissions.reduce((s, x) => s + x.unpaidTotal, 0))}</strong>
-                      </td>
+                      <td style={{ textAlign: 'right' }}><strong>{rp(staffCommissions.reduce((s, x) => s + x.hotelCommissionTotal, 0))}</strong></td>
                       <td />
                     </tr>
                   </tfoot>
