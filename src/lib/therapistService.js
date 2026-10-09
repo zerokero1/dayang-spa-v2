@@ -92,8 +92,22 @@ export function listenFreeTherapists(callback) {
 }
 
 export async function addTherapist({ name, role, homeOutletId }) {
+  const bersih = String(name || '').trim().replace(/\s+/g, ' ');
+  if (!bersih) throw new Error('Nama terapis wajib diisi.');
+
+  // Tanpa unique index di database, cek dulu di sini. Tanpa ini orang yang
+  // sama bisa terdaftar dua kali lalu namanya muncul dua di daftar - dan
+  // komisinya ikut terpecah jadi dua baris di laporan.
+  const { data: ada, error: cekErr } = await supabase
+    .from('therapists')
+    .select('id, name')
+    .ilike('name', bersih);
+  if (cekErr) throw cekErr;
+  const kembar = (ada || []).find((t) => t.name.trim().toLowerCase() === bersih.toLowerCase());
+  if (kembar) throw new Error(`Terapis "${kembar.name}" sudah terdaftar. Jangan didaftarkan dua kali.`);
+
   const { data, error } = await supabase.from('therapists').insert({
-    name,
+    name: bersih,
     role: role || 'terapis',
     home_outlet_id: homeOutletId || null,
     status: 'free'

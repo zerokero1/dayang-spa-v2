@@ -67,12 +67,115 @@ export async function cancelOncallBooking(bookingId) {
   return data;
 }
 
-export async function selesaiOncallBooking(bookingId) {
-  const { data, error } = await supabase.rpc('selesai_oncall_booking_office', {
-    p_booking_id: bookingId
-  });
+// RPC selesai_oncall_booking_office tidak lagi dipakai: transaksinya sudah
+// berstatus 'selesai' sejak dibuat sehingga menekan tombol tidak mengubah apa
+// pun, dan terapis tetap terkunci. Lihat selesaiOncallDanBebaskan di bawah.
+
+/**
+ * Selesaikan oncall DAN bebaskan terapis-nya.
+ *
+ * RPC `selesai_oncall_booking_office` tidak dipakai lagi karena tidak
+ * accomplish apa pun yang terlihat: transaksinya sudah berstatus `selesai`
+ * sejak dibuat, sehingga menekan tombol tidak mengubah apa pun, dan terapis
+ * tetap terkunci. RPC itu juga menolak booking yang sudah `batal`, padahal
+ * justru booking batal itulah yang mengunci terapis.
+ *
+ * Dua perbedaan penting dari RPC lama:
+ *   1. Yang dihitung sebagai "menahan" hanya booking yang masih `berjalan`.
+ *      Versi lama menghitung semua oncall historis yang tidak batal, jadi
+ *      tidak pernah nol dan terapis pun tidak pernah dibebaskan.
+ *   2. Pencocokan terapis memakai id booking, bukan hanya `current_group_id`,
+ *      sehingga tetap jalan meski grup-nya menunjuk booking lain.
+ */
+export async function selesaiOncallDanBebaskan(bookingId) {
+  const { data: rows, error: readErr } = await supabase
+    .from('bookings')
+    .select('id, therapist_id, therapist_name, status, paid, cancelled_at')
+    .eq('id', bookingId)
+    .limit(1);
+  if (readErr) throw readErr;
+  const booking = (rows || [])[0];
+  if (!booking) throw new Error('Transaksi oncall tidak ditemukan.');
+
+  if (booking.status !== 'batal' && booking.status !== 'selesai') {
+    const { error } = await supabase
+      .from('bookings')
+      .update({ status: 'selesai', paid: true, cancelled_at: null })
+      .eq('id', bookingId);
+    if (error) throw error;
+  }
+
+  return bebaskanTerapisDariOncall(booking.therapist_id, bookingId);
+}
+
+/**
+ * Lepaskan terapis dari sesi oncall. Dipakai terpisah karena ada kasus
+ * booking-nya sudah `batal` sehingga tidak bisa diselesaikan - tapi terapis
+ * tetap terkunci di papan terapis dan tidak bisa menerima tamu.
+ */
+export async function bebaskanTerapisDariOncall(therapistId, bookingId) {
+  if (!therapistId) return { freed: false, reason: 'booking oncall tidak punya terapis' };
+
+  const { data: thRows, error: thErr } = await supabase
+    .from('therapists')
+    .select('id, name, status, current_group_id, current_booking_id, current_booking_ids')
+    .eq('id', therapistId)
+    .limit(1);
+  if (thErr) throw thErr;
+  const therapist = (thRows || [])[0];
+  if (!therapist) return { freed: false, reason: 'terapis tidak ditemukan' };
+
+  // Sesi lain yang masih benar-benar berjalan = treatment yang jam SELESAINYA
+  // belum lewat. Tidak bisa pakai status 'berjalan' saja: status itu jarang
+  // pernah ditutup kasir, sehingga selalu terhitung "masih aktif" dan terapis
+  // tidak pernah bebas.
+  const { data: aktif, error: akErr } = await supabase
+    .from('bookings')
+    .select('id, end_at')
+    .eq('therapist_id', therapistId)
+    .eq('status', 'berjalan')
+    .gt('end_at', Date.now());
+  if (akErr) throw akErr;
+  const masihAktif = (aktif || []).filter((b) => b.id !== bookingId);
+
+  const ids = Array.isArray(therapist.current_booking_ids) ? therapist.current_booking_ids : [];
+  const group = therapist.current_group_id;
+  const nyambungKeOncallIni = (group === `oncall:${bookingId}`) || ids.includes(bookingId);
+
+  if (masihAktif.length === 0) {
+    const { error } = await supabase
+      .from('therapists')
+      .update({
+        status: 'free',
+        current_outlet_id: null,
+        current_booking_ids: null,
+        current_booking_id: null,
+        current_treatment_names: null,
+        current_treatment_name: null,
+        current_paid: null,
+        current_payment_method: null,
+        current_price: null,
+        current_group_id: null,
+        start_at: null,
+        end_at: null
+      })
+      .eq('id', therapistId);
+    if (error) throw error;
+    return { freed: true, therapistName: therapist.name, sudahBebas: therapist.status === 'free' && !nyambungKeOncallIni };
+  }
+
+  // Masih ada sesi aktif: lepaskan hanya booking oncall ini, jangan sentuh
+  // status terapis karena dia masih bekerja.
+  const { error } = await supabase
+    .from('therapists')
+    .update({
+      current_booking_ids: ids.filter((id) => id !== bookingId),
+      current_booking_id: therapist.current_booking_id === bookingId ? null : therapist.current_booking_id,
+      current_group_id: nyambungKeOncallIni ? null : group
+    })
+    .eq('id', therapistId);
   if (error) throw error;
-  return data;
+  return { freed: false, therapistName: therapist.name, reason: 'masih ada sesi lain yang berjalan' };
 }
 
 // Booking oncall outlet pada satu hari WIB (konsisten dengan reportService).

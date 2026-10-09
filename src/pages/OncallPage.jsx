@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { PAYMENT_METHOD_LABEL, parseRupiah, sanitizeNominal, formatRupiah } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
-import { createOncallBookingMulti, editOncallBooking, cancelOncallBooking, selesaiOncallBooking, getTodayOncall, outletNames } from '../lib/oncallService';
+import { createOncallBookingMulti, editOncallBooking, cancelOncallBooking, selesaiOncallDanBebaskan, bebaskanTerapisDariOncall, getTodayOncall, outletNames } from '../lib/oncallService';
 
 const THERAPIST_COMMISSION = 10;
 
@@ -235,12 +235,39 @@ export default function OncallPage({ outletId, active, isOffice, profile }) {
   async function handleSelesai(b) {
     if (!window.confirm(`Selesaikan oncall "${b.treatmentName}" untuk ${b.therapistName} SEKARANG? Transaksi & komisi tetap dicatat, tetapi terapis langsung bebas (tanpa menunggu jam selesai).`)) return;
     try {
-      await selesaiOncallBooking(b.id);
-      setMessage(`Oncall ${b.therapistName} diselesaikan, terapis dibebaskan.`);
+      const hasil = await selesaiOncallDanBebaskan(b.id);
+      setMessage(hasil.freed
+        ? `Oncall ${b.therapistName} diselesaikan, terapis dibebaskan.`
+        : `Transaksi oncall ${b.therapistName} diselesaikan. Terapis belum dibebaskan karena ${hasil.reason || 'masih ada sesi lain'}.`);
       await loadList();
     } catch (e) {
       setError(e.message || 'Gagal menyelesaikan oncall.');
     }
+  }
+
+  async function handleBebaskan(b) {
+    if (!window.confirm(`Bebaskan ${b.therapistName} dari sesi oncall yang sudah selesai?`)) return;
+    try {
+      const hasil = await bebaskanTerapisDariOncall(b.therapistId, b.id);
+      setMessage(hasil.freed
+        ? `${b.therapistName} sudah bebas.`
+        : `${b.therapistName} belum bisa dibebaskan: ${hasil.reason || 'masih ada sesi lain'}.`);
+      await loadList();
+    } catch (e) {
+      setError(e.message || 'Gagal membebaskan terapis.');
+    }
+  }
+
+  // Terapis yang masih terkunci di sesi oncall padahal transaksinya sudah
+  // selesai atau dibatalkan. Tombol Selesaikan tidak menolong di kasus ini
+  // karena booking-nya sudah tidak bisa diselesaikan.
+  function terapisMasihTerkunci(b) {
+    if (!b.therapistId) return false;
+    const t = therapists.find((x) => x.id === b.therapistId);
+    if (!t) return false;
+    const group = String(t.currentGroupId || '');
+    const ids = Array.isArray(t.currentBookingIds) ? t.currentBookingIds : [];
+    return t.status === 'ambil_tamu' && (group.startsWith('oncall:') || ids.includes(b.id));
   }
 
   async function handleEditSave() {
@@ -479,32 +506,50 @@ export default function OncallPage({ outletId, active, isOffice, profile }) {
               {b.status === 'batal' ? (
                 <div style={{ fontSize: 12, color: 'var(--warning)', marginTop: 6, fontWeight: 600 }}>Transaksi dibatalkan</div>
               ) : (
-                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                  {isOffice && (
+                <>
+                  {b.status === 'selesai' && (
+                    <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 6, fontWeight: 600 }}>
+                      ✅ Sudah selesai
+                      {terapisMasihTerkunci(b) ? ' — terapis masih terkunci' : ''}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    {isOffice && (
+                      <button
+                        type="button"
+                        className="pos-chip"
+                        style={{ background: 'var(--primary)', color: 'white' }}
+                        onClick={() => handleSelesai(b)}
+                      >
+                        ✅ Selesaikan
+                      </button>
+                    )}
+                    {isOffice && terapisMasihTerkunci(b) && (
+                      <button
+                        type="button"
+                        className="pos-chip"
+                        style={{ background: 'var(--warning)', color: 'white' }}
+                        onClick={() => handleBebaskan(b)}
+                      >
+                        🔓 Bebaskan Terapis
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="pos-chip"
-                      style={{ background: 'var(--primary)', color: 'white' }}
-                      onClick={() => handleSelesai(b)}
+                      onClick={() => openEdit(b)}
                     >
-                      ✅ Selesaikan
+                      ✏️ Edit
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    className="pos-chip"
-                    onClick={() => openEdit(b)}
-                  >
-                    ✏️ Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="pos-chip"
-                    onClick={() => handleCancel(b)}
-                  >
-                    🗑️ Hapus
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      className="pos-chip"
+                      onClick={() => handleCancel(b)}
+                    >
+                      🗑️ Hapus
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           ))
