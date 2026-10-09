@@ -21,6 +21,7 @@ const StatusTerapisPage = lazy(() => import('./pages/StatusTerapisPage'));
 const ReservasiPage = lazy(() => import('./pages/ReservasiPage'));
 const KelolaTerapisPage = lazy(() => import('./pages/KelolaTerapisPage'));
 const LaporanAbsensiPage = lazy(() => import('./pages/LaporanAbsensiPage'));
+const JadwalMingguanPage = lazy(() => import('./pages/JadwalMingguanPage'));
 const LaporanInventoryPage = lazy(() => import('./pages/LaporanInventoryPage'));
 const LaporanBelumDitandaiPage = lazy(() => import('./pages/LaporanBelumDitandaiPage'));
 const AmbilOrderPage = lazy(() => import('./pages/AmbilOrderPage'));
@@ -56,6 +57,7 @@ const PAGES = {
   laporan: { label: 'Laporan Keuangan', icon: '💰', Component: LaporanPage },
   laporanKeseluruhan: { label: 'Laporan Keseluruhan', icon: '📚', Component: LaporanKeseluruhanPage, global: true, officeOnly: true },
   laporanAbsensi: { label: 'Laporan Absensi', icon: '📋', Component: LaporanAbsensiPage, global: true },
+  jadwalMingguan: { label: 'Jadwal Mingguan', icon: '🗓️', Component: JadwalMingguanPage, global: true },
   laporanInventory: { label: 'Laporan Inventory', icon: '📦', Component: LaporanInventoryPage, global: true },
   belumDitandai: { label: 'Belum Ditandai Lunas', icon: '🚩', Component: LaporanBelumDitandaiPage, global: true },
   kelolaTerapis: { label: 'Kelola Terapis', icon: '👥', Component: KelolaTerapisPage, global: true, adminOnly: true },
