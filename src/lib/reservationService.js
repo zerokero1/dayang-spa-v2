@@ -137,6 +137,10 @@ export async function checkInReservationMulti({ reservation, items }) {
     const usesOil = it.usesOil !== false;
     const therapistId = it.therapistId || reservation.therapistId;
     const therapistName = it.therapistName || reservation.therapistName;
+    // Satu grup bisa berisi banyak orang, jadi tiap baris boleh punya nama
+    // sendiri. Baris yang namanya dikosongkan ikut memakai nama pelanggan
+    // yang tercatat di reservasi.
+    const customerName = (it.customerName || '').trim() || reservation.customerName || '';
     const id = await createBookingCore({
       outletId: reservation.outletId,
       therapistId,
@@ -149,7 +153,7 @@ export async function checkInReservationMulti({ reservation, items }) {
       usesOil,
       oilType: usesOil ? it.oilType : null,
       oilSize: usesOil ? it.oilSize : null,
-      customerName: reservation.customerName,
+      customerName,
       groupId
     });
     bookingIds.push(id);

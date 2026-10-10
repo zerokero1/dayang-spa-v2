@@ -45,15 +45,24 @@ function kirimReservasiKeGrup(r, treatment) {
   const lines = [
     'RESERVASI BARU',
     `Outlet  : ${OUTLET_NAME[r.outletId] || r.outletId}`,
-    `Tamu    : ${r.customerName || '(tanpa nama)'}`,
-    `No HP   : ${r.customerPhone || '-'}`,
-    `Jadwal  : ${tanggalPanjang(r.scheduledAt)}, ${jamSingkat(r.scheduledAt)} WIB`,
-    `Terapis : ${r.therapistName || '-'}`
+    `Jadwal  : ${tanggalPanjang(r.scheduledAt)}, ${jamSingkat(r.scheduledAt)} WIB`
   ];
+  // Kalau satu reservasi berisi beberapa orang, sebutkan semuanya supaya tim
+  // tahu berapa orang yang harus disiapkan.
+  const daftar = Array.isArray(r.daftarOrang) ? r.daftarOrang.filter(Boolean) : [];
+  if (daftar.length > 1) {
+    lines.push(`Jumlah   : ${daftar.length} orang`);
+    lines.push('Tamu     : ' + daftar.join(', '));
+    if (r.customerPhone) lines.push(`No HP    : ${r.customerPhone}`);
+  } else {
+    lines.push(`Tamu     : ${r.customerName || '(tanpa nama)'}`);
+    if (r.customerPhone) lines.push(`No HP    : ${r.customerPhone}`);
+  }
+  lines.push(`Terapis : ${r.therapistName || '-'}`);
   if (treatment) {
     lines.push(`Treatment: ${treatment.name} - Rp${Number(treatment.price || 0).toLocaleString('id-ID')}`);
   } else if (r.treatmentName || r.category) {
-    lines.push(`Treatment: ${r.treatmentName || r.category} (belum dipilih)`);
+    lines.push(`Treatment: ${r.treatmentName || r.category}${r.treatmentPrice ? ' - Rp' + Number(r.treatmentPrice).toLocaleString('id-ID') : ''}`);
   }
   lines.push('Mohon siapkan room dan minyak sesuai daftar.');
   openWhatsAppMessage(lines.join('\n'));
@@ -141,12 +150,16 @@ export default function ReservasiPage({ outletId, active }) {
   const [pItems, setPItems] = useState([]);
   const [pSaving, setPSaving] = useState(false);
 
-  function barisBaru(categori, terapisId) {
+  function barisBaru(categori, terapisId, customerName) {
     return {
       uid: Math.random().toString(36).slice(2, 8),
       category: kategori || TREATMENT_CATEGORIES[0],
       treatment: null, oil: null, size: null,
-      therapistId: terapisId || null
+      therapistId: terapisId || null,
+      // Nama orang untuk baris ini. Kosong = ikut memakai nama pelanggan di
+      // reservasi, jadi satu orang bisa punya beberapa treatment tanpa
+      // mengulang namanya.
+      customerName: customerName || ''
     };
   }
 
@@ -209,7 +222,7 @@ export default function ReservasiPage({ outletId, active }) {
     setProcessTarget(r);
     // Baris pertama memakai terapis & kategori dari reservasi, tapi tetap bisa
     // diganti - kadang tamu datang barengan dengan pasangan.
-    setPItems([barisBaru(r.category || TREATMENT_CATEGORIES[0], r.therapistId)]);
+    setPItems([barisBaru(r.category || TREATMENT_CATEGORIES[0], r.therapistId, r.customerName)]);
   }
 
   function ubahBaris(uid, patch) {
@@ -220,8 +233,19 @@ export default function ReservasiPage({ outletId, active }) {
     setPItems((list) => (list.length > 1 ? list.filter((b) => b.uid !== uid) : list));
   }
 
-  // Oil hanya diminta kalau treatment-nya memang pakai minyak, jadi tiap baris
-  // dicek sendiri-sendiri.
+  // Jumlah orang berbeda di dalam satu grup. Baris yang kolom "Nama orang"-nya
+  // kosong ikut memakai nama pelanggan di reservasi, jadi baris seperti itu
+  // menghitung sebagai orang yang sama - bukan orang tambahan.
+  function hitungOrang(list, namaReservasi) {
+    const set = new Set();
+    list.forEach((b) => {
+      const n = (b.customerName || '').trim() || namaReservasi || '(tanpa nama)';
+      set.add(n);
+    });
+    return set.size;
+  }
+
+  // Oil hanya diminta kalau treatment-nya memang pakai minyak.
   function perluMinyak(baris) {
     return treatmentUsesOil(baris.treatment);
   }
@@ -242,6 +266,7 @@ export default function ReservasiPage({ outletId, active }) {
         items: pItems.map((b) => ({
           therapistId: b.therapistId,
           therapistName: therapists.find((t) => t.id === b.therapistId)?.name || processTarget.therapistName,
+          customerName: b.customerName,
           treatment: b.treatment,
           oilType: b.oil,
           oilSize: b.size,
@@ -249,9 +274,10 @@ export default function ReservasiPage({ outletId, active }) {
         }))
       });
       const namaTamu = processTarget.customerName || 'tamu';
+      const jumlahOrang = hitungOrang(pItems, processTarget.customerName);
       setMessage(
         bookingIds.length > 1
-          ? `Booking ${namaTamu} dibuat: ${bookingIds.length} treatment, total Rp${total.toLocaleString('id-ID')}.`
+          ? `Booking ${namaTamu} dibuat: ${bookingIds.length} treatment untuk ${jumlahOrang} orang, total Rp${total.toLocaleString('id-ID')}.`
           : `Booking ${namaTamu} dibuat — ${pItems[0].treatment.name}.`
       );
       // Ringkasan per treatment supaya bisa dikirim ke grup dalam satu pesan.
@@ -259,9 +285,14 @@ export default function ReservasiPage({ outletId, active }) {
         ...processTarget,
         treatmentName: pItems.map((b) => b.treatment.name).join(' + '),
         treatmentPrice: total,
+        customerName: pItems[0].customerName || processTarget.customerName,
         therapistName: pItems.map((b) =>
           therapists.find((t) => t.id === b.therapistId)?.name || processTarget.therapistName
-        ).filter((v, i, a) => a.indexOf(v) === i).join(', ')
+        ).filter((v, i, a) => a.indexOf(v) === i).join(', '),
+        // Daftar orang dalam grup, untuk pesan ke tim.
+        daftarOrang: [...new Set(pItems
+          .map((b) => (b.customerName || '').trim() || processTarget.customerName)
+          .filter(Boolean))]
       });
       setProcessTarget(null);
     } catch (e) {
@@ -444,8 +475,9 @@ export default function ReservasiPage({ outletId, active }) {
             </div>
 
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 10px' }}>
-              Satu tamu boleh punya beberapa treatment di jam yang sama. Tambah baris untuk
-              tiap treatment, lalu pilih terapis masing-masing.
+              Satu tamu boleh punya beberapa treatment, dan satu grup bisa berisi
+              beberapa orang. Tiap baris punya treatment dan terapis sendiri;
+              isi kolom "Nama orang" kalau baris itu untuk orang yang berbeda.
             </p>
 
             {pItems.map((b, idx) => {
@@ -522,6 +554,16 @@ export default function ReservasiPage({ outletId, active }) {
                     </>
                   )}
 
+                  <p style={{ margin: '8px 0 4px', fontSize: 12 }}>Nama orang</p>
+                  <input
+                    placeholder={processTarget.customerName
+                      ? `Kosongkan = ikut nama "${processTarget.customerName}"`
+                      : 'Kosongkan = tanpa nama'}
+                    value={b.customerName}
+                    onChange={(e) => ubahBaris(b.uid, { customerName: e.target.value })}
+                    style={{ width: '100%' }}
+                  />
+
                   <p style={{ margin: '8px 0 4px', fontSize: 12 }}>Terapis</p>
                   <select
                     value={b.therapistId || ''}
@@ -539,15 +581,23 @@ export default function ReservasiPage({ outletId, active }) {
               );
             })}
 
-            <button
-              style={{ width: '100%', marginBottom: 10 }}
-              onClick={() => setPItems((list) => [...list, barisBaru()])}
-            >
-              ＋ Tambah treatment lagi
-            </button>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              <button
+                style={{ width: 'auto', flex: 1, marginBottom: 0 }}
+                onClick={() => setPItems((list) => [...list, barisBaru(list[0]?.category, null, '')])}
+              >
+                ＋ Treatment orang lain
+              </button>
+              <button
+                style={{ width: 'auto', flex: 1, marginBottom: 0 }}
+                onClick={() => setPItems((list) => [...list, barisBaru(list[0]?.category, null, list[0]?.customerName)])}
+              >
+                ＋ Treatment orang yang sama
+              </button>
+            </div>
 
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
-              Total {pItems.length} treatment ·{' '}
+              Total {pItems.length} treatment · {hitungOrang(pItems, processTarget.customerName)} orang ·{' '}
               {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
                 .format(pItems.reduce((s, b) => s + Number(b.treatment?.price || 0), 0))}
             </div>
