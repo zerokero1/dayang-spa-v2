@@ -19,16 +19,64 @@ function jamSingkat(ms) {
   return new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
 }
 
+// Tanggal lokal WIB sebagai "YYYY-MM-DD", dipakai untuk mencocokkan reservasi
+// dengan pilihan tanggal di "kirim list".
+function tanggalPendek(ms) {
+  return new Date(new Date(ms).getTime() + 7 * 3600000).toISOString().slice(0, 10);
+}
+
+function hariIniId() {
+  return tanggalPendek(Date.now());
+}
+
 /**
- * Isi pesan pengingat. Kalau nomor pelanggan ada, pesan dibuka langsung ke
- * nomor itu (kasir tidak perlu cari kontak); kalau tidak ada, WhatsApp dibuka
- * dan kasir memilih sendiri kontaknya.
+ * Pesan pengingat untuk GRUP WhatsApp internal (grup staff), format-nya
+ * mengikuti pesan "kirim list" yang sudah dipakai di halaman Status Terapis:
+ * judul besar, lalu satu blok info per reservasi.
+ *
+ * Berbeda dengan pesan ke pelanggan, pesan ini tidak menyapa orang dan tidak
+ * mengemis konfirmasi - tujuannya memberitahu tim apa yang harus disiapkan.
  *
  * @param {object} r baris reservasi
- * @param {string} [t treatments] treatment yang sudah dipilih, untuk konfirmasi
- *        setelah reservasi diisi - sebelum itu yang tampil baru kategori
- * @returns {boolean} true kalau langsung ke nomor, false kalau kasir pilih kontak
+ * @param {string} [treatment] treatment yang sudah dipilih, kalau reservasi
+ *        sudah diisi
  */
+function kirimReservasiKeGrup(r, treatment) {
+  const lines = [
+    'RESERVASI BARU',
+    `Outlet  : ${OUTLET_NAME[r.outletId] || r.outletId}`,
+    `Tamu    : ${r.customerName || '(tanpa nama)'}`,
+    `No HP   : ${r.customerPhone || '-'}`,
+    `Jadwal  : ${tanggalPanjang(r.scheduledAt)}, ${jamSingkat(r.scheduledAt)} WIB`,
+    `Terapis : ${r.therapistName || '-'}`
+  ];
+  if (treatment) {
+    lines.push(`Treatment: ${treatment.name} - Rp${Number(treatment.price || 0).toLocaleString('id-ID')}`);
+  } else if (r.treatmentName || r.category) {
+    lines.push(`Treatment: ${r.treatmentName || r.category} (belum dipilih)`);
+  }
+  lines.push('Mohon siapkan room dan minyak sesuai daftar.');
+  openWhatsAppMessage(lines.join('\n'));
+}
+
+/**
+ * Kirim daftar reservasi satu tanggal ke grup sekaligus - ini yang biasa
+ * dipakai kasir sebagai "kirim list".
+ *
+ * @param {Array} list baris reservasi
+ * @param {string} tanggal label tanggal yang ditampilkan
+ */
+function kirimListReservasiKeGrup(list, tanggal) {
+  if (!list.length) return;
+  const text = [`RESERVASI ${tanggal} (${list.length} booking)`, ''];
+  list.forEach((r, i) => {
+    text.push(`${i + 1}. ${jamSingkat(r.scheduledAt)} — ${r.customerName || '(tanpa nama)'}`);
+    if (r.customerPhone) text.push(`   ${r.customerPhone}`);
+    text.push(`   ${r.therapistName || '-'} · ${r.treatmentName || r.category || '-'}`);
+    text.push('');
+  });
+  openWhatsAppMessage(text.join('\n'));
+}
 function kirimPengingatWa(r, treatment) {
   const jam = jamSingkat(r.scheduledAt);
   const lines = [
@@ -48,8 +96,7 @@ function kirimPengingatWa(r, treatment) {
   lines.push(
     '',
     'Mohon datang 10 menit lebih awal. Mohon konfirmasi ya, terima kasih 🙏'
-  );
-  const message = lines.join('\n');
+  );  const message = lines.join('\n');
   return openWhatsAppToNumber(r.customerPhone, message) || (openWhatsAppMessage(message), false);
 }
 
@@ -85,6 +132,7 @@ export default function ReservasiPage({ outletId, active }) {
   const [message, setMessage] = useState('');
   const [therapistSearch, setTherapistSearch] = useState('');
   const [saved, setSaved] = useState(null);
+  const [listDate, setListDate] = useState(hariIniId());
 
   const [processTarget, setProcessTarget] = useState(null); // reservasi yang sedang diisi
   const [pCategory, setPCategory] = useState(TREATMENT_CATEGORIES[0]);
@@ -108,6 +156,13 @@ export default function ReservasiPage({ outletId, active }) {
 
   const canSave = category && scheduleDate && selTherapist;
   const nomorValid = normalizeWaNumber(customerPhone) !== '';
+
+  // "Kirim list": seluruh reservasi aktif pada satu tanggal dikirim ke grup
+  // WhatsApp sekaligus, supaya kasir cukup memilih grupnya sekali saja.
+  const listHariIni = reservations.filter((r) => {
+    if (r.status !== 'terjadwal') return false;
+    return tanggalPendek(r.scheduledAt) === listDate;
+  });
 
   async function handleSave(kirimWa) {
     if (!canSave) return;
@@ -185,8 +240,28 @@ export default function ReservasiPage({ outletId, active }) {
   }
 
   return (
-    <div className="kasir-page">
+      <div className="kasir-page">
       <h2>Reservasi - {outletId}</h2>
+
+      <section style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
+        <strong style={{ fontSize: 13 }}>Kirim list ke grup</strong>
+        <input
+          type="date"
+          value={listDate}
+          onChange={(e) => setListDate(e.target.value)}
+          style={{ width: 'auto' }}
+        />
+        <button
+          style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary)', color: '#fff' }}
+          disabled={listHariIni.length === 0}
+          onClick={() => kirimListReservasiKeGrup(listHariIni, tanggalPanjang(new Date(listDate + 'T00:00:00+07:00').getTime()))}
+        >
+          📋 Kirim list ({listHariIni.length})
+        </button>
+        {listHariIni.length === 0 && (
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Tidak ada reservasi aktif pada tanggal ini.</span>
+        )}
+      </section>
 
       {upcoming.length > 0 && (
         <section>
@@ -212,6 +287,12 @@ export default function ReservasiPage({ outletId, active }) {
                   </button>
                   <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => kirimPengingatWa(r)}>
                     {normalizeWaNumber(r.customerPhone) ? '📱 Kirim WA' : '📱 Pilih kontak manual'}
+                  </button>
+                  <button
+                    style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary)', color: '#fff' }}
+                    onClick={() => kirimReservasiKeGrup(r)}
+                  >
+                    📢 Kirim ke grup
                   </button>
                   <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }} onClick={() => handleCancel(r)}>
                     Batal
@@ -243,7 +324,6 @@ export default function ReservasiPage({ outletId, active }) {
         <p>2. Pilih jam yang diinginkan tamu</p>
         <input type="datetime-local" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} />
       </section>
-
       <section>
         <p>3. Pilih terapis</p>
         <input placeholder="Cari nama terapis..." value={therapistSearch} onChange={(e) => setTherapistSearch(e.target.value)} style={{ marginBottom: 10 }} />
@@ -284,8 +364,14 @@ export default function ReservasiPage({ outletId, active }) {
             {saved.therapistName} · {OUTLET_NAME[saved.outletId] || saved.outletId}
           </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+            <button
+              style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary)', color: '#fff' }}
+              onClick={() => kirimReservasiKeGrup(saved)}
+            >
+              📢 Kirim ke grup
+            </button>
             <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => kirimPengingatWa(saved)}>
-              📱 Kirim pengingat WA
+              📱 Kirim ke pelanggan
             </button>
             <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff' }} onClick={() => setSaved(null)}>
               Tutup
