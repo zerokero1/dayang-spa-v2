@@ -156,6 +156,69 @@ export async function setTherapistStatusManual(therapistId, status) {
   if (error) throw error;
 }
 
+/**
+ * Lepaskan therapist yang statusnya masih `ambil_tamu` padahal tidak ada satu
+ * pun treatment yang sedang berjalan.
+ *
+ * Kasus yang sering terjadi: order oncall selesai, tapi therapist tidak pernah
+ * dilepas. Akibatnya therapist tetap terblokir di halaman kasir (tombolnya
+ * nonaktif) padahal tidak bekerja. RPC `auto_free_expired_therapists` yang ada
+ * di server mengembalikan 0 dan tidak menyentuh kasus oncall, jadi pensionsnya
+ * dilakukan dari sini.
+ *
+ * Yang menentukan "sedang bekerja" adalah `end_at` treatment yang belum lewat,
+ * BUKAN status booking 'berjalan'. Status 'berjalan' sendiri jarang ditutup
+ * kasir - ratusan transaksi menganggur begitu - jadi kalau dipakai, hampir
+ * semua therapist akan terbaca masih bekerja dan tidak ada yang pernah lepas.
+ *
+ * @returns {Promise<string[]>} nama-nama therapist yang dibebaskan
+ */
+export async function bebaskanTherapisYangSelesai() {
+  const nowMs = Date.now();
+  const { data: sibuk, error: readErr } = await supabase
+    .from('therapists')
+    .select('id, name')
+    .eq('status', THERAPIST_STATUS.AMBIL_TAMU);
+  if (readErr) { console.warn('bebaskanTherapisYangSelesai: baca gagal', readErr); return []; }
+  if (!sibuk || !sibuk.length) return [];
+
+  const ids = sibuk.map((t) => t.id);
+  const { data: jalan, error: bookErr } = await supabase
+    .from('bookings')
+    .select('therapist_id')
+    .in('therapist_id', ids)
+    .eq('status', 'berjalan')
+    .gt('end_at', nowMs);
+  if (bookErr) { console.warn('bebaskanTherapisYangSelesai: baca booking gagal', bookErr); return []; }
+
+  const masihKerja = new Set((jalan || []).map((b) => b.therapist_id));
+  const macet = sibuk.filter((t) => !masihKerja.has(t.id));
+  if (!macet.length) return [];
+
+  const { error } = await supabase
+    .from('therapists')
+    .update({
+      status: THERAPIST_STATUS.FREE,
+      current_outlet_id: null,
+      current_booking_ids: null,
+      current_booking_id: null,
+      current_treatment_names: null,
+      current_treatment_name: null,
+      current_paid: null,
+      current_payment_method: null,
+      current_price: null,
+      current_group_id: null,
+      start_at: null,
+      end_at: null
+    })
+    .in('id', macet.map((t) => t.id));
+  if (error) { console.warn('bebaskanTherapisYangSelesai: update gagal', error); return []; }
+
+  const nama = macet.map((t) => t.name);
+  console.info('therapis dilepas otomatis:', nama.join(', '));
+  return nama;
+}
+
 export async function removeTherapist(therapistId) {
   const { error } = await supabase.from('therapists').delete().eq('id', therapistId);
   if (error) throw error;
