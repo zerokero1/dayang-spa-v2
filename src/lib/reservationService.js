@@ -16,7 +16,7 @@ export async function createReservation({
     scheduledAtIso = Number.isNaN(d.getTime()) ? scheduledAt : d.toISOString();
   }
 
-  const { error } = await supabase.from('reservations').insert({
+  const { data, error } = await supabase.from('reservations').insert({
     outlet_id: outletId,
     therapist_id: therapistId,
     therapist_name: therapistName,
@@ -33,8 +33,11 @@ export async function createReservation({
     customer_phone: customerPhone || '',
     scheduled_at: scheduledAtIso,
     status: 'terjadwal'
-  });
+  }).select().single();
   if (error) throw error;
+  // Balikkan baris yang tersimpan supaya halaman bisa langsung mengirim
+  // pengingat WA tanpa harus menunggu daftar ter-refresh.
+  return mapReservation(data);
 }
 
 function mapReservation(row) {

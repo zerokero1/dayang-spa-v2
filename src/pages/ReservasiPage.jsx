@@ -3,19 +3,54 @@ import { OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor, isSin
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createReservation, listenReservations, checkInReservation, cancelReservation } from '../lib/reservationService';
-import { openWhatsAppMessage } from '../lib/bookingService';
+import { openWhatsAppMessage, openWhatsAppToNumber, normalizeWaNumber } from '../lib/bookingService';
 
-function toWhatsAppReminder(r) {
-  const d = new Date(r.scheduledAt);
-  const tanggal = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
-  const jam = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-  const message =
-    `Reservasi baru\n` +
-    `Pelanggan: ${r.customerName || '-'}\n` +
-    `Terapis: ${r.therapistName}\n` +
-    `Kategori: ${r.category || r.treatmentName || '-'}\n` +
-    `Jadwal: ${tanggal}, ${jam}`;
-  openWhatsAppMessage(message);
+const OUTLET_NAME = {
+  D1: 'Dayang 1', D2: 'Dayang 2', DP: 'Dayang Putri', DR: 'Dream', RR: 'Rere', Y: 'Yulis'
+};
+
+function tanggalPanjang(ms) {
+  return new Date(ms).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+// Jam harus "12:00" dengan titik dua. Sebagian versi ICU menulis "12.00"
+// untuk locale id-ID, dan PESAN WA jadi terlihat tidak rapi.
+function jamSingkat(ms) {
+  return new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+}
+
+/**
+ * Isi pesan pengingat. Kalau nomor pelanggan ada, pesan dibuka langsung ke
+ * nomor itu (kasir tidak perlu cari kontak); kalau tidak ada, WhatsApp dibuka
+ * dan kasir memilih sendiri kontaknya.
+ *
+ * @param {object} r baris reservasi
+ * @param {string} [t treatments] treatment yang sudah dipilih, untuk konfirmasi
+ *        setelah reservasi diisi - sebelum itu yang tampil baru kategori
+ * @returns {boolean} true kalau langsung ke nomor, false kalau kasir pilih kontak
+ */
+function kirimPengingatWa(r, treatment) {
+  const jam = jamSingkat(r.scheduledAt);
+  const lines = [
+    `Halo ${r.customerName || ''}`.trim(),
+    '',
+    `Ini pengingat reservasi di Dayang Spa ${OUTLET_NAME[r.outletId] || r.outletId}.`,
+    '',
+    `Tanggal : ${tanggalPanjang(r.scheduledAt)}`,
+    `Jam     : ${jam} WIB`,
+    `Terapis : ${r.therapistName || '-'}`
+  ];
+  if (treatment) {
+    lines.push(`Treatment: ${treatment.name} - Rp${Number(treatment.price || 0).toLocaleString('id-ID')}`);
+  } else if (r.category || r.treatmentName) {
+    lines.push(`Treatment: ${r.treatmentName || r.category}`);
+  }
+  lines.push(
+    '',
+    'Mohon datang 10 menit lebih awal. Mohon konfirmasi ya, terima kasih 🙏'
+  );
+  const message = lines.join('\n');
+  return openWhatsAppToNumber(r.customerPhone, message) || (openWhatsAppMessage(message), false);
 }
 
 function formatSchedule(ms) {
@@ -23,7 +58,7 @@ function formatSchedule(ms) {
   const now = new Date();
   const isToday = d.toDateString() === now.toDateString();
   const tanggal = isToday ? 'Hari ini' : d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
-  const jam = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  const jam = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
   return `${tanggal}, ${jam}`;
 }
 
@@ -49,6 +84,7 @@ export default function ReservasiPage({ outletId, active }) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [therapistSearch, setTherapistSearch] = useState('');
+  const [saved, setSaved] = useState(null);
 
   const [processTarget, setProcessTarget] = useState(null); // reservasi yang sedang diisi
   const [pCategory, setPCategory] = useState(TREATMENT_CATEGORIES[0]);
@@ -71,13 +107,14 @@ export default function ReservasiPage({ outletId, active }) {
     .sort((a, b) => a.scheduledAt - b.scheduledAt);
 
   const canSave = category && scheduleDate && selTherapist;
+  const nomorValid = normalizeWaNumber(customerPhone) !== '';
 
-  async function handleSave() {
+  async function handleSave(kirimWa) {
     if (!canSave) return;
     setSaving(true);
     setError('');
     try {
-      await createReservation({
+      const tersimpan = await createReservation({
         outletId,
         therapistId: selTherapist.id,
         therapistName: selTherapist.name,
@@ -86,7 +123,16 @@ export default function ReservasiPage({ outletId, active }) {
         customerPhone,
         scheduledAt: new Date(scheduleDate).toISOString()
       });
-      setMessage('Reservasi tersimpan (kategori ' + category + '). Saat jamnya mendekat, isi treatment via "Isi Treatment".');
+      setMessage(`Reservasi ${formatSchedule(tersimpan.scheduledAt)} tersimpan. Saat jamnya mendekat, isi treatment via "Isi Treatment".`);
+      // Disimpan supaya halaman bisa menampilkan tombol kirim WA untuk reservasi
+      // yang barusan dibuat, tanpa menunggu daftar ter-refresh.
+      setSaved(tersimpan);
+      if (kirimWa) {
+        const langsung = kirimPengingatWa(tersimpan);
+        if (!langsung && !nomorValid) {
+          setMessage((m) => m + ' Nomor HP belum diisi, jadi pilih kontaknya manual.');
+        }
+      }
       setSelTherapist(null); setCustomerName(''); setCustomerPhone(''); setScheduleDate('');
     } catch (e) {
       setError(e.message);
@@ -118,6 +164,9 @@ export default function ReservasiPage({ outletId, active }) {
         usesOil: pNeedsOil
       });
       setMessage(`Booking ${processTarget.customerName || 'tamu'} dibuat — ${pTreatment.name}.`);
+      // Simpan supaya kasir bisa mengirim konfirmasi akhir yang menyebut
+      // treatment dan harganya, bukan cuma kategori.
+      setSaved({ ...processTarget, treatmentName: pTreatment.name });
       setProcessTarget(null);
     } catch (e) {
       setError('Gagal membuat booking: ' + e.message);
@@ -161,13 +210,18 @@ export default function ReservasiPage({ outletId, active }) {
                   <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => openProcess(r)}>
                     Isi Treatment
                   </button>
-                  <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => toWhatsAppReminder(r)}>
-                    Kirim pengingat WA
+                  <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => kirimPengingatWa(r)}>
+                    {normalizeWaNumber(r.customerPhone) ? '📱 Kirim WA' : '📱 Pilih kontak manual'}
                   </button>
                   <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }} onClick={() => handleCancel(r)}>
                     Batal
                   </button>
                 </div>
+                {!normalizeWaNumber(r.customerPhone) && (
+                  <div style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4 }}>
+                    Nomor HP belum ada, jadi WhatsApp akan terbuka tanpa penerima.
+                  </div>
+                )}
               </div>
             );
           })}
@@ -204,14 +258,50 @@ export default function ReservasiPage({ outletId, active }) {
       </section>
 
       <input placeholder="Nama pelanggan" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-      <input placeholder="No. HP pelanggan (opsional)" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+      <input
+        placeholder="No. HP pelanggan (WA)"
+        value={customerPhone}
+        onChange={(e) => setCustomerPhone(e.target.value)}
+        inputMode="tel"
+      />
+      {customerPhone.trim() && (
+        <div style={{ fontSize: 11, color: nomorValid ? 'var(--success)' : 'var(--warning)', marginTop: -6 }}>
+          {nomorValid
+            ? `Akan dikirim ke wa.me/${normalizeWaNumber(customerPhone)}`
+            : 'Nomor belum lengkap / tidak dikenali sebagai nomor Indonesia.'}
+        </div>
+      )}
 
       {error && <p className="error">{error}</p>}
       {message && <p style={{ fontSize: 13 }}>{message}</p>}
 
-      <button disabled={!canSave || saving} onClick={handleSave}>
-        {saving ? 'Menyimpan...' : 'Simpan reservasi'}
-      </button>
+      {saved && (
+        <div className="oil-card" style={{ marginTop: 10, textAlign: 'left', borderLeft: '4px solid var(--success)' }}>
+          <strong style={{ fontSize: 13 }}>
+            Tersimpan: {formatSchedule(saved.scheduledAt)} — {saved.customerName || 'tamu'}
+          </strong>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+            {saved.therapistName} · {OUTLET_NAME[saved.outletId] || saved.outletId}
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => kirimPengingatWa(saved)}>
+              📱 Kirim pengingat WA
+            </button>
+            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff' }} onClick={() => setSaved(null)}>
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button disabled={!canSave || saving} onClick={() => handleSave(true)} style={{ flex: 2 }}>
+          {saving ? 'Menyimpan...' : 'Simpan & kirim pengingat WA'}
+        </button>
+        <button disabled={!canSave || saving} onClick={() => handleSave(false)} style={{ flex: 1 }}>
+          Simpan saja
+        </button>
+      </div>
 
       {processTarget && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>

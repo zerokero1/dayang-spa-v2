@@ -292,6 +292,58 @@ function sendWhatsAppNotification({ lines, outletId, customerName }) {
   openWhatsAppMessage(message);
 }
 
+/**
+ * Ubah nomor HP lokal jadi format international WhatsApp.
+ *
+ * WhatsApp hanya menerima format internasional tanpa tanda "+": wa.me/62...
+ * Nomor lokal Indonesia diawali 0 (mis. 0812-3456-7890) harus jadi 628123456789.
+ * Nomor yang sudah berawalan 62 dipakai apa adanya.
+ *
+ * @param {string} phone - nomor Whatever yang diketik kasir
+ * @returns {string} digit saja, atau '' kalau tidak bisa dipakai
+ */
+export function normalizeWaNumber(phone) {
+  let digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  // 0812... -> 62812... ; 812... -> 62812... ; 62812... -> tetap
+  if (digits.startsWith('0')) digits = '62' + digits.slice(1);
+  else if (digits.startsWith('8')) digits = '62' + digits;
+  if (digits.length < 9 || digits.length > 15) return '';
+  return digits;
+}
+
+/**
+ * Buka WhatsApp langsung ke nomor tertentu dengan pesan terisi.
+ *
+ * Bedanya dengan openWhatsAppMessage: kasir tidak perlu mencari kontak di
+ * daftar — nomor pelanggan sudah diketahui dari data reservasi.
+ */
+export function openWhatsAppToNumber(phone, message) {
+  const number = normalizeWaNumber(phone);
+  if (!number) return false;
+  const text = encodeURIComponent(message || '');
+  const url = `https://wa.me/${number}?text=${text}`;
+  const ua = navigator.userAgent;
+
+  if (/Android/i.test(ua)) {
+    // Android bisa membuka aplikasi WhatsApp langsung ke nomor tertentu.
+    const intentUrl =
+      `intent://send?phone=${number}&text=${text}#Intent;` +
+      `scheme=whatsapp;package=com.whatsapp;` +
+      `S.browser_fallback_url=${encodeURIComponent(url)};end`;
+    const a = document.createElement('a');
+    a.href = intentUrl;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return true;
+  }
+
+  const win = window.open(url, '_blank');
+  if (!win) window.location.href = url;
+  return true;
+}
+
 // Buka WhatsApp dengan pesan terisi. Penerima dipilih manual oleh pengguna.
 //
 // Supaya di HP langsung membuka APLIKASI WhatsApp (bukan tinggal di browser/PWA):
