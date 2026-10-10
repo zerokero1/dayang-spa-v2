@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor, isSingleSizeProduct, SIZE_NONE } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
-import { createReservation, listenReservations, checkInReservation, cancelReservation } from '../lib/reservationService';
+import { createReservation, listenReservations, checkInReservationMulti, cancelReservation } from '../lib/reservationService';
 import { openWhatsAppMessage, openWhatsAppToNumber, normalizeWaNumber } from '../lib/bookingService';
 
 const OUTLET_NAME = {
@@ -135,11 +135,20 @@ export default function ReservasiPage({ outletId, active }) {
   const [listDate, setListDate] = useState(hariIniId());
 
   const [processTarget, setProcessTarget] = useState(null); // reservasi yang sedang diisi
-  const [pCategory, setPCategory] = useState(TREATMENT_CATEGORIES[0]);
-  const [pTreatment, setPTreatment] = useState(null);
-  const [pOil, setPOil] = useState(null);
-  const [pSize, setPSize] = useState(null);
+  // Satu baris = satu treatment yang akan dibuatkan bookingnya. Pelanggan
+  // boleh punya beberapa treatment di jam yang sama, jadi daftar ini bisa
+  // lebih dari satu.
+  const [pItems, setPItems] = useState([]);
   const [pSaving, setPSaving] = useState(false);
+
+  function barisBaru(categori, terapisId) {
+    return {
+      uid: Math.random().toString(36).slice(2, 8),
+      category: kategori || TREATMENT_CATEGORIES[0],
+      treatment: null, oil: null, size: null,
+      therapistId: terapisId || null
+    };
+  }
 
   useEffect(() => {
     if (!active) return;
@@ -198,30 +207,62 @@ export default function ReservasiPage({ outletId, active }) {
 
   function openProcess(r) {
     setProcessTarget(r);
-    setPCategory(r.category || TREATMENT_CATEGORIES[0]);
-    setPTreatment(null); setPOil(null); setPSize(null);
+    // Baris pertama memakai terapis & kategori dari reservasi, tapi tetap bisa
+    // diganti - kadang tamu datang barengan dengan pasangan.
+    setPItems([barisBaru(r.category || TREATMENT_CATEGORIES[0], r.therapistId)]);
   }
 
-  const pNeedsOil = treatmentUsesOil(pTreatment);
-  const pCanSubmit = pTreatment && (!pNeedsOil || (pOil && pSize));
+  function ubahBaris(uid, patch) {
+    setPItems((list) => list.map((b) => (b.uid === uid ? { ...b, ...patch } : b)));
+  }
+
+  function hapusBaris(uid) {
+    setPItems((list) => (list.length > 1 ? list.filter((b) => b.uid !== uid) : list));
+  }
+
+  // Oil hanya diminta kalau treatment-nya memang pakai minyak, jadi tiap baris
+  // dicek sendiri-sendiri.
+  function perluMinyak(baris) {
+    return treatmentUsesOil(baris.treatment);
+  }
+
+  const pSiap = pItems.length > 0 && pItems.every((b) => b.treatment && b.therapistId &&
+    (!treatmentUsesOil(b.treatment) || (b.oil && b.size)));
 
   async function handleProcessSave() {
-    if (!pCanSubmit) return;
+    if (!pSiap) return;
     setPSaving(true);
     setError('');
     try {
-      await checkInReservation({
-        outletId,
+      const total = pItems.reduce(
+        (s, b) => s + Number(b.treatment?.price || 0), 0
+      );
+      const bookingIds = await checkInReservationMulti({
         reservation: processTarget,
-        treatment: pTreatment,
-        oilType: pOil,
-        oilSize: pSize,
-        usesOil: pNeedsOil
+        items: pItems.map((b) => ({
+          therapistId: b.therapistId,
+          therapistName: therapists.find((t) => t.id === b.therapistId)?.name || processTarget.therapistName,
+          treatment: b.treatment,
+          oilType: b.oil,
+          oilSize: b.size,
+          usesOil: !perluMinyak(b)
+        }))
       });
-      setMessage(`Booking ${processTarget.customerName || 'tamu'} dibuat — ${pTreatment.name}.`);
-      // Simpan supaya kasir bisa mengirim konfirmasi akhir yang menyebut
-      // treatment dan harganya, bukan cuma kategori.
-      setSaved({ ...processTarget, treatmentName: pTreatment.name });
+      const namaTamu = processTarget.customerName || 'tamu';
+      setMessage(
+        bookingIds.length > 1
+          ? `Booking ${namaTamu} dibuat: ${bookingIds.length} treatment, total Rp${total.toLocaleString('id-ID')}.`
+          : `Booking ${namaTamu} dibuat — ${pItems[0].treatment.name}.`
+      );
+      // Ringkasan per treatment supaya bisa dikirim ke grup dalam satu pesan.
+      setSaved({
+        ...processTarget,
+        treatmentName: pItems.map((b) => b.treatment.name).join(' + '),
+        treatmentPrice: total,
+        therapistName: pItems.map((b) =>
+          therapists.find((t) => t.id === b.therapistId)?.name || processTarget.therapistName
+        ).filter((v, i, a) => a.indexOf(v) === i).join(', ')
+      });
       setProcessTarget(null);
     } catch (e) {
       setError('Gagal membuat booking: ' + e.message);
@@ -391,7 +432,7 @@ export default function ReservasiPage({ outletId, active }) {
 
       {processTarget && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
-          <div className="oil-card" style={{ maxWidth: 420, width: '100%', maxHeight: '88vh', overflowY: 'auto', textAlign: 'left' }}>
+          <div className="oil-card" style={{ maxWidth: 520, width: '100%', maxHeight: '88vh', overflowY: 'auto', textAlign: 'left' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <strong style={{ fontSize: 14 }}>Isi Treatment — {processTarget.customerName || 'Tamu'}</strong>
@@ -402,65 +443,120 @@ export default function ReservasiPage({ outletId, active }) {
               <button style={{ width: 'auto', padding: '4px 10px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff' }} onClick={() => setProcessTarget(null)}>✕</button>
             </div>
 
-            <p style={{ marginBottom: 6 }}>Kategori</p>
-            <div className="grid-2">
-              {TREATMENT_CATEGORIES.map((c) => (
-                <button key={c} className={pCategory === c ? 'active' : ''} onClick={() => { setPCategory(c); setPTreatment(null); }}>
-                  {c}
-                </button>
-              ))}
-            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 10px' }}>
+              Satu tamu boleh punya beberapa treatment di jam yang sama. Tambah baris untuk
+              tiap treatment, lalu pilih terapis masing-masing.
+            </p>
 
-            {pCategory && (
-              <>
-                <p style={{ marginBottom: 6 }}>Treatment</p>
-                <div className="grid-2">
-                  {treatments.filter((t) => t.category === pCategory).length === 0 ? (
-                    <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Belum ada treatment untuk kategori ini.</p>
-                  ) : (
-                    treatments.filter((t) => t.category === pCategory).map((t) => (
-                      <button key={t.id} className={pTreatment?.id === t.id ? 'active' : ''} onClick={() => { setPTreatment(t); setPOil(null); setPSize(null); }}>
-                        {t.name} - Rp{t.price?.toLocaleString('id-ID')}
+            {pItems.map((b, idx) => {
+              const listTreatment = treatments.filter((t) => t.category === b.category);
+              return (
+                <div key={b.uid} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 10, marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <strong style={{ fontSize: 12 }}>Treatment {idx + 1}</strong>
+                    {pItems.length > 1 && (
+                      <button
+                        style={{ width: 'auto', padding: '2px 8px', fontSize: 11, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }}
+                        onClick={() => hapusBaris(b.uid)}
+                      >
+                        Hapus
                       </button>
-                    ))
-                  )}
-                </div>
-              </>
-            )}
+                    )}
+                  </div>
 
-            {pNeedsOil && (
-              <>
-                <p style={{ marginBottom: 6 }}>Pilih minyak & ukuran</p>
-                <div className="grid-2">
-                  {oilChoicesFor(pTreatment).map((oil) => (
-                    <div key={oil} className="oil-card" style={{ margin: 0 }}>
-                      <div>{oil}</div>
-                      {isSingleSizeProduct(oil) ? (
-                        <button
-                          className={pOil === oil ? 'active' : ''}
-                          onClick={() => { setPOil(oil); setPSize(SIZE_NONE); }}
-                          style={{ width: '100%' }}
-                        >
-                          Pakai
-                        </button>
-                      ) : (
-                        <div className="row">
+                  <p style={{ marginBottom: 4, fontSize: 12 }}>Kategori</p>
+                  <div className="grid-2">
+                    {TREATMENT_CATEGORIES.map((c) => (
+                      <button
+                        key={c}
+                        className={b.category === c ? 'active' : ''}
+                        style={{ fontSize: 12 }}
+                        onClick={() => ubahBaris(b.uid, { category: c, treatment: null, oil: null, size: null })}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+
+                  <p style={{ margin: '8px 0 4px', fontSize: 12 }}>Treatment</p>
+                  {listTreatment.length === 0 ? (
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Belum ada treatment untuk kategori ini.</p>
+                  ) : (
+                    <select
+                      value={b.treatment?.id || ''}
+                      onChange={(e) => {
+                        const t = listTreatment.find((x) => x.id === e.target.value) || null;
+                        ubahBaris(b.uid, { treatment: t, oil: null, size: null });
+                      }}
+                      style={{ width: '100%' }}
+                    >
+                      <option value="">-- pilih treatment --</option>
+                      {listTreatment.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name} - Rp{Number(t.price || 0).toLocaleString('id-ID')}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {b.treatment && treatmentUsesOil(b.treatment) && (
+                    <>
+                      <p style={{ margin: '8px 0 4px', fontSize: 12 }}>Minyak & ukuran</p>
+                      <select
+                        value={b.oil || ''}
+                        onChange={(e) => ubahBaris(b.uid, { oil: e.target.value || null, size: e.target.value ? SIZE_NONE : null })}
+                        style={{ width: '100%' }}
+                      >
+                        <option value="">-- pilih minyak --</option>
+                        {oilChoicesFor(b.treatment).map((oil) => (
+                          <option key={oil} value={oil}>{oil}</option>
+                        ))}
+                      </select>
+                      {b.oil && !isSingleSizeProduct(b.oil) && (
+                        <div className="row" style={{ marginTop: 6 }}>
                           {OIL_SIZES.map((size) => (
-                            <button key={size} className={pOil === oil && pSize === size ? 'active' : ''} onClick={() => { setPOil(oil); setPSize(size); }}>
+                            <button key={size} className={b.size === size ? 'active' : ''} onClick={() => ubahBaris(b.uid, { size })}>
                               {size}
                             </button>
                           ))}
                         </div>
                       )}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+                    </>
+                  )}
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button disabled={!pCanSubmit || pSaving} onClick={handleProcessSave} style={{ flex: 1 }}>
-                {pSaving ? 'Membuat booking...' : 'Buat Booking & Selesai Reservasi'}
+                  <p style={{ margin: '8px 0 4px', fontSize: 12 }}>Terapis</p>
+                  <select
+                    value={b.therapistId || ''}
+                    onChange={(e) => ubahBaris(b.uid, { therapistId: e.target.value || null })}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="">-- pilih terapis --</option>
+                    {therapists.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}{(t.status || 'free') === 'ambil_tamu' ? ' (sibuk)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+
+            <button
+              style={{ width: '100%', marginBottom: 10 }}
+              onClick={() => setPItems((list) => [...list, barisBaru()])}
+            >
+              ＋ Tambah treatment lagi
+            </button>
+
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
+              Total {pItems.length} treatment ·{' '}
+              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
+                .format(pItems.reduce((s, b) => s + Number(b.treatment?.price || 0), 0))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button disabled={!pSiap || pSaving} onClick={handleProcessSave} style={{ flex: 1 }}>
+                {pSaving
+                  ? 'Membuat booking...'
+                  : `Buat ${pItems.length} Booking & Selesai Reservasi`}
               </button>
             </div>
           </div>

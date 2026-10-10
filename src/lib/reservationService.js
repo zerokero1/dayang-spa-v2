@@ -106,6 +106,63 @@ export async function checkInReservation({ outletId, reservation, treatment, oil
   if (error) throw error;
 }
 
+/**
+ * Ubah satu reservasi jadi BEBERAPA booking sekaligus - dipakai kalau satu
+ * pelanggan punya beberapa treatment di jam yang sama, misalnya dua massage
+ * untuk pasangan yang datang barengan plus satu manicure.
+ *
+ * Semua booking dari satu reservasi diberi group_id yang sama supaya jelas
+ * berasal dari satu tanggal & satu pelanggan, persis seperti keranjang di
+ * halaman Kasir. Booking pertama memakai terapis milik reservasi; booking
+ * berikutnya boleh terapis sendiri, jadi dua orang bisa menangani tamu yang
+ * sama bersamaan.
+ *
+ * createBookingCore dipanggil satu per satu, bukan createBookingsBatch, karena
+ * yang terakhir otomatis membuka WhatsApp - di halaman reservasi kirim ke grup
+ * dilakukan kasir sendiri lewat tombolnya.
+ *
+ * @param {object} reservation - baris reservasi asal
+ * @param {Array<{therapistId:string,therapistName:string,treatment:object,oilType?:string,oilSize?:string,usesOil?:boolean}>} items
+ * @returns {Promise<string[]>} id booking yang dibuat
+ */
+export async function checkInReservationMulti({ reservation, items }) {
+  if (!items || !items.length) throw new Error('Belum ada treatment yang dipilih.');
+
+  const groupId = items.length > 1
+    ? `grp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    : null;
+
+  const bookingIds = [];
+  for (const it of items) {
+    const usesOil = it.usesOil !== false;
+    const therapistId = it.therapistId || reservation.therapistId;
+    const therapistName = it.therapistName || reservation.therapistName;
+    const id = await createBookingCore({
+      outletId: reservation.outletId,
+      therapistId,
+      therapistName,
+      treatmentId: it.treatment.id,
+      treatmentName: it.treatment.name,
+      treatmentPrice: it.treatment.price,
+      commissionPercent: it.treatment.commissionPercent,
+      durationMinutes: it.treatment.durationMinutes,
+      usesOil,
+      oilType: usesOil ? it.oilType : null,
+      oilSize: usesOil ? it.oilSize : null,
+      customerName: reservation.customerName,
+      groupId
+    });
+    bookingIds.push(id);
+  }
+
+  const { error } = await supabase
+    .from('reservations')
+    .update({ status: 'checked_in' })
+    .eq('id', reservation.id);
+  if (error) throw error;
+  return bookingIds;
+}
+
 export async function cancelReservation(outletId, reservationId) {
   const { error } = await supabase
     .from('reservations')
