@@ -29,6 +29,16 @@ function hariIniId() {
   return tanggalPendek(Date.now());
 }
 
+// Satu orang yang akan datang, dengan terapis yang akan menanganinya.
+function tamuBaru(nama, terapisId) {
+  return {
+    uid: Math.random().toString(36).slice(2, 8),
+    customerName: nama || '',
+    customerPhone: '',
+    therapistId: terapisId || null
+  };
+}
+
 /**
  * Pesan pengingat untuk GRUP WhatsApp internal (grup staff), format-nya
  * mengikuti pesan "kirim list" yang sudah dipakai di halaman Status Terapis:
@@ -65,6 +75,27 @@ function kirimReservasiKeGrup(r, treatment) {
     lines.push(`Treatment: ${r.treatmentName || r.category}${r.treatmentPrice ? ' - Rp' + Number(r.treatmentPrice).toLocaleString('id-ID') : ''}`);
   }
   lines.push('Mohon siapkan room dan minyak sesuai daftar.');
+  openWhatsAppMessage(lines.join('\n'));
+}
+
+/**
+ * Kirim satu pesan ke grup untuk beberapa orang yang booking jam sama.
+ * Dipakai setelah menyimpan lebih dari satu baris, supaya kasir memilih grupnya
+ * sekali saja.
+ */
+function kirimGrupBanyak(rows, scheduledAt) {
+  const lines = [
+    'RESERVASI BARU',
+    `Outlet  : ${OUTLET_NAME[rows[0].outletId] || rows[0].outletId}`,
+    `Jadwal  : ${tanggalPanjang(scheduledAt)}, ${jamSingkat(scheduledAt)} WIB`,
+    `Jumlah  : ${rows.length} orang`,
+    ''
+  ];
+  rows.forEach((r, i) => {
+    lines.push(`${i + 1}. ${r.namaTampil}${r.customerPhone ? ` · ${r.customerPhone}` : ''}`);
+    lines.push(`   ${r.therapistName || '-'}${r.category ? ` · ${r.category}` : ''}`);
+  });
+  lines.push('', 'Mohon siapkan room dan minyak sesuai daftar.');
   openWhatsAppMessage(lines.join('\n'));
 }
 
@@ -132,15 +163,18 @@ export default function ReservasiPage({ outletId, active }) {
   const [treatments, setTreatments] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [category, setCategory] = useState(TREATMENT_CATEGORIES[0]);
-  const [selTherapist, setSelTherapist] = useState(null);
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
+  // Satu baris = satu orang yang akan datang, lengkap dengan terapisnya.
+  // Kalau dua orang booking jam yang sama, kasir cukup tambah satu baris -
+  // tidak perlu mengulang tanggal dan jam dua kali. Tabel reservations
+  // menyimpan satu orang dan satu terapis per baris, jadi setiap baris di
+  // sini disimpan sebagai satu reservasi dengan jam yang sama.
+  const [guests, setGuests] = useState([tamuBaru()]);
   const [scheduleDate, setScheduleDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [therapistSearch, setTherapistSearch] = useState('');
-  const [saved, setSaved] = useState(null);
+  const [saved, setSaved] = useState([]);
   const [listDate, setListDate] = useState(hariIniId());
 
   const [processTarget, setProcessTarget] = useState(null); // reservasi yang sedang diisi
@@ -171,13 +205,17 @@ export default function ReservasiPage({ outletId, active }) {
     return () => { unsub1(); unsub2(); unsub3(); };
   }, [active, outletId]);
 
-  const filteredTherapists = therapists.filter((t) => t.name.toLowerCase().includes(therapistSearch.toLowerCase()));
+  // Nama terapis yang cocok dengan pencarian, dipakai di setiap baris orang.
+  const cariTerapis = (q) => therapists.filter((t) => t.name.toLowerCase().includes(String(q || '').toLowerCase()));
   const upcoming = reservations
     .filter((r) => r.status === 'terjadwal')
     .sort((a, b) => a.scheduledAt - b.scheduledAt);
 
-  const canSave = category && scheduleDate && selTherapist;
-  const nomorValid = normalizeWaNumber(customerPhone) !== '';
+  // Semua baris wajib punya terapis. Nama boleh kosong - untuk tamu yang cuma
+  // booking tanpa menyebut nama.
+  const canSave = !!category && !!scheduleDate && guests.length > 0 &&
+    guests.every((g) => g.therapistId);
+  const nomorValid = guests.some((g) => normalizeWaNumber(g.customerPhone) !== '');
 
   // "Kirim list": seluruh reservasi aktif pada satu tanggal dikirim ke grup
   // WhatsApp sekaligus, supaya kasir cukup memilih grupnya sekali saja.
@@ -186,31 +224,68 @@ export default function ReservasiPage({ outletId, active }) {
     return tanggalPendek(r.scheduledAt) === listDate;
   });
 
+  function ubahTamu(uid, patch) {
+    setGuests((list) => list.map((g) => (g.uid === uid ? { ...g, ...patch } : g)));
+  }
+
+  function tambahTamu() {
+    setGuests((list) => [...list, tamuBaru()]);
+  }
+
+  function hapusTamu(uid) {
+    setGuests((list) => (list.length > 1 ? list.filter((g) => g.uid !== uid) : list));
+  }
+
+  /** Nama orang yang tampil di pesan: baris tanpa nama memakai nama baris pertama. */
+  function namaTamuOf(g) {
+    const nama = (g.customerName || '').trim();
+    if (nama) return nama;
+    const pertama = (guests[0]?.customerName || '').trim();
+    return pertama || '(tanpa nama)';
+  }
+
   async function handleSave(kirimWa) {
     if (!canSave) return;
     setSaving(true);
     setError('');
     try {
-      const tersimpan = await createReservation({
-        outletId,
-        therapistId: selTherapist.id,
-        therapistName: selTherapist.name,
-        category,
-        customerName,
-        customerPhone,
-        scheduledAt: new Date(scheduleDate).toISOString()
-      });
-      setMessage(`Reservasi ${formatSchedule(tersimpan.scheduledAt)} tersimpan. Saat jamnya mendekat, isi treatment via "Isi Treatment".`);
-      // Disimpan supaya halaman bisa menampilkan tombol kirim WA untuk reservasi
-      // yang barusan dibuat, tanpa menunggu daftar ter-refresh.
+      const scheduledAt = new Date(scheduleDate).toISOString();
+      // Satu baris = satu reservasi. Dua orang di jam yang sama jadi dua
+      // reservasi dengan scheduled_at yang sama, jadi tidak perlu mengulang
+      // tanggal dan jam di form.
+      const tersimpan = [];
+      for (const g of guests) {
+        const t = therapists.find((x) => x.id === g.therapistId);
+        const row = await createReservation({
+          outletId,
+          therapistId: g.therapistId,
+          therapistName: t ? t.name : '',
+          category,
+          customerName: (g.customerName || '').trim(),
+          customerPhone: (g.customerPhone || '').trim(),
+          scheduledAt
+        });
+        tersimpan.push({ ...row, namaTampil: namaTamuOf(g), nomorAsli: g.customerPhone });
+      }
+
+      setMessage(
+        tersimpan.length > 1
+          ? `${tersimpan.length} reservasi ${formatSchedule(scheduledAt)} tersimpan untuk ${tersimpan.length} orang.`
+          : `Reservasi ${formatSchedule(scheduledAt)} tersimpan. Saat jamnya mendekat, isi treatment via "Isi Treatment".`
+      );
       setSaved(tersimpan);
       if (kirimWa) {
-        const langsung = kirimPengingatWa(tersimpan);
-        if (!langsung && !nomorValid) {
-          setMessage((m) => m + ' Nomor HP belum diisi, jadi pilih kontaknya manual.');
+        // Kirim ke grup sekali untuk semua orang; ke pelanggan hanya untuk yang
+        // nomornya diisi.
+        if (tersimpan.length > 1) {
+          kirimGrupBanyak(tersimpan, scheduledAt);
+        } else {
+          const langsung = kirimPengingatWa(tersimpan[0]);
+          if (!langsung) setMessage((m) => m + ' Nomor HP belum diisi, jadi pilih kontaknya manual.');
         }
       }
-      setSelTherapist(null); setCustomerName(''); setCustomerPhone(''); setScheduleDate('');
+      setGuests([tamuBaru()]);
+      setScheduleDate('');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -397,55 +472,119 @@ export default function ReservasiPage({ outletId, active }) {
         <input type="datetime-local" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} />
       </section>
       <section>
-        <p>3. Pilih terapis</p>
-        <input placeholder="Cari nama terapis..." value={therapistSearch} onChange={(e) => setTherapistSearch(e.target.value)} style={{ marginBottom: 10 }} />
-        <div className="grid-2">
-          {filteredTherapists.map((t) => (
-            <button key={t.id} className={selTherapist?.id === t.id ? 'active' : ''} onClick={() => setSelTherapist(t)}>
-              {t.name}
-              {(t.status || 'free') === 'ambil_tamu' && <span style={{ fontSize: 11, color: 'var(--busy)' }}> 🔴</span>}
-            </button>
-          ))}
-        </div>
-      </section>
+        <p>3. Daftar orang yang akan datang</p>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '-4px 0 8px' }}>
+          Satu baris = satu orang + satu terapis. Kalau beberapa orang booking
+          jam yang sama, tambah baris sebanyaknya - tanggal dan jam cukup diisi sekali.
+        </p>
 
-      <input placeholder="Nama pelanggan" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-      <input
-        placeholder="No. HP pelanggan (WA)"
-        value={customerPhone}
-        onChange={(e) => setCustomerPhone(e.target.value)}
-        inputMode="tel"
-      />
-      {customerPhone.trim() && (
-        <div style={{ fontSize: 11, color: nomorValid ? 'var(--success)' : 'var(--warning)', marginTop: -6 }}>
-          {nomorValid
-            ? `Akan dikirim ke wa.me/${normalizeWaNumber(customerPhone)}`
-            : 'Nomor belum lengkap / tidak dikenali sebagai nomor Indonesia.'}
-        </div>
-      )}
+        <input
+          placeholder="Cari nama terapis..."
+          value={therapistSearch}
+          onChange={(e) => setTherapistSearch(e.target.value)}
+          style={{ marginBottom: 10 }}
+        />
+
+        {guests.map((g, i) => {
+          const cari = cariTerapis(therapistSearch);
+          return (
+            <div key={g.uid} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 10, marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <strong style={{ fontSize: 12 }}>Orang {i + 1}</strong>
+                {guests.length > 1 && (
+                  <button
+                    style={{ width: 'auto', padding: '2px 8px', fontSize: 11, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }}
+                    onClick={() => hapusTamu(g.uid)}
+                  >
+                    Hapus
+                  </button>
+                )}
+              </div>
+
+              <input
+                placeholder={i === 0 ? 'Nama pelanggan' : 'Nama (boleh kosong)'}
+                value={g.customerName}
+                onChange={(e) => ubahTamu(g.uid, { customerName: e.target.value })}
+                style={{ width: '100%', marginBottom: 6 }}
+              />
+              <input
+                placeholder="No. HP (WA)"
+                value={g.customerPhone}
+                inputMode="tel"
+                onChange={(e) => ubahTamu(g.uid, { customerPhone: e.target.value })}
+                style={{ width: '100%', marginBottom: 6 }}
+              />
+              {g.customerPhone.trim() && (
+                <div style={{ fontSize: 11, color: normalizeWaNumber(g.customerPhone) ? 'var(--success)' : 'var(--warning)', marginTop: -4, marginBottom: 6 }}>
+                  {normalizeWaNumber(g.customerPhone)
+                    ? `wa.me/${normalizeWaNumber(g.customerPhone)}`
+                    : 'Nomor belum lengkap / tidak dikenali.'}
+                </div>
+              )}
+
+              <select
+                value={g.therapistId || ''}
+                onChange={(e) => ubahTamu(g.uid, { therapistId: e.target.value || null })}
+                style={{ width: '100%' }}
+              >
+                <option value="">-- pilih terapis --</option>
+                {cari.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}{(t.status || 'free') === 'ambil_tamu' ? ' (sibuk)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          );
+        })}
+
+        <button style={{ width: '100%', marginTop: 4 }} onClick={tambahTamu}>
+          ＋ Tambah orang lain
+        </button>
+      </section>
 
       {error && <p className="error">{error}</p>}
       {message && <p style={{ fontSize: 13 }}>{message}</p>}
 
-      {saved && (
+      {saved.length > 0 && (
         <div className="oil-card" style={{ marginTop: 10, textAlign: 'left', borderLeft: '4px solid var(--success)' }}>
           <strong style={{ fontSize: 13 }}>
-            Tersimpan: {formatSchedule(saved.scheduledAt)} — {saved.customerName || 'tamu'}
+            {saved.length} reservasi tersimpan — {formatSchedule(saved[0].scheduledAt)}
           </strong>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-            {saved.therapistName} · {OUTLET_NAME[saved.outletId] || saved.outletId}
+          <div style={{ marginTop: 6 }}>
+            {saved.map((s) => (
+              <div key={s.id} style={{ fontSize: 12, marginBottom: 6 }}>
+                <div>
+                  <strong>{s.namaTampil}</strong> — {s.therapistName}
+                  {s.customerPhone ? ` · ${s.customerPhone}` : ''}
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                  <button
+                    style={{ width: 'auto', padding: '4px 10px', fontSize: 11, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }}
+                    onClick={() => openProcess(s)}
+                  >
+                    Isi Treatment
+                  </button>
+                  <button
+                    style={{ width: 'auto', padding: '4px 10px', fontSize: 11, boxShadow: 'none' }}
+                    onClick={() => kirimPengingatWa(s)}
+                  >
+                    📱 WA
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             <button
               style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary)', color: '#fff' }}
-              onClick={() => kirimReservasiKeGrup(saved)}
+              onClick={() => (saved.length > 1
+                ? kirimGrupBanyak(saved, saved[0].scheduledAt)
+                : kirimReservasiKeGrup(saved[0]))}
             >
               📢 Kirim ke grup
             </button>
-            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => kirimPengingatWa(saved)}>
-              📱 Kirim ke pelanggan
-            </button>
-            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff' }} onClick={() => setSaved(null)}>
+            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff' }} onClick={() => setSaved([])}>
               Tutup
             </button>
           </div>
@@ -454,7 +593,11 @@ export default function ReservasiPage({ outletId, active }) {
 
       <div style={{ display: 'flex', gap: 8 }}>
         <button disabled={!canSave || saving} onClick={() => handleSave(true)} style={{ flex: 2 }}>
-          {saving ? 'Menyimpan...' : 'Simpan & kirim pengingat WA'}
+          {saving
+            ? 'Menyimpan...'
+            : guests.length > 1
+              ? `Simpan ${guests.length} reservasi & kirim ke grup`
+              : 'Simpan & kirim pengingat WA'}
         </button>
         <button disabled={!canSave || saving} onClick={() => handleSave(false)} style={{ flex: 1 }}>
           Simpan saja
