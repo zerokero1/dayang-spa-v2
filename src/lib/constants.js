@@ -149,6 +149,15 @@ export const HAPPY_HOUR_TIMEZONE = 'Asia/Makassar'; // WITA (UTC+8) = jam lokal 
 export const HAPPY_HOUR_UTC_OFFSET_MIN = 8 * 60;
 export const HAPPY_HOUR_REASON = 'Happy Hour (11:00 - 14:59 WITA)';
 
+// SAKELAR UTAMA. Happy Hour dinonaktifkan sementara atas permintaan owner
+// (11/10/2026). Seluruh aturan Happy Hour sengaja TIDAK dihapus: kalau mau
+// dipakai lagi, cukup ubah false -> true di sini, tidak perlu kode lain.
+//
+// Selama flag ini false, isHappyHourTime() selalu false, sehingga harga
+// Rp 250.000 tidak lagi muncul di keranjang kasir dan label "Happy Hour" tidak
+// tampil. Booking lama yang sudah tercatat tetap apa adanya.
+export const HAPPY_HOUR_ENABLED = false;
+
 // Nama treatment yang boleh Happy Hour, harga jadi Rp 250.000. Sengaja ditulis
 // sebagai nama yang ditulisi persis seperti di katalog supaya mudah dicek/diubah.
 //
@@ -199,6 +208,7 @@ const HAPPY_HOUR_KEYS_TAN_DURASI = HAPPY_HOUR_TREATMENTS.map(happyHourKeyTanDura
  * sehingga Happy Hour akan buka/tutup di jam yang keliru.
  */
 export function isHappyHourTime(date = new Date()) {
+  if (!HAPPY_HOUR_ENABLED) return false;
   const d = date instanceof Date ? date : new Date(date);
   if (Number.isNaN(d.getTime())) return false;
   // Geser ke WITA lalu ambil jam-menitnya.

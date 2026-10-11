@@ -28,6 +28,10 @@ function mapBooking(row) {
     discountReason: row.discount_reason,
     bookingSource: row.booking_source,
     hotelCommission: row.hotel_commission != null ? Number(row.hotel_commission) : 0,
+    // Tanggal WIB dihitung dari created_at, BUKAN dari kolom wib_date.
+    // Di database banyak baris wib_date meleset +1 hari, jadi kolom itu
+    // tidak boleh dipercaya untuk pengelompokan tanggal.
+    wibDate: wibDateStr(row.created_at),
     createdAt: row.created_at,
     completedAt: row.completed_at,
     cancelledAt: row.cancelled_at
@@ -59,11 +63,16 @@ export async function getDailyBookings(outletId, dateStr) {
 
 // Optimasi: ambil semua booking hari itu dalam SATU query (semua outlet),
 // hanya kolom yang dibutuhkan konsumen. Mengurangi request ke Supabase.
+const DAILY_COLUMNS = 'outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, commission_percent, commission_amount, status, paid, payment_method, original_price, booking_source, hotel_commission, created_at, oil_type, uses_oil, wib_date';
+
+// Batas baris untuk satu query rentang. Satu bulan penuh masih di bawah ini.
+const RANGE_LIMIT = 20000;
+
 async function getAllDailyBookings(dateStr) {
   const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
   const { data, error } = await supabase
     .from('bookings')
-    .select('outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, commission_percent, commission_amount, status, paid, payment_method, original_price, booking_source, hotel_commission, booking_source, created_at, oil_type, uses_oil, wib_date')
+    .select(DAILY_COLUMNS)
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString());
   if (error) throw error;
@@ -81,19 +90,24 @@ function fmtLocalDate(d) {
 // Ambil semua booking dalam rentang tanggal (semua outlet) — di-loop per hari
 // supaya agregat per minggu/bulan konsisten dengan batas WIB per hari.
 export async function getAllBookingsRange(startDate, endDate) {
-  const all = [];
-  const start = new Date(startDate + 'T00:00:00');
-  const end = new Date(endDate + 'T00:00:00');
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dateStr = fmtLocalDate(d);
-    try {
-      const rows = await getAllDailyBookings(dateStr);
-      all.push(...rows);
-    } catch (e) {
-      console.warn('getAllBookingsRange error', dateStr, e);
-    }
+  // SATU query untuk seluruh rentang, bukan satu query per tanggal.
+  //
+  // Batas query 00:00 WIB hari pertama sampai 23:59:59 WIB hari terakhir,
+  // jadi baris yang dikembalikan persis sama dengan gabungan query per tanggal
+  // yang lama. Konsumen fungsi ini hanya mengagregasi/filter, tidak bergantung
+  // urutan baris, jadi menggabungkan sekaligus tidak mengubah hasil.
+  const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(DAILY_COLUMNS)
+    .gte('created_at', startUtc.toISOString())
+    .lte('created_at', endUtc.toISOString())
+    .limit(RANGE_LIMIT);
+  if (error) throw error;
+  if ((data || []).length >= RANGE_LIMIT) {
+    console.warn('getAllBookingsRange: data kena batas ' + RANGE_LIMIT + ' baris, rentang kemungkinan terlalu panjang dan angka bisa kurang');
   }
-  return all;
+  return (data || []).map(mapBooking);
 }
 
 // Booking satu outlet dalam rentang tanggal (untuk mode "Outlet ini saja").
@@ -234,16 +248,20 @@ export async function getTherapistDailyCommissions(dateStr) {
 // Total harga & komisi per terapis dihitung dari SATU query yang sama
 // (sebelumnya dipanggil 2x → 2 query identik untuk 2 fungsi).
 export async function getTherapistDailyReport(dateStr) {
-  const totals = {};
-  const commissions = {};
-  const bookings = await getAllDailyBookings(dateStr);
-  bookings.forEach((b) => {
-    if (b.status === 'batal') return;
-    totals[b.therapistId] = (totals[b.therapistId] || 0) + (b.treatmentPrice || 0);
-    commissions[b.therapistId] = (commissions[b.therapistId] || 0) + (b.commissionAmount || 0);
-  });
-  return { totals, commissions };
-}
+    const totals = {};
+    const commissions = {};
+    const hotelTotals = {};
+    const bookings = await getAllDailyBookings(dateStr);
+    bookings.forEach((b) => {
+      if (b.status === 'batal') return;
+      totals[b.therapistId] = (totals[b.therapistId] || 0) + (b.treatmentPrice || 0);
+      commissions[b.therapistId] = (commissions[b.therapistId] || 0) + (b.commissionAmount || 0);
+      // Komisi hotel tidak masuk ke spa, jadi dikumpulkan terpisah supaya
+      // nomor yang dikirim ke grup bisa langsung menunjukkan sisa spa.
+      hotelTotals[b.therapistId] = (hotelTotals[b.therapistId] || 0) + (b.hotelCommission || 0);
+    });
+    return { totals, commissions, hotelTotals };
+  }
 
 // Nama treatment di katalog selalu membawa durasi, misalnya
 // "Lombok Massage (60 Min)". Buku laporan menuliskannya tanpa durasi
@@ -346,20 +364,52 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
   const start = new Date(startDate + 'T00:00:00');
   const end = new Date(endDate + 'T00:00:00');
   // Outlet yang tidak terdaftar di OUTLETS. Dipisah ke sheet tersendiri di
-  // bawah, jadi harus lewat SELURUH loop (bukan per hari).
+  // bawah, jadi harus lewat SELURUH rentang (bukan per hari).
   const others = [];
 
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dateStr = fmtLocalDate(d);
-    let rows = [];
-    try {
-      rows = await getAllDailyBookings(dateStr);
-    } catch (e) {
-      console.warn('getDailyRevenueCommissionReport error', dateStr, e);
-      continue;
-    }
+  // SATU query untuk seluruh rentang, lalu dikelompokkan di memori.
+  //
+  // Sebelumnya laporan ini looping per hari (satu query per tanggal), jadi
+  // 13 hari = 13 request dan halaman terasa berat. Pengelompokan per hari
+  // sekarang dilakukan di memori memakai tanggal WIB dari created_at, dengan
+  // rentang query dibatasi 00:00 WIB hari pertama sampai 23:59:59 WIB hari
+  // terakhir. Hasilnya sama persis dengan batas per tanggal yang lama.
+  //
+  // Kolom wib_date sengaja TIDAK dipakai: di database 61% baris meleset
+  // +1 hari, jadi kalau ikut dipakai sebaran per harinya jadi salah.
+  const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
+  let rows = [];
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(DAILY_COLUMNS)
+      .gte('created_at', startUtc.toISOString())
+      .lte('created_at', endUtc.toISOString())
+      .limit(RANGE_LIMIT);
+    if (error) throw error;
+    rows = (data || []).map(mapBooking);
+  } catch (e) {
+    console.warn('getDailyRevenueCommissionReport error', e);
+    return { sheets, grand: { treatmentCount: 0, charge: 0, commission: 0, hotelCommission: 0, net: 0 } };
+  }
 
-    const items = rows.filter((b) => b.status !== 'batal').map((b) => {
+  // Kelompokkan per hari WIB. Semua tanggal dalam rentang selalu punya blok,
+  // walau kosong, supaya urutan hari di file tidak bolong-kosong.
+  const perTanggal = {};
+  const tanggalUrut = [];
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const k = fmtLocalDate(d);
+    perTanggal[k] = [];
+    tanggalUrut.push(k);
+  }
+  rows.forEach((b) => {
+    const k = b.wibDate && perTanggal[b.wibDate] ? b.wibDate : wibDateStr(b.createdAt);
+    if (!perTanggal[k]) return;
+    perTanggal[k].push(b);
+  });
+
+  tanggalUrut.forEach((dateStr) => {
+    const items = perTanggal[dateStr].filter((b) => b.status !== 'batal').map((b) => {
       const charge = b.treatmentPrice || 0;
       const commission = b.commissionAmount || 0;
       const hotelCommission = b.hotelCommission || 0;
@@ -398,7 +448,7 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
 
     items.filter((b) => b.bookingSource !== 'oncall' && !OUTLETS.some((o) => o.id === b.outletId))
       .forEach((x) => others.push({ ...x, date: dateStr, outletId: x.outletId || '?' }));
-  }
+  });
 
   if (others.length) {
     sheets.push({
@@ -606,6 +656,14 @@ function wibDateStr(iso) {
   const m = String(wib.getUTCMonth() + 1).padStart(2, '0');
   const d = String(wib.getUTCDate()).padStart(2, '0');
   return `${wib.getUTCFullYear()}-${m}-${d}`;
+}
+
+// Batas UTC untuk rentang tanggal WIB inklusif.
+function wibRangeBounds(startDate, endDate) {
+  return {
+    startUtc: wibDayBoundsUtc(startDate).startUtc,
+    endUtc: wibDayBoundsUtc(endDate).endUtc
+  };
 }
 
 // Agregasi laporan produksi: jumlah treatment & pemakaian minyak (ml)

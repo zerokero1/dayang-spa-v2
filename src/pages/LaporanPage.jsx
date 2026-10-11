@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import {
   getDailyBookingsRange, summarizeDailyBookings, getCombinedDailyReport, getCommissionStaffReport,
@@ -22,7 +22,6 @@ export default function LaporanPage({ outletId, profile }) {
   const [rawBookings, setRawBookings] = useState([]);
   const [combined, setCombined] = useState(null);
   const [staffCommissions, setStaffCommissions] = useState(null);
-  const [dailyRevenue, setDailyRevenue] = useState(null);
 
   const rangeLabel = startDate === endDate ? startDate : `${startDate} s/d ${endDate}`;
 
@@ -52,9 +51,6 @@ export default function LaporanPage({ outletId, profile }) {
     try {
       const result = await getCommissionStaffReport(startDate, endDate);
       setStaffCommissions(result);
-      // Format buku (blok per hari) diambil bersamaan supaya tombol download
-      // tidak perlu query ulang saat ditekan.
-      setDailyRevenue(await getDailyRevenueCommissionReport(startDate, endDate));
     } finally {
       setLoading(false);
     }
@@ -138,16 +134,40 @@ export default function LaporanPage({ outletId, profile }) {
     });
   }
 
+  // Data blok harian hanya dipakai untuk file Excel, jadi diambil saat tombol
+  // ditekan — bukan tiap refresh 60 detik. Ini yang bikin halaman berat.
+  const [harianLoading, setHarianLoading] = useState(false);
+  const [harianError, setHarianError] = useState('');
+  const harianCache = useRef({ key: '', data: null });
+
   async function handleDownloadKomisiHarian() {
-    if (!dailyRevenue || !dailyRevenue.sheets.length) return;
-    await exportDailyRevenueCommission({
-      filename: `Laporan-Revenue-Komisi-Harian-${startDate}_${endDate}`,
-      subtitle: `Semua Outlet · ${rangeLabel}`,
-      sheets: dailyRevenue.sheets,
-      note: 'Charge = harga yang dibayar pelanggan (sudah diskon). Komisi = 10% dari Charge. '
-        + 'Transaksi batal tidak dihitung. Oncall tidak termasuk di sheet outlet. '
-        + 'Kolom TOTAL PENDAPATAN berisi komisi per terapis untuk hari tersebut.'
-    });
+    const key = `${startDate}|${endDate}`;
+    setHarianError('');
+    setHarianLoading(true);
+    try {
+      let data = harianCache.current.key === key ? harianCache.current.data : null;
+      if (!data) {
+        data = await getDailyRevenueCommissionReport(startDate, endDate);
+        harianCache.current = { key, data };
+      }
+      if (!data || !data.sheets.length) {
+        setHarianError('Data harian kosong, tidak ada file yang dibuat.');
+        return;
+      }
+      await exportDailyRevenueCommission({
+        filename: `Laporan-Revenue-Komisi-Harian-${startDate}_${endDate}`,
+        subtitle: `Semua Outlet · ${rangeLabel}`,
+        sheets: data.sheets,
+        note: 'Charge = harga yang dibayar pelanggan (sudah diskon). Komisi = 10% dari Charge. '
+          + 'Transaksi batal tidak dihitung. Oncall tidak termasuk di sheet outlet. '
+          + 'Kolom TOTAL PENDAPATAN berisi komisi per terapis untuk hari tersebut.'
+      });
+    } catch (e) {
+      console.error('gagal membuat laporan harian', e);
+      setHarianError('Gagal memuat data harian. Coba lagi beberapa saat.');
+    } finally {
+      setHarianLoading(false);
+    }
   }
 
   const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
@@ -276,11 +296,17 @@ export default function LaporanPage({ outletId, profile }) {
               <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={handleDownloadKomisi}>
                 ⬇ Ringkasan per Staff
               </button>
-              <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12 }} onClick={handleDownloadKomisiHarian}>
-                ⬇ Download Excel
+              <button
+                style={{ width: 'auto', padding: '6px 12px', fontSize: 12 }}
+                onClick={handleDownloadKomisiHarian}
+                disabled={harianLoading}
+              >
+                {harianLoading ? 'Menyiapkan...' : '⬇ Download Excel'}
               </button>
             </div>
           </div>
+
+          {harianError && <p style={{ color: '#b91c1c', fontSize: 12, margin: '6px 0 0' }}>{harianError}</p>}
 
           {staffCommissions.length === 0 ? (
             <p>Tidak ada data komisi untuk rentang tanggal ini.</p>

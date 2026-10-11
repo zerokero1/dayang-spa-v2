@@ -50,8 +50,12 @@ function bookingIdsOf(t) {
 /** Susun teks daftar lengkap (mirip format manual: dikelompokkan per outlet
  *  ASAL terapis, menampilkan semua terapis dengan kode shift & komisi hari
  *  ini, ditandai ❌jam kalau sedang ambil tamu, yang libur dicoret di bawah)
- *  lalu buka WhatsApp siap kirim. */
-function buildAndSendTherapistList({ therapists, dailyTotals }) {
+ *  lalu buka WhatsApp siap kirim.
+ *
+ *  Terapis yang sedang menjalankan sesi oncall diberi tanda 🔶ONCALL supaya
+ *  bisa dibedakan dari tamu walk-in. Keduanya tetap menampilkan jam selesai
+ *  treatment, jadi tim tahu kapan mereka boleh lepas dari room. */
+function buildAndSendTherapistList({ therapists, dailyTotals, hotelTotals }) {
   const today = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
   let text = `LIST TERAPIS ${today}\n`;
 
@@ -64,10 +68,23 @@ function buildAndSendTherapistList({ therapists, dailyTotals }) {
     text += `\n${o.name.toUpperCase()}\n`;
     list.forEach((t, i) => {
       const shiftCode = t.shift ? (SHIFT_SHORT_CODE[t.shift] || t.shift) : '';
-      const totalHarga = dailyTotals[t.id] ? Math.round(dailyTotals[t.id] / 1000) : '';
+      // Angka setelah tanda silang = sisa spa: omzet dikurangi komisi hotel.
+      // Untuk tamu walk-in komisi hotel 0, jadi angkanya sama dengan omzet.
+      // Untuk oncall komisi hotel dipotong, mis. harga 400.000 dengan komisi
+      // hotel 50.000 tampil 350, bukan 400.
+      const hotel = hotelTotals && hotelTotals[t.id] ? hotelTotals[t.id] : 0;
+      const sisaSpa = dailyTotals[t.id] ? Math.round((dailyTotals[t.id] - hotel) / 1000) : '';
       const busy = (t.status || 'free') === 'ambil_tamu';
-      const busyMark = busy ? ` ❌${totalHarga} • ${formatClock(t.endAt)}` : '';
-      const tail = busy ? busyMark : (totalHarga !== '' ? ` ${totalHarga}` : '');
+      // Sesi oncall ditandai dengan group_id "oncall:<bookingId>". Terapis
+      // oncall tetap masuk daftar, jadi kasir perlu bedakan supaya tidak
+      // menunggu tamu hotel yang sebenarnya sudah keluar.
+      const isOncall = busy && String(t.currentGroupId || '').startsWith('oncall:');
+      const busyMark = busy
+        ? (isOncall
+          ? ` ❌${sisaSpa} \u{1F536}ONCALL • selesai ${formatClock(t.endAt)}`
+          : ` ❌${sisaSpa} • ${formatClock(t.endAt)}`)
+        : '';
+      const tail = busy ? busyMark : (sisaSpa !== '' ? ` ${sisaSpa}` : '');
       text += `${i + 1}. ${t.name} ${shiftCode}${tail}\n`;
     });
   });
@@ -722,10 +739,10 @@ export default function StatusTerapisPage({ active, profile }) {
   // state dailyCommissions yang mungkin belum terisi / sudah kedaluwarsa.
   async function handleSendList() {
     try {
-      const { totals, commissions } = await getTherapistDailyReport(todayId());
+      const { totals, commissions, hotelTotals } = await getTherapistDailyReport(todayId());
       setDailyCommissions(commissions);
       setDailyTotals(totals);
-      buildAndSendTherapistList({ therapists, dailyTotals: totals });
+      buildAndSendTherapistList({ therapists, dailyTotals: totals, hotelTotals });
     } catch (e) {
       setMessage('Gagal memuat komisi: ' + e.message);
     }
