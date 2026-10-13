@@ -47,15 +47,55 @@ function bookingIdsOf(t) {
   return t.currentBookingId ? [t.currentBookingId] : [];
 }
 
+/**
+ * Daftar terapis yang sedang menjalankan sesi oncall, diisi dengan
+ * { [therapistId]: { endAt, treatmentName, outletId } }.
+ *
+ * Syarat "sedang berjalan" sama dengan aturan auto-free: booking berstatus
+ * 'berjalan' dan jam selesaipnya belum lewat. Booking yang sudah 'selesai'
+ * tidak dihitung karena orangnya sudah boleh kembali menerima tamu.
+ *
+ * Sumbernya tabel `bookings`, bukan therapists.current_group_id, karena RPC
+ * oncall tidak pernah mengisi kolom group_id - kalau diambil dari sana, hasilnya
+ * selalu kosong.
+ */
+async function ambilOncallAktif() {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('id, therapist_id, treatment_name, outlet_id, start_at, end_at')
+    .eq('booking_source', 'oncall')
+    .eq('status', 'berjalan')
+    .gt('end_at', Date.now())
+    .limit(200);
+  if (error) {
+    console.warn('gagal memuat oncall aktif', error);
+    return {};
+  }
+  const peta = {};
+  (data || []).forEach((b) => {
+    if (!b.therapist_id || peta[b.therapist_id]) return;
+    peta[b.therapist_id] = {
+      endAt: b.end_at,
+      treatmentName: b.treatment_name || '',
+      outletId: b.outlet_id || ''
+    };
+  });
+  return peta;
+}
+
 /** Susun teks daftar lengkap (mirip format manual: dikelompokkan per outlet
  *  ASAL terapis, menampilkan semua terapis dengan kode shift & komisi hari
  *  ini, ditandai ❌jam kalau sedang ambil tamu, yang libur dicoret di bawah)
  *  lalu buka WhatsApp siap kirim.
  *
- *  Terapis yang sedang menjalankan sesi oncall diberi tanda 🔶ONCALL supaya
+ *  Terapis yang sedang menjalankan sesi oncall diberi tanda 🔌ONCALL supaya
  *  bisa dibedakan dari tamu walk-in. Keduanya tetap menampilkan jam selesai
- *  treatment, jadi tim tahu kapan mereka boleh lepas dari room. */
-function buildAndSendTherapistList({ therapists, dailyTotals, hotelTotals }) {
+ *  treatment, jadi tim tahu kapan mereka boleh lepas dari room.
+ *
+ *  Oncall dibaca dari tabel `bookings` (booking_source = 'oncall'), bukan dari
+ *  current_group_id terapis: RPC oncall tidak pernah mengisi kolom itu, jadi
+ *  kalau dicek dari sana tandanya tidak akan pernah muncul sama sekali. */
+function buildAndSendTherapistList({ therapists, dailyTotals, hotelTotals, oncallAktif }) {
   const today = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
   let text = `LIST TERAPIS ${today}\n`;
 
@@ -74,15 +114,15 @@ function buildAndSendTherapistList({ therapists, dailyTotals, hotelTotals }) {
       // hotel 50.000 tampil 350, bukan 400.
       const hotel = hotelTotals && hotelTotals[t.id] ? hotelTotals[t.id] : 0;
       const sisaSpa = dailyTotals[t.id] ? Math.round((dailyTotals[t.id] - hotel) / 1000) : '';
-      const busy = (t.status || 'free') === 'ambil_tamu';
-      // Sesi oncall ditandai dengan group_id "oncall:<bookingId>". Terapis
-      // oncall tetap masuk daftar, jadi kasir perlu bedakan supaya tidak
-      // menunggu tamu hotel yang sebenarnya sudah keluar.
-      const isOncall = busy && String(t.currentGroupId || '').startsWith('oncall:');
+      const oncall = oncallAktif ? oncallAktif[t.id] : null;
+      // Oncall ikut dianggap sedangBusy walau papan therapis belum menandai,
+      // karena RPC oncall tidak mengubah therapists.status.
+      const busy = (t.status || 'free') === 'ambil_tamu' || !!oncall;
+      const selesai = oncall ? oncall.endAt : t.endAt;
       const busyMark = busy
-        ? (isOncall
-          ? ` ❌${sisaSpa} \u{1F536}ONCALL • selesai ${formatClock(t.endAt)}`
-          : ` ❌${sisaSpa} • ${formatClock(t.endAt)}`)
+        ? (oncall
+          ? ` ❌${sisaSpa} \u{1F536}ONCALL • selesai ${formatClock(selesai)}`
+          : ` ❌${sisaSpa} • ${formatClock(selesai)}`)
         : '';
       const tail = busy ? busyMark : (sisaSpa !== '' ? ` ${sisaSpa}` : '');
       text += `${i + 1}. ${t.name} ${shiftCode}${tail}\n`;
@@ -742,7 +782,10 @@ export default function StatusTerapisPage({ active, profile }) {
       const { totals, commissions, hotelTotals } = await getTherapistDailyReport(todayId());
       setDailyCommissions(commissions);
       setDailyTotals(totals);
-      buildAndSendTherapistList({ therapists, dailyTotals: totals, hotelTotals });
+      // Diambil bareng supaya tanda ❌ dan 🔶ONCALL di daftar selalu sesuai
+      // dengan booking oncall yang sedang jalan saat tombol ditekan.
+      const oncallAktif = await ambilOncallAktif();
+      buildAndSendTherapistList({ therapists, dailyTotals: totals, hotelTotals, oncallAktif });
     } catch (e) {
       setMessage('Gagal memuat komisi: ' + e.message);
     }

@@ -123,17 +123,23 @@ Sama seperti Kasir, bedanya:
 
 ---
 
-## 9. Stok Minyak — kelola stok minyak outlet
+## 9. Stok — kelola minyak & produk treatment (satu halaman)
 
-- Tersedia 6 jenis minyak (Relaxing, Refreshing, Herbal, Hot Oil, Cem-Ceman, Aromatic Oil) × 2 ukuran.
-- Klik **-1 / +1** untuk menambah/mengurangi, atau **ketik angka langsung** untuk set stok.
+- Menu **Stok** menggabungkan minyak dan produk treatment dalam satu halaman dengan dua tab.
+- **Ringkasan di atas**: jumlah jenis minyak, jumlah jenis produk, dan berapa yang **perlu diisi**.
+- **Bagian "Perlu diisi"**: gabungan dari minyak dan produk yang menipis/habis — tinggal tekan **+1** atau **Isi barang** langsung dari situ.
+- **Tab Minyak**: klik **-1 / +1** atau **ketik angka** untuk set stok. Otomatis tersimpan, tidak ada tombol Simpan.
+- **Tab Produk & Laundry**: pilih barang → isi **jumlah** → opsional **catatan** → **Barang masuk** / **Barang keluar**. Ada juga tambah item baru & hapus item.
+- Treatment Massage memakai minyak, Treatment Foot Massage memakai Foot Cream.
+- Stok **otomatis berkurang** saat transaksi disimpan. Tapi **tidak berkurang** untuk oncall, check-in reservasi, dan pembatalan dengan potongan harga — isi manual di halaman ini.
+- Kalau ada yang bertanda **⚠ akan habis** di Order Stock, isi jumlahnya lalu tekan **📦 Kirim Order Stock**.
+- Detail lengkap: **[SKEMA-STOK-MINYAK.md](SKEMA-STOK-MINYAK.md)**
 
 ---
 
 ## 10. Inventory — barang masuk & keluar
 
-- Pilih **barang** → isi **jumlah** → isi **catatan** (opsional) → klik **Barang masuk** atau **Barang keluar**.
-- **Tambah item baru**: nama barang + satuan (pcs/botol/lusin).
+Sudah digabung ke halaman **Stok** (tab Produk & Laundry). Menu Inventory tidak lagi muncul sendiri.
 
 ---
 

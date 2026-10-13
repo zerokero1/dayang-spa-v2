@@ -1176,3 +1176,69 @@ section > button {
   .koreksi-page .koreksi-item { padding: 20px; }
   .koreksi-page .koreksi-btn { min-height: 54px; font-size: 17px; }
 }
+
+/* ---------- Halaman Stok (gabungan minyak & produk) ---------- */
+.stok-ringkas {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.stok-ringkas-kartu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  text-align: center;
+}
+.stok-ringkas-kartu.bahaya {
+  border-color: var(--danger);
+  background: var(--busy-bg);
+}
+.stok-ringkas-angka { font-size: 22px; font-weight: 800; line-height: 1.1; }
+.stok-ringkas-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+.stok-ringkas-ket { font-size: 12px; color: var(--text-secondary); }
+
+.stok-perlu { border-color: var(--busy); }
+.stok-menipis { border-color: var(--busy); }
+.stok-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--busy-bg);
+  color: var(--busy);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.stok-tab {
+  display: flex;
+  gap: 6px;
+  margin: 16px 0 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+.stok-tab button {
+  flex: 1;
+  max-width: 260px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+.stok-tab button.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+@media (max-width: 640px) {
+  .stok-ringkas { grid-template-columns: 1fr; }
+  .stok-tab { flex-direction: column; }
+  .stok-tab button { max-width: none; }
+}

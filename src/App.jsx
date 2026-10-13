@@ -15,8 +15,7 @@ import './styles-laporan.css';
 const KasirPage = lazy(() => import('./pages/KasirPage'));
 const AbsensiPage = lazy(() => import('./pages/AbsensiPage'));
 const LaporanPage = lazy(() => import('./pages/LaporanPage'));
-const InventoryPage = lazy(() => import('./pages/InventoryPage'));
-const StokMinyakPage = lazy(() => import('./pages/StokMinyakPage'));
+const StokPage = lazy(() => import('./pages/StokPage'));
 const StatusTerapisPage = lazy(() => import('./pages/StatusTerapisPage'));
 const ReservasiPage = lazy(() => import('./pages/ReservasiPage'));
 const KelolaTerapisPage = lazy(() => import('./pages/KelolaTerapisPage'));
@@ -51,8 +50,13 @@ const PAGES = {
   reservasi: { label: 'Reservasi', icon: '🗓️', Component: ReservasiPage },
   status: { label: 'Payment & List', icon: '💆', Component: StatusTerapisPage, global: true },
   absensi: { label: 'Absensi', icon: '✅', Component: AbsensiPage },
-  inventory: { label: 'Inventory', icon: '📦', Component: InventoryPage },
-  minyak: { label: 'Stok Minyak', icon: '🫗', Component: StokMinyakPage },
+  // "inventory" dan "minyak" sengaja disimpan sebagai alias tersembunyi supaya
+// tautan lama / tombol di halaman lain tetap membuka halaman yang sama, tapi
+// dengan tab yang sesuai. Keduanya tidak muncul di menu.
+  inventory: { label: 'Inventory', icon: '📦', Component: StokPage, hidden: true, props: { initialTab: 'item' } },
+  minyak: { label: 'Stok Minyak', icon: '🫗', Component: StokPage, hidden: true, props: { initialTab: 'minyak' } },
+  // Halaman stok gabungan: minyak dan produk treatment satu tempat.
+  stok: { label: 'Stok', icon: '🫗', Component: StokPage },
   orderStock: { label: 'Order Stok', icon: '📦', Component: OrderStockPage, global: true },
   laporan: { label: 'Laporan Keuangan', icon: '💰', Component: LaporanPage },
   laporanKeseluruhan: { label: 'Laporan Keseluruhan', icon: '📚', Component: LaporanKeseluruhanPage, global: true, officeOnly: true },
@@ -157,6 +161,7 @@ export default function App() {
   const currentPage = PAGES[activePage];
   const allowedKeys = RESTRICTED_ROLE_PAGES[profile.role] || null;
   const visiblePageEntries = Object.entries(PAGES).filter(([key, p]) => {
+    if (p.hidden) return false;
     if (p.adminOnly && !isAdminPusat) return false;
     if (p.officeOnly && !isOffice) return false;
     if (p.roles && !p.roles.includes(profile.role)) return false;
@@ -214,7 +219,7 @@ export default function App() {
                 <span>{currentPage ? currentPage.label : ''}</span>
               </div>
               {currentPage && currentPage.Component && (
-<currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} onOpen={openPage} />
+<currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} onOpen={openPage} {...(currentPage.props || {})} />
               )}
             </Suspense>
           )}
@@ -326,7 +331,7 @@ export default function App() {
         <main className={overdueCount > 0 ? 'content has-banner' : 'content'}>
           <Suspense fallback={<div style={{ padding: 24, fontSize: 14, color: 'var(--text-secondary)' }}>Memuat…</div>}>
             {currentPage && currentPage.Component && (
-              <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} onOpen={(k) => setActivePage(k)} />
+              <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} onOpen={(k) => setActivePage(k)} {...(currentPage.props || {})} />
             )}
           </Suspense>
         </main>
