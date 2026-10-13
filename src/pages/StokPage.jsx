@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { listenOilInventory, setOilStock, adjustOilStock } from '../lib/oilInventoryService';
 import { listenInventory, addInventoryItem, stockIn, stockOut, deleteInventoryItem } from '../lib/inventoryService';
 import { INVENTORY_CATEGORIES, DEFAULT_INVENTORY_CATEGORY, isSingleSizeProduct } from '../lib/constants';
+import { LOW_OIL, LOW_ITEM, namaMinyak, kelompokkanMinyak, hitungPerluAttention, totalStok } from '../lib/stokRingkas';
 
 /**
  * Halaman Stok - satu tempat untuk minyak DAN produk treatment.
@@ -17,17 +18,17 @@ import { INVENTORY_CATEGORIES, DEFAULT_INVENTORY_CATEGORY, isSingleSizeProduct }
  * Halaman ini hanya menyatukan antarmukanya; tidak ada RPC yang berubah.
  */
 
-// Batas stok menipis. Nilainya sama dengan OrderStockPage supaya angka yang
-// muncul di kedua halaman tidak berbeda.
-const LOW_OIL = 1;
-const LOW_ITEM = 2;
+// Batas stok menipis, pengelompokan minyak, dan daftar "perlu diisi" semuanya
+// hidup di lib/stokRingkas.js supaya bisa diuji tanpa browser.
 
-function namaMinyak(o) {
-  return o.oilType + (isSingleSizeProduct(o.oilType) ? '' : ` (${o.size})`);
-}
+// Berapa item "perlu diisi" yang ditampilkan sebelum harus ditekan "Lihat semua".
+const PERLU_AWAL = 6;
 
 export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
   const [tab, setTab] = useState(initialTab === 'item' ? 'item' : 'minyak');
+  // Daftar "perlu diisi" bisa panjang (>20 item di outlet yang/laundry-nya
+  // banyak), jadi default-nya diringkas. Kasir bisa membuka semuanya bila perlu.
+  const [lihatSemua, setLihatSemua] = useState(false);
 
   // oil_inventory
   const [oils, setOils] = useState([]);
@@ -166,44 +167,14 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
 
   /* ---------------- rekap ---------------- */
 
-  // Minyak dikelompokkan per jenis supaya urutan di layar rapi dan mudah
-  // dibandingkan dengan katalog.
-  const minyakPerJenis = useMemo(() => {
-    const peta = new Map();
-    oils.forEach((o) => {
-      if (!peta.has(o.oilType)) peta.set(o.oilType, []);
-      peta.get(o.oilType).push(o);
-    });
-    return [...peta.entries()].map(([jenis, list]) => ({
-      jenis,
-      list: list.slice().sort((a, b) => String(a.size).localeCompare(String(b.size)))
-    }));
-  }, [oils]);
-
-  // Gabungan minyak dan produk yang perlu attention.
-  const perluAttention = useMemo(() => {
-    const out = [];
-    oils.forEach((o) => {
-      if ((o.stock || 0) <= LOW_OIL) {
-        out.push({
-          key: o.id, nama: namaMinyak(o), stok: o.stock || 0,
-          satuan: o.unit || 'botol', jenis: 'Minyak', dariMinyak: true
-        });
-      }
-    });
-    items.forEach((it) => {
-      if ((it.stock || 0) <= LOW_ITEM) {
-        out.push({
-          key: it.id, nama: it.name, stok: it.stock || 0,
-          satuan: it.unit, jenis: it.category || DEFAULT_INVENTORY_CATEGORY, dariMinyak: false
-        });
-      }
-    });
-    return out.sort((a, b) => (a.stok - b.stok) || a.nama.localeCompare(b.nama));
-  }, [oils, items]);
-
-  const totalMinyak = oils.reduce((s, o) => s + (o.stock || 0), 0);
-  const totalProduk = items.reduce((s, it) => s + (it.stock || 0), 0);
+  // Hitungan rinci ada di lib/stokRingkas.js supaya bisa diuji tanpa browser.
+  const minyakPerJenis = useMemo(() => kelompokkanMinyak(oils), [oils]);
+  const perluAttention = useMemo(
+    () => hitungPerluAttention(oils, items, { kategoriDefault: DEFAULT_INVENTORY_CATEGORY }),
+    [oils, items]
+  );
+  const totalMinyak = totalStok(oils);
+  const totalProduk = totalStok(items);
 
   function tambahSatu(p) {
     if (p.dariMinyak) {
@@ -241,30 +212,45 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
 
       {/* ---------- Perlu diisi, digabung dari dua sumber ---------- */}
       {perluAttention.length > 0 && (
-        <section>
-          <p className="muted" style={{ marginBottom: 8 }}>
-            Perlu diisi — minyak ≤ {LOW_OIL} botol, produk ≤ {LOW_ITEM}
-          </p>
-          <div className="grid-2">
-            {perluAttention.map((p) => (
-              <div key={p.key} className="oil-card stok-perlu">
-                <div>
-                  <strong>{p.nama}</strong>{' '}
-                  <small className="muted">{p.jenis}</small>
-                </div>
-                <div style={{ fontSize: 12 }}>
-                  {p.stok <= 0 ? '⚠ habis' : '⚠ menipis'} · sisa {p.stok} {p.satuan}
-                </div>
-                <div className="row" style={{ gap: 6, marginTop: 6 }}>
-                  <button disabled={busy || busyId === p.key} onClick={() => tambahSatu(p)}>
-                    {p.dariMinyak ? '+1' : 'Isi barang'}
+<section>
+              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
+                <p className="muted" style={{ margin: 0 }}>
+                  Perlu diisi — minyak ≤ {LOW_OIL} botol, produk ≤ {LOW_ITEM}
+                </p>
+                {perluAttention.length > PERLU_AWAL && (
+                  <button
+                    className="stok-lihat-lebih"
+                    onClick={() => setLihatSemua((v) => !v)}
+                  >
+                    {lihatSemua ? 'Tampilkan ringkas' : `Lihat semua (${perluAttention.length})`}
                   </button>
-                </div>
+                )}
               </div>
-            ))}
-          </div>
-        </section>
-      )}
+              <div className="grid-2">
+                {perluAttention.slice(0, lihatSemua ? Infinity : PERLU_AWAL).map((p) => (
+                  <div key={p.key} className="oil-card stok-perlu">
+                    <div>
+                      <strong>{p.nama}</strong>{' '}
+                      <small className="muted">{p.jenis}</small>
+                    </div>
+                    <div style={{ fontSize: 12 }}>
+                      {p.stok <= 0 ? '⚠ habis' : '⚠ menipis'} · sisa {p.stok} {p.satuan}
+                    </div>
+                    <div className="row" style={{ gap: 6, marginTop: 6 }}>
+                      <button disabled={busy || busyId === p.key} onClick={() => tambahSatu(p)}>
+                        {p.dariMinyak ? '+1' : 'Isi barang'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {!lihatSemua && perluAttention.length > PERLU_AWAL && (
+                <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                  Menampilkan {PERLU_AWAL} yang paling kosong dari {perluAttention.length} item.
+                </p>
+              )}
+            </section>
+          )}
 
       {/* ---------- Tab ---------- */}
       <div className="stok-tab">

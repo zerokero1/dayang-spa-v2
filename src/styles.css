@@ -1242,3 +1242,11 @@ section > button {
   .stok-tab { flex-direction: column; }
   .stok-tab button { max-width: none; }
 }
+
+.stok-lihat-lebih {
+  width: auto;
+  padding: 4px 10px;
+  font-size: 12px;
+  box-shadow: none;
+  flex-shrink: 0;
+}
