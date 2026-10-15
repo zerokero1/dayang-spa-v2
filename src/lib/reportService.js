@@ -722,3 +722,168 @@ export function buildProductionReport(rows, outletIds) {
     }, 0)
   };
 }
+
+/**
+ * Daftar transaksi yang diberi diskon / potongan harga.
+ *
+ * Yang dianggap berdiskon: ada `discount_pct` lebih dari 0, ATAU
+ * `original_price` berbeda dari `treatment_price`. Booking oncall TIDAK ikut,
+ * karena harga oncall memang berbeda dari harga katalog treatments dan bukan
+ * potongan.
+ *
+ * Setiap baris juga diberi `katalogPrice` (harga treatment di katalog) supaya
+ * laporan bisa membedakan dua hal yang sering tertukar:
+ *   - diskon yang memang diberikan kasir (harga turun dari harga katalog)
+ *   - treatment yang katalognya naik, sehingga booking lamanya terlihat murah
+ */
+export async function getDiscountRange(startDate, endDate, outletId) {
+  const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
+  let q = supabase
+    .from('bookings')
+    .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, original_price, discount_pct, discount_reason, commission_percent, commission_amount, hotel_commission, paid, status, customer_name, booking_source, created_at')
+    .eq('booking_source', 'in_house')
+    .gte('created_at', startUtc.toISOString())
+    .lte('created_at', endUtc.toISOString());
+  if (outletId) q = q.eq('outlet_id', outletId);
+  const { data, error } = await q.limit(RANGE_LIMIT);
+  if (error) throw error;
+
+  // Harga katalog dipakai sebagai pembanding.
+  const { data: treat } = await supabase.from('treatments').select('name, price');
+  const katalog = {};
+  (treat || []).forEach((t) => {
+    const k = String(t.name || '').toLowerCase().trim();
+    if (k && katalog[k] == null) katalog[k] = Number(t.price || 0);
+  });
+
+  return (data || [])
+    .map(mapBooking)
+    .filter((b) => b.status !== 'batal')
+    .filter((b) => (Number(b.discountPct) || 0) > 0 || (b.originalPrice != null && Number(b.originalPrice) !== Number(b.treatmentPrice || 0)))
+    .map((b) => {
+      const katalogPrice = katalog[String(b.treatmentName || '').toLowerCase().trim()];
+      const hargaMasuk = Number(b.treatmentPrice || 0);
+      const dasar = Number(b.originalPrice || katalogPrice || 0);
+      const nilaiDiskon = Math.max(0, dasar - hargaMasuk);
+      return {
+        ...b,
+        katalogPrice: katalogPrice == null ? null : katalogPrice,
+        hargaDasar: dasar,
+        nilaiDiskon,
+        // Selisih komisi kalau harga sebenarnya mengikuti harga katalog.
+        komisiSelisih: katalogPrice == null ? 0 : Math.round((katalogPrice - hargaMasuk) * (b.commissionPercent || 10) / 100),
+        diskonPersenEfektif: dasar > 0 ? Math.round((nilaiDiskon / dasar) * 1000) / 10 : 0,
+        alasan: String(b.discountReason || '').trim()
+      };
+    })
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+/**
+ * Kelompokkan alasan diskon yang mirip supaya laporan tidak
+ * terpecah jadi puluhan baris yang isinya sama saja.
+ * "tamu mamak", "Tamu Mamak", "TAMU MAMAK " dianggap satu alasan.
+ */
+export function groupDiscountReasons(rows) {
+  const m = new Map();
+  (rows || []).forEach((r) => {
+    const kunci = String(r.alasan || '(kosong)').toLowerCase().replace(/\s+/g, ' ').trim() || '(kosong)';
+    if (!m.has(kunci)) m.set(kunci, { kunci, label: r.alasan || '(kosong)', n: 0, nilai: 0, komisi: 0, contoh: [] });
+    const g = m.get(kunci);
+    g.n++;
+    g.nilai += r.nilaiDiskon || 0;
+    g.komisi += r.komisiSelisih || 0;
+    if (g.contoh.length < 3) g.contoh.push(r);
+  });
+  return [...m.values()].sort((a, b) => b.nilai - a.nilai);
+}
+
+/**
+ * Tandai baris yang perlu ditinjau kasir. Ini inti laporan: bukan sekadar
+ * menjumlahkan diskon, tapi menunjukkan yang mencurigakan.
+ */
+export function flagDiscountIssues(r) {
+  const issues = [];
+  if (!r.alasan) issues.push('tanpa alasan');
+  if (!r.discountPct) issues.push('persen kosong');
+  if (Number(r.treatmentPrice) === 0) issues.push('harga 0');
+  if (r.katalogPrice != null && Number(r.treatmentPrice) > r.katalogPrice) issues.push('harga di atas katalog');
+  return issues;
+}
+
+/**
+ * Slip gaji / rekap komisi per terapis untuk dua periode.
+ *
+ * Dipakai untuk slip gaji: kolom komisi periode 1, komisi periode 2, totalnya,
+ * lalu dipotong tabungan 30%. Nama yang dipakai adalah nama terapis di
+ * aplikasi, bukan nama yang diketik manual di spreadsheet.
+ *
+ * @param {{startDate:string,endDate:string}} periodeA periode pertama
+ * @param {{startDate:string,endDate:string}} periodeB periode kedua
+ * @param {string} outletId kosong = semua outlet
+ */
+export async function getPayslip(periodeA, periodeB, outletId) {
+  const ambilSatuPeriode = async (periode) => {
+    if (!periode || !periode.startDate || !periode.endDate) return {};
+    const { startUtc, endUtc } = wibRangeBounds(periode.startDate, periode.endDate);
+    let q = supabase
+      .from('bookings')
+      .select('therapist_id, therapist_name, commission_amount, status, created_at')
+      .gte('created_at', startUtc.toISOString())
+      .lte('created_at', endUtc.toISOString());
+    if (outletId) q = q.eq('outlet_id', outletId);
+    const { data, error } = await q.limit(RANGE_LIMIT);
+    if (error) throw error;
+    const peta = {};
+    (data || []).forEach((b) => {
+      if (b.status === 'batal') return;
+      const key = b.therapist_id || b.therapist_name;
+      if (!key) return;
+      peta[key] = peta[key] || { therapistId: b.therapist_id, therapistName: b.therapist_name, komisi: 0, trx: 0 };
+      peta[key].komisi += Number(b.commission_amount || 0);
+      peta[key].trx += 1;
+    });
+    return peta;
+  };
+
+  const a = await ambilSatuPeriode(periodeA);
+  const b = await ambilSatuPeriode(periodeB);
+
+  const semuaId = [...new Set([...Object.keys(a), ...Object.keys(b)])];
+  const rows = semuaId.map((id) => {
+    const dari = a[id] || b[id];
+    const komisiA = a[id] ? a[id].komisi : 0;
+    const komisiB = b[id] ? b[id].komisi : 0;
+    const total = komisiA + komisiB;
+    const tabungan = Math.round(total * 0.3);
+    return {
+      therapistId: id,
+      therapistName: dari.therapistName || (b[id] && b[id].therapistName) || '-',
+      trxA: a[id] ? a[id].trx : 0,
+      trxB: b[id] ? b[id].trx : 0,
+      komisiA,
+      komisiB,
+      totalKomisi: total,
+      tabungan30: tabungan,
+      // Potongan diisi manual di spreadsheet, jadi di sini dibiarkan nol.
+      potongan: 0,
+      komisiBersih: total - tabungan
+    };
+  }).sort((x, y) => y.totalKomisi - x.totalKomisi);
+
+  const jumlahkan = (f) => rows.reduce((s, r) => s + (f(r) || 0), 0);
+  return {
+    rows,
+    periodeA,
+    periodeB,
+    total: {
+      komisiA: jumlahkan((r) => r.komisiA),
+      komisiB: jumlahkan((r) => r.komisiB),
+      totalKomisi: jumlahkan((r) => r.totalKomisi),
+      tabungan30: jumlahkan((r) => r.tabungan30),
+      potongan: 0,
+      komisiBersih: jumlahkan((r) => r.komisiBersih),
+      jumlahTerapis: rows.length
+    }
+  };
+}
