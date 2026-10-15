@@ -1250,3 +1250,175 @@ section > button {
   box-shadow: none;
   flex-shrink: 0;
 }
+
+/* ---------- Kartu stok: tombol besar & tulisan mudah dibaca ----------
+   Kasir mengisi stok sambil melayani tamu, jadi area sentuhnya dibuat besar
+   (minimal 48px sesuai comfortably touch target) dan nama produk ditulis
+   penuh tanpa harus mencari ke atas. */
+.stok-grup { margin-bottom: 20px; }
+
+.stok-grup-judul {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.stok-grup-ket {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.stok-kartu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.stok-kartu {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 12px;
+}
+.stok-kartu.menipis { border-color: var(--busy); background: var(--busy-bg); }
+
+.stok-kartu-kepala {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.stok-kartu-nama {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.stok-kartu-sisa {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.stok-kartu-sisa strong { font-size: 16px; color: var(--text); }
+.stok-kartu-jenis {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 11px;
+}
+
+.stok-kartu-isian {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
+/* Tombol +/- : tinggi penuh, label ditulis (bukan hanya tanda) supaya tidak
+   perlu ditebak artinya. */
+.stok-tombol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-height: 52px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--text);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font);
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: none;
+}
+.stok-tombol:disabled { opacity: 0.4; cursor: not-allowed; }
+.stok-tombol-ikon { font-size: 22px; line-height: 1; }
+.stok-tombol-teks { font-size: 11px; font-weight: 600; letter-spacing: 0.02em; }
+.stok-tombol.tambah { background: var(--primary); border-color: var(--primary); color: #fff; }
+.stok-tombol.kurangi { background: var(--surface); }
+.stok-tombol.tambah:disabled { opacity: 0.45; }
+
+/* Kotak jumlah: angka besar supaya jumlah botol terbaca sekilas. */
+.stok-jumlah {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 2px 8px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  min-width: 76px;
+}
+.stok-jumlah input {
+  width: 100%;
+  min-height: 32px;
+  border: 0;
+  background: transparent;
+  text-align: center;
+  font-family: var(--font);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+  padding: 0;
+  margin: 0;
+}
+.stok-jumlah input:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-radius: 4px; }
+.stok-jumlah input::-webkit-outer-spin-button,
+.stok-jumlah input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.stok-jumlah input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.stok-jumlah-satuan {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Isi cepat: isi ulang per dus tanpa harus menghitung manual. */
+.stok-cepat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.stok-cepat-label { font-size: 11px; color: var(--text-secondary); font-weight: 600; }
+.stok-cepat-tombol {
+  flex: 1;
+  min-height: 34px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: none;
+}
+.stok-cepat-tombol:hover:not(:disabled) { border-color: var(--text); }
+.stok-cepat-tombol:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.stok-kartu-tombol { margin-top: 8px; }
+.stok-kartu-tombol .stok-tombol { width: 100%; flex-direction: row; gap: 6px; min-height: 46px; }
+
+@media (max-width: 640px) {
+  .stok-kartu-grid { grid-template-columns: 1fr; }
+  .stok-kartu-nama { font-size: 16px; }
+}

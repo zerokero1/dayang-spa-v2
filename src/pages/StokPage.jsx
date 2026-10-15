@@ -77,8 +77,15 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
   }
 
   async function handleSetOil(oil, value) {
+    // Penting: jangan menulis apa pun kalau kotaknya dikosongkan. Number('')
+    // bernilai 0, jadi tanpa penjaga ini kasir yang mengetik ulang angka akan
+    // membuat stok langsung tersimpan 0.
+    if (value === '' || value === null || value === undefined) return;
     const num = Number(value);
-    if (isNaN(num) || num < 0 || num === oil.stock) return;
+    if (!Number.isFinite(num) || num < 0) return;
+    // Pecahan tidak masuk akal untuk stok botol / tube.
+    if (!Number.isInteger(num)) return;
+    if (num === oil.stock) return;
     setBusyId(oil.id);
     setMessage('');
     try {
@@ -226,19 +233,27 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
                   </button>
                 )}
               </div>
-              <div className="grid-2">
+              <div className="stok-kartu-grid">
                 {perluAttention.slice(0, lihatSemua ? Infinity : PERLU_AWAL).map((p) => (
-                  <div key={p.key} className="oil-card stok-perlu">
-                    <div>
-                      <strong>{p.nama}</strong>{' '}
-                      <small className="muted">{p.jenis}</small>
+                  <div key={p.key} className="stok-kartu menipis">
+                    <div className="stok-kartu-kepala">
+                      <span className="stok-kartu-nama">{p.nama}</span>
+                      <span className="stok-badge">{p.stok <= 0 ? 'habis' : 'menipis'}</span>
                     </div>
-                    <div style={{ fontSize: 12 }}>
-                      {p.stok <= 0 ? '⚠ habis' : '⚠ menipis'} · sisa {p.stok} {p.satuan}
+                    <div className="stok-kartu-sisa">
+                      sisa <strong>{p.stok}</strong> {p.satuan}
+                      <span className="stok-kartu-jenis">{p.jenis}</span>
                     </div>
-                    <div className="row" style={{ gap: 6, marginTop: 6 }}>
-                      <button disabled={busy || busyId === p.key} onClick={() => tambahSatu(p)}>
-                        {p.dariMinyak ? '+1' : 'Isi barang'}
+                    <div className="stok-kartu-tombol">
+                      <button
+                        className="stok-tombol tambah"
+                        disabled={busy || busyId === p.key}
+                        onClick={() => tambahSatu(p)}
+                      >
+                        <span className="stok-tombol-ikon">+</span>
+                        <span className="stok-tombol-teks">
+                          {p.dariMinyak ? 'Tambah 1' : 'Isi barang'}
+                        </span>
                       </button>
                     </div>
                   </div>
@@ -271,38 +286,78 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
             <p className="muted">Belum ada data minyak untuk outlet ini.</p>
           )}
           {minyakPerJenis.map((g) => (
-            <div key={g.jenis} style={{ marginBottom: 16 }}>
-              <p className="muted" style={{ marginBottom: 6 }}>
+            <div key={g.jenis} className="stok-grup">
+              <p className="stok-grup-judul">
                 {g.jenis}
-                {isSingleSizeProduct(g.jenis) ? ` (${g.list[0].unit})` : ` (${g.list.length} ukuran)`}
+                <span className="stok-grup-ket">
+                  {isSingleSizeProduct(g.jenis) ? `1 ukuran · ${g.list[0].unit}` : `${g.list.length} ukuran`}
+                </span>
               </p>
-              <div className="grid-2">
-                {g.list.map((oil) => (
-                  <div key={oil.id} className={(oil.stock || 0) <= LOW_OIL ? 'oil-card stok-menipis' : 'oil-card'}>
-                    <div>
-                      {isSingleSizeProduct(oil.oilType) ? oil.oilType : oil.size}
-                      {(oil.stock || 0) <= LOW_OIL && (
-                        <span className="stok-badge">
-                          {' '}{oil.stock <= 0 ? '⚠ habis' : '⚠ menipis'}
-                        </span>
-                      )}
+              <div className="stok-kartu-grid">
+                {g.list.map((oil) => {
+                  const menipis = (oil.stock || 0) <= LOW_OIL;
+                  const namaLengkap = namaMinyak(oil);
+                  return (
+                    <div key={oil.id} className={menipis ? 'stok-kartu menipis' : 'stok-kartu'}>
+                      <div className="stok-kartu-kepala">
+                        <span className="stok-kartu-nama">{namaLengkap}</span>
+                        {menipis && (
+                          <span className="stok-badge">{oil.stock <= 0 ? 'habis' : 'menipis'}</span>
+                        )}
+                      </div>
+
+                      <div className="stok-kartu-isian">
+                        <button
+                          className="stok-tombol kurangi"
+                          disabled={busyId === oil.id || (oil.stock || 0) <= 0}
+                          onClick={() => handleAdjustOil(oil, -1)}
+                          title={`Kurangi ${namaLengkap} 1 botol`}
+                        >
+                          <span className="stok-tombol-ikon">−</span>
+                          <span className="stok-tombol-teks">Kurang</span>
+                        </button>
+
+                        <label className="stok-jumlah">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min="0"
+                            step="1"
+                            value={oil.stock == null ? 0 : oil.stock}
+                            onChange={(e) => handleSetOil(oil, e.target.value)}
+                            aria-label={`Jumlah ${namaLengkap}`}
+                          />
+                          <span className="stok-jumlah-satuan">{oil.unit || 'botol'}</span>
+                        </label>
+
+                        <button
+                          className="stok-tombol tambah"
+                          disabled={busyId === oil.id}
+                          onClick={() => handleAdjustOil(oil, 1)}
+                          title={`Tambah ${namaLengkap} 1 botol`}
+                        >
+                          <span className="stok-tombol-ikon">+</span>
+                          <span className="stok-tombol-teks">Tambah</span>
+                        </button>
+                      </div>
+
+                      <div className="stok-cepat">
+                        <span className="stok-cepat-label">Cepat:</span>
+                        {[6, 12, 24].map((n) => (
+                          <button
+                            key={n}
+                            className="stok-cepat-tombol"
+                            disabled={busyId === oil.id}
+                            onClick={() => handleSetOil(oil, n)}
+                            title={`Isi langsung jadi ${n} botol`}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="row" style={{ alignItems: 'center', gap: 8 }}>
-                      <button disabled={busyId === oil.id} onClick={() => handleAdjustOil(oil, -1)}>
-                        -1
-                      </button>
-                      <input
-                        type="number"
-                        style={{ width: 60, textAlign: 'center', margin: 0 }}
-                        value={oil.stock}
-                        onChange={(e) => handleSetOil(oil, e.target.value)}
-                      />
-                      <button disabled={busyId === oil.id} onClick={() => handleAdjustOil(oil, 1)}>
-                        +1
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
