@@ -187,7 +187,7 @@ export default function ReservasiPage({ outletId, active }) {
   function barisBaru(categori, terapisId, customerName) {
     return {
       uid: Math.random().toString(36).slice(2, 8),
-      category: kategori || TREATMENT_CATEGORIES[0],
+      category: category || TREATMENT_CATEGORIES[0],
       treatment: null, oil: null, size: null,
       therapistId: terapisId || null,
       // Nama orang untuk baris ini. Kosong = ikut memakai nama pelanggan di
