@@ -65,7 +65,7 @@ export default function SlipGajiPage() {
   const barisTampil = useMemo(() => {
     if (!data) return [];
     return sertakanNol ? data.rows : data.rows.filter((r) => r.totalKomisi !== 0);
-  }, [data, sertapkanNol]);
+  }, [data, sertakanNol]);
 
   const unduh = () => {
     if (!data) return;

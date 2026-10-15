@@ -75,7 +75,7 @@ export default function LaporanDiskonPage({ active, profile }) {
 
   const bermasalah = useMemo(() => denganFlag.filter((r) => r.issues.length > 0), [denganFlag]);
 
-  constshown = useMemo(() => {
+  const shown = useMemo(() => {
     const q = cari.trim().toLowerCase();
     let out = hanyaBermasalah ? bermasalah : denganFlag;
     if (q) {
