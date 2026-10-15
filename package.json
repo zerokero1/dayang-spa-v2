@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "cek:halaman": "node cek-halaman.mjs"
+    "lint": "eslint src",
+    "cek:halaman": "node cek-halaman.mjs",
+    "cek": "npm run lint && npm run cek:halaman",
+    "build": "npm run cek && vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
@@ -17,7 +19,11 @@
     "react-router-dom": "^6.26.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
     "vite": "^5.4.0",
     "vite-plugin-pwa": "^0.20.5"
   }
