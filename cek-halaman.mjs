@@ -14,9 +14,14 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const dir = process.cwd();
-const sementara = path.join(dir, '.cek-halaman-tmp.cjs');
 
-// Booking ke Supabase tidak dijalankan saat render pertama, jadi kunci
+// PENTING: nama file sementara harus BERBEDA tiap halaman. Node menyimpan
+// modul ESM berdasarkan URL, jadi kalau nama filenya sama, halaman kedua dan
+// seterusnya diam-diam memakai modul halaman pertama yang sudah di-cache.
+// Akibatnya halaman yang rusak ikut terbaca "OK".
+const sementaraUntuk = (nama) => path.join(dir, `.cek-halaman-tmp-${nama}.cjs`);
+
+// Koneksi ke server tidak dijalankan saat render pertama, jadi kunci
 // environment hanya perlu nilai placeholder.
 const define = {
   'import.meta.env': JSON.stringify({
@@ -27,6 +32,7 @@ const define = {
 
 async function cek(entry) {
   const nama = path.basename(entry).replace('.jsx', '');
+  const sementara = sementaraUntuk(nama);
   const hasil = await esbuild.build({
     entryPoints: [path.join(dir, entry)],
     bundle: true,

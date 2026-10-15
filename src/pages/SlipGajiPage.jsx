@@ -142,7 +142,7 @@ return (
             max={periodeA.endDate || undefined}
             onChange={(e) => setPeriodeA({ ...periodeA, startDate: e.target.value })}
           />
-          <span style={sparator}>s/d</span>
+          <span style={separator}>s/d</span>
           <input
             type="date"
             value={periodeA.endDate}
@@ -162,7 +162,7 @@ return (
             max={periodeB.endDate || undefined}
             onChange={(e) => setPeriodeB({ ...periodeB, startDate: e.target.value })}
           />
-          <span style={sparator}>s/d</span>
+          <span style={separator}>s/d</span>
           <input
             type="date"
             value={periodeB.endDate}
