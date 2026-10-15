@@ -812,57 +812,46 @@ export function flagDiscountIssues(r) {
 }
 
 /**
- * Slip gaji / rekap komisi per terapis untuk dua periode.
+ * Slip gaji / rekap komisi per terapis untuk satu periode.
  *
- * Dipakai untuk slip gaji: kolom komisi periode 1, komisi periode 2, totalnya,
- * lalu dipotong tabungan 30%. Nama yang dipakai adalah nama terapis di
+ * Satu rentang tanggal saja: komisi tiap terapis, lalu dipotong tabungan 30%
+ * sehingga tersisa komisi bersih. Nama yang dipakai adalah nama terapis di
  * aplikasi, bukan nama yang diketik manual di spreadsheet.
  *
- * @param {{startDate:string,endDate:string}} periodeA periode pertama
- * @param {{startDate:string,endDate:string}} periodeB periode kedua
+ * @param {{startDate:string,endDate:string}} periode
  * @param {string} outletId kosong = semua outlet
  */
-export async function getPayslip(periodeA, periodeB, outletId) {
-  const ambilSatuPeriode = async (periode) => {
-    if (!periode || !periode.startDate || !periode.endDate) return {};
-    const { startUtc, endUtc } = wibRangeBounds(periode.startDate, periode.endDate);
-    let q = supabase
-      .from('bookings')
-      .select('therapist_id, therapist_name, commission_amount, status, created_at')
-      .gte('created_at', startUtc.toISOString())
-      .lte('created_at', endUtc.toISOString());
-    if (outletId) q = q.eq('outlet_id', outletId);
-    const { data, error } = await q.limit(RANGE_LIMIT);
-    if (error) throw error;
-    const peta = {};
-    (data || []).forEach((b) => {
-      if (b.status === 'batal') return;
-      const key = b.therapist_id || b.therapist_name;
-      if (!key) return;
-      peta[key] = peta[key] || { therapistId: b.therapist_id, therapistName: b.therapist_name, komisi: 0, trx: 0 };
-      peta[key].komisi += Number(b.commission_amount || 0);
-      peta[key].trx += 1;
-    });
-    return peta;
-  };
+export async function getPayslip(periode, outletId) {
+  if (!periode || !periode.startDate || !periode.endDate) {
+    throw new Error('Slip gaji butuh tanggal awal dan tanggal akhir.');
+  }
+  const { startUtc, endUtc } = wibRangeBounds(periode.startDate, periode.endDate);
+  let q = supabase
+    .from('bookings')
+    .select('therapist_id, therapist_name, commission_amount, status, created_at')
+    .gte('created_at', startUtc.toISOString())
+    .lte('created_at', endUtc.toISOString());
+  if (outletId) q = q.eq('outlet_id', outletId);
+  const { data, error } = await q.limit(RANGE_LIMIT);
+  if (error) throw error;
 
-  const a = await ambilSatuPeriode(periodeA);
-  const b = await ambilSatuPeriode(periodeB);
+  const peta = {};
+  (data || []).forEach((b) => {
+    if (b.status === 'batal') return;
+    const key = b.therapist_id || b.therapist_name;
+    if (!key) return;
+    peta[key] = peta[key] || { therapistId: b.therapist_id, therapistName: b.therapist_name, komisi: 0, trx: 0 };
+    peta[key].komisi += Number(b.commission_amount || 0);
+    peta[key].trx += 1;
+  });
 
-  const semuaId = [...new Set([...Object.keys(a), ...Object.keys(b)])];
-  const rows = semuaId.map((id) => {
-    const dari = a[id] || b[id];
-    const komisiA = a[id] ? a[id].komisi : 0;
-    const komisiB = b[id] ? b[id].komisi : 0;
-    const total = komisiA + komisiB;
+  const rows = Object.entries(peta).map(([id, v]) => {
+    const total = v.komisi;
     const tabungan = Math.round(total * 0.3);
     return {
       therapistId: id,
-      therapistName: dari.therapistName || (b[id] && b[id].therapistName) || '-',
-      trxA: a[id] ? a[id].trx : 0,
-      trxB: b[id] ? b[id].trx : 0,
-      komisiA,
-      komisiB,
+      therapistName: v.therapistName || '-',
+      jumlahTreatment: v.trx,
       totalKomisi: total,
       tabungan30: tabungan,
       // Potongan diisi manual di spreadsheet, jadi di sini dibiarkan nol.
@@ -874,11 +863,9 @@ export async function getPayslip(periodeA, periodeB, outletId) {
   const jumlahkan = (f) => rows.reduce((s, r) => s + (f(r) || 0), 0);
   return {
     rows,
-    periodeA,
-    periodeB,
+    periode,
     total: {
-      komisiA: jumlahkan((r) => r.komisiA),
-      komisiB: jumlahkan((r) => r.komisiB),
+      jumlahTreatment: jumlahkan((r) => r.jumlahTreatment),
       totalKomisi: jumlahkan((r) => r.totalKomisi),
       tabungan30: jumlahkan((r) => r.tabungan30),
       potongan: 0,
