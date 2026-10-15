@@ -14,7 +14,7 @@ function labelPeriode(p) {
   if (!POLA_TANGGAL.test(p.startDate) || !POLA_TANGGAL.test(p.endDate)) return 'PERIODE';
   const singkas = (d) => d.slice(8, 10);
   if (p.startDate === p.endDate) return singkas(p.startDate);
-  return `${singkat(p.startDate)}-${singkat(p.endDate)}`;
+  return `${singkas(p.startDate)}-${singkas(p.endDate)}`;
 }
 
 export default function SlipGajiPage() {

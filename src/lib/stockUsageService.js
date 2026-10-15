@@ -207,7 +207,7 @@ export async function getAllOutletLedger(outletIds, startDate, endDate) {
       itemRows.push({
         ...r,
         outletId: id,
-        label: prefixOutlet(id, it.unit ? `${r.name} (${r.unit})` : r.name)
+        label: prefixOutlet(id, r.unit ? `${r.name} (${r.unit})` : r.name)
       });
     });
   });
