@@ -99,8 +99,12 @@ function buildAndSendTherapistList({ therapists, dailyTotals, hotelTotals, oncal
   const today = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
   let text = `LIST TERAPIS ${today}\n`;
 
-  const offList = therapists.filter((t) => t.status === 'libur');
-  const activeList = therapists.filter((t) => t.status !== 'libur');
+  // Terapis dengan tampil_di_wa = false sengaja dihilangkan dari daftar off
+  // maupun on. Statusnya tidak diubah, jadi kalau ternyata masih dipakai
+  // sesekali orang itu tetap bisa dipilih di halaman lain.
+  const tampilWa = therapists.filter((t) => t.tampilDiWa !== false);
+  const offList = tampilWa.filter((t) => t.status === 'libur');
+  const activeList = tampilWa.filter((t) => t.status !== 'libur');
 
   OUTLETS.forEach((o) => {
     const list = activeList.filter((t) => t.homeOutletId === o.id);

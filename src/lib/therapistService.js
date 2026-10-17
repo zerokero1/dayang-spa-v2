@@ -20,7 +20,10 @@ function mapTherapist(row) {
     currentPrice: row.current_price != null ? Number(row.current_price) : null,
     currentGroupId: row.current_group_id || null,
     startAt: row.start_at,
-    endAt: row.end_at
+    endAt: row.end_at,
+    // false = nama disembunyikan dari daftar WA (off dan on). Booking,
+    // absensi, dan slip gaji tetap memakainya.
+    tampilDiWa: row.tampil_di_wa !== false
   };
 }
 
