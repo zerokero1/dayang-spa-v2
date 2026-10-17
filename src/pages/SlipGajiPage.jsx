@@ -64,12 +64,14 @@ export default function SlipGajiPage() {
 
   const unduh = () => {
     if (!data) return;
-    const headers = ['NAMA', 'TOTAL KOMISI', 'TAB 30%', 'TOTAL', 'POTONGAN', 'KOMISI BERSIH'];
+    const headers = ['NAMA', 'OUTLET', 'TREATMENT', 'TOTAL KOMISI', 'TAB 30%', 'TOTAL', 'POTONGAN', 'KOMISI BERSIH'];
 
     // Potongan dibiarkan kosong supaya bisa diisi sendiri di Excel; kolom TOTAL
     // dan KOMISI BERSIH sengaja tetap terisi agar angkanya tidak berubah sendiri.
     const isi = barisTampil.map((r) => [
       r.therapistName,
+      r.outletNames || '-',
+      r.jumlahTreatment,
       r.totalKomisi,
       r.tabungan30,
       r.totalKomisi - r.tabungan30,
@@ -79,6 +81,8 @@ export default function SlipGajiPage() {
     if (isi.length) {
       isi.push([
         'TOTAL',
+        `${data.total.perOutlet.length} outlet`,
+        data.total.jumlahTreatment,
         data.total.totalKomisi,
         data.total.tabungan30,
         data.total.totalKomisi - data.total.tabungan30,
@@ -94,7 +98,7 @@ export default function SlipGajiPage() {
       subtitle: namaOutlet,
       headers,
       rows: isi,
-      currencyColumns: [1, 2, 3, 4, 5],
+      currencyColumns: [3, 4, 5, 6, 7],
       totalRowIndex: isi.length ? isi.length - 1 : undefined,
       sheetName: `Komisi ${kolomPeriode}`,
       note: 'Tabungan 30% dihitung otomatis. Isi kolom POTONGAN sendiri bila ada potongan lain.'
@@ -180,11 +184,23 @@ export default function SlipGajiPage() {
             <span className="chip chip-purple">Komisi bersih {rp(data.total.komisiBersih)}</span>
           </section>
 
+          <section>
+            <p>Outlet yang dipakai pada periode ini</p>
+            <div style={baris}>
+              {data.total.perOutlet.map((o) => (
+                <span key={o.id} className="chip" style={{ fontSize: 12 }}>
+                  {o.nama}: {o.treatment} treatment / {o.jumlahTerapis} terapis
+                </span>
+              ))}
+            </div>
+          </section>
+
           <section className="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>NAMA</th>
+                  <th>OUTLET</th>
                   <th>TREATMENT</th>
                   <th>TOTAL KOMISI</th>
                   <th>TAB 30%</th>
@@ -197,6 +213,7 @@ export default function SlipGajiPage() {
                 {barisTampil.map((r) => (
                   <tr key={r.therapistId}>
                     <td>{r.therapistName}</td>
+                    <td>{r.outlets.map((o) => `${o.nama} (${o.jumlah})`).join(', ') || '-'}</td>
                     <td>{r.jumlahTreatment}</td>
                     <td><strong>{rp(r.totalKomisi)}</strong></td>
                     <td>{rp(r.tabungan30)}</td>
@@ -207,7 +224,7 @@ export default function SlipGajiPage() {
                 ))}
                 {barisTampil.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="muted">Tidak ada komisi pada periode ini.</td>
+                    <td colSpan={8} className="muted">Tidak ada komisi pada periode ini.</td>
                   </tr>
                 )}
               </tbody>
@@ -215,6 +232,7 @@ export default function SlipGajiPage() {
                 <tfoot>
                   <tr>
                     <th>TOTAL</th>
+                    <th>{data.total.perOutlet.length} outlet</th>
                     <th>{data.total.jumlahTreatment}</th>
                     <th>{rp(data.total.totalKomisi)}</th>
                     <th>{rp(data.total.tabungan30)}</th>

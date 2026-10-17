@@ -828,7 +828,7 @@ export async function getPayslip(periode, outletId) {
   const { startUtc, endUtc } = wibRangeBounds(periode.startDate, periode.endDate);
   let q = supabase
     .from('bookings')
-    .select('therapist_id, therapist_name, commission_amount, status, created_at')
+    .select('therapist_id, therapist_name, commission_amount, status, created_at, outlet_id')
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString());
   if (outletId) q = q.eq('outlet_id', outletId);
@@ -840,18 +840,37 @@ export async function getPayslip(periode, outletId) {
     if (b.status === 'batal') return;
     const key = b.therapist_id || b.therapist_name;
     if (!key) return;
-    peta[key] = peta[key] || { therapistId: b.therapist_id, therapistName: b.therapist_name, komisi: 0, trx: 0 };
+    peta[key] = peta[key] || {
+      therapistId: b.therapist_id,
+      therapistName: b.therapist_name,
+      komisi: 0,
+      trx: 0,
+      outlets: {}
+    };
     peta[key].komisi += Number(b.commission_amount || 0);
     peta[key].trx += 1;
+    // Outlet tempat terapi ini dikerjakan, supaya terlihat therapistsindah
+    // mengambil tamu di outlet mana saja dalam satu periode.
+    if (b.outlet_id) peta[key].outlets[b.outlet_id] = (peta[key].outlets[b.outlet_id] || 0) + 1;
   });
 
   const rows = Object.entries(peta).map(([id, v]) => {
     const total = v.komisi;
     const tabungan = Math.round(total * 0.3);
+    const perOutlet = Object.entries(v.outlets)
+      .sort((a, b) => b[1] - a[1])
+      .map(([oid, n]) => ({
+        id: oid,
+        nama: OUTLETS.find((o) => o.id === oid)?.name || oid,
+        jumlah: n
+      }));
     return {
       therapistId: id,
       therapistName: v.therapistName || '-',
       jumlahTreatment: v.trx,
+      // Ringkasan outlet, mis. "Dayang Putri (4), Dayang 2 (2)".
+      outlets: perOutlet,
+      outletNames: perOutlet.map((o) => o.nama).join(', '),
       totalKomisi: total,
       tabungan30: tabungan,
       // Potongan diisi manual di spreadsheet, jadi di sini dibiarkan nol.
@@ -870,7 +889,20 @@ export async function getPayslip(periode, outletId) {
       tabungan30: jumlahkan((r) => r.tabungan30),
       potongan: 0,
       komisiBersih: jumlahkan((r) => r.komisiBersih),
-      jumlahTerapis: rows.length
+      jumlahTerapis: rows.length,
+      // Outlet yang tersentuh di periode ini, beserta jumlah therapis yang
+      // bekerja di sana.
+      perOutlet: (() => {
+        const hitung = {};
+        rows.forEach((r) => r.outlets.forEach((o) => {
+          hitung[o.id] = hitung[o.id] || { id: o.id, nama: o.nama, treatment: 0, terapis: new Set() };
+          hitung[o.id].treatment += o.jumlah;
+          hitung[o.id].terapis.add(r.therapistName);
+        }));
+        return Object.values(hitung)
+          .map((o) => ({ id: o.id, nama: o.nama, treatment: o.treatment, jumlahTerapis: o.terapis.size }))
+          .sort((a, b) => b.treatment - a.treatment);
+      })()
     }
   };
 }
