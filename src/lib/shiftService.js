@@ -20,13 +20,18 @@ export const SHIFT_DEFS = {
     endMin: 23 * 60
   },
   [SHIFTS.SP1]: {
-    segments: [[11 * 60, 14 * 60], [17 * 60, 22 * 60]],
+    // 11:00-14:00, lalu lanjut lagi 05:00-10:00. Segmen kedua jamnya lebih
+    // kecil dari yang pertama karena shift ini melewati tengah malam, jadi
+    // urutan segmen diurutkan dari yang paling pagi supaya
+    // getShiftWindowStatus() tidak salah menandai jeda.
+    segments: [[5 * 60, 10 * 60], [11 * 60, 14 * 60]],
     startMin: 11 * 60,
-    endMin: 22 * 60
+    endMin: 23 * 60 + 59
   },
   [SHIFTS.SP2]: {
-    segments: [[12 * 60, 15 * 60], [18 * 60, 23 * 60]],
-    startMin: 12 * 60,
+    // 13:00-17:00, lalu lanjut 19:00-23:00.
+    segments: [[13 * 60, 17 * 60], [19 * 60, 23 * 60]],
+    startMin: 13 * 60,
     endMin: 23 * 60
   },
   [SHIFTS.MALAM]: {
@@ -44,11 +49,12 @@ export const SHIFT_DEFS = {
     startMin: 11 * 60,
     endMin: 23 * 60
   },
-  // Short time: 11:00-16:00. Dahulunya 17:00 di shiftService.js.
+  // Short time: 11:00-17:00. Dahulunya 16:00 di sini dan 17:00 di
+  // overtimeService.js, sehingga satu shift punya dua jam selesai berbeda.
   [SHIFTS.ST]: {
-    segments: [[11 * 60, 16 * 60]],
+    segments: [[11 * 60, 17 * 60]],
     startMin: 11 * 60,
-    endMin: 16 * 60
+    endMin: 17 * 60
   }
 };
 
@@ -82,12 +88,12 @@ export function lateMinutesFor(checkInMinutes, shift) {
 
 /**
  * Hitung status jadwal shift berdasarkan jam saat ini (waktu lokal).
- * - SP1: aktif 11:00-14:00 dan 17:00-22:00, jeda 14:00-17:00
- * - SP2: aktif 12:00-15:00 dan 18:00-23:00, jeda 15:00-18:00
+ * - SP1: aktif 05:00-10:00 dan 11:00-14:00, jeda 10:00-11:00
+ * - SP2: aktif 13:00-17:00 dan 19:00-23:00, jeda 17:00-19:00
  * - SP : aktif 11:00-15:00 dan 18:00-23:00, jeda 15:00-18:00
  * - Malam / AD: aktif 15:00-23:00, tidak ada jeda di tengah
  * - 11 : aktif 11:00-23:00
- * - ST : aktif 11:00-16:00
+ * - ST : aktif 11:00-17:00
  * Di luar rentang itu dianggap "di luar jam kerja".
  * Return: 'aktif' | 'jeda' | 'diluar_jam' | null (kalau tidak ada shift di-set)
  */

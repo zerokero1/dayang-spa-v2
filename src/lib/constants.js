@@ -298,12 +298,12 @@ export const DEFAULT_ONCALL_COMMISSION_PCT = 30;
 export const SHIFTS = { SP: 'sp', SP1: 'sp1', SP2: 'sp2', MALAM: 'malam', ST: 'st', AD: 'AD', T11: '11' };
 export const SHIFT_LABEL = {
   sp: 'Shift SP (Split)',
-  sp1: 'Shift SP1 (11-14, 17-22)',
-  sp2: 'Shift SP2 (12-15, 18-23)',
+  sp1: 'Shift SP1 (11-14, lanjut 05-10)',
+  sp2: 'Shift SP2 (13-17, lanjut 19-23)',
   malam: 'Shift Malam',
   AD: 'Shift AD (15-23)',
   '11': 'Shift 11 (11-23)',
-  st: 'Shift ST (Short Time)'
+  st: 'Shift ST (11-17)'
 };
 export const SHIFT_SHORT_CODE = { sp: 'Sp', sp1: 'Sp¹', sp2: 'Sp²', malam: '15', AD: 'AD', '11': '11', st: 'St' };
 

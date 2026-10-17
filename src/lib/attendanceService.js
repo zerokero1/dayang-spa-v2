@@ -35,11 +35,11 @@ function mapAttendance(r) {
  * type='lembur' akan menimpa kehadiran. Lembur disimpan terpisah di
  * attendance_overtime lewat saveOvertime().
  *
- * Keterlambatan dihitung dari jam datang vs jam mulai shift, bukan diketik
- * manual, supaya tidak bisa lupa dan tidak bisa nebak-nebak. Kalau tidak bisa
- * dihitung (jam datang kosong atau shift belum diatur) nilainya NULL = tidak
- * diketahui, BUKAN 0 — 0 berarti "tepat waktu" dan itu akan berbohong.
- * Kasir boleh mengoreksi sendiri lewat lateMinutesOverride.
+ * Keterlambatan TIDAK lagi dihitung otomatis untuk status "Hadir": kalau kasir
+ * mencentang Hadir, menit telat = 0 karena input kasir dianggap valid. Hitungan
+ * otomatis dari jam datang vs jam mulai shift hanya dipakai kalau kasir
+ * memilih status lain (Telat). Kalau kasir ingin mencatat jumlah menit telat
+ * sendiri, ia mengisinya lewat lateMinutesOverride yang selalu menang.
  */
 export async function recordAttendance({
   outletId, employeeId, employeeName, type, note, date,
@@ -52,7 +52,19 @@ export async function recordAttendance({
   const override = lateMinutesOverride === null || lateMinutesOverride === undefined
     ? null
     : Math.max(0, Number(lateMinutesOverride) || 0);
-  const lateMinCalc = override !== null ? override : computed;
+
+  // Absensi yang diinput kasir dihitung valid apa adanya: kalau kasir
+  // mencentang "Hadir", jam datang tidak boleh dihitung telat hanya karena
+  // lebih akhir dari jam mulai shift. Dengan shift SP1 yang punya segmen
+  // 05:00-10:00 dan 11:00-14:00, banyak orang yang datang di segmen kedua
+  // selalu terlihat telat padahal kasir sudah memastikan hadir.
+  // Kalau kasir memang mau mencatat telat, ia memilih status "Telat" atau
+  // mengisi menitnya sendiri lewat lateMinutesOverride.
+  const dipilihHadir = type === ATTENDANCE_TYPES.HADIR;
+  let lateMinCalc;
+  if (override !== null) lateMinCalc = override;
+  else if (dipilihHadir) lateMinCalc = 0;
+  else lateMinCalc = computed;
   const lateMin = lateMinCalc == null ? 0 : lateMinCalc;
 
   const { error } = await supabase.from('attendance').upsert({
@@ -71,7 +83,13 @@ export async function recordAttendance({
     note: note || ''
   });
   if (error) throw error;
-  return { lateMinutes: lateMin, lateComputed: computed, overridden: override !== null };
+  return {
+    lateMinutes: lateMin,
+    lateComputed: computed,
+    overridden: override !== null,
+    // true = menit telat mengikuti pilihan kasir, bukan hitungan otomatis.
+    dipakaiPilihanKasir: override !== null || dipilihHadir
+  };
 }
 
 /**
