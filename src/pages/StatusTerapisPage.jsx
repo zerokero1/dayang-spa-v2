@@ -285,10 +285,10 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
               )}
               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Terima pembayaran:</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => confirmDiscount(t, 'cash')}>
+                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => confirmDiscount('cash')}>
                   Lunas Cash
                 </button>
-                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => confirmDiscount(t, 'cardless')}>
+                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => confirmDiscount('cardless')}>
                   Lunas Cardless
                 </button>
               </div>
