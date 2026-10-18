@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dayang Spa — Contoh Tampilan Kasir (Simplified)</title>
+<style>
+  :root{
+    --bg:#eef2f3; --card:#ffffff; --ink:#0f172a; --muted:#64748b;
+    --primary:#0e7c66; --primary-dark:#0b5f4f; --accent:#14b8a6;
+    --warn:#f59e0b; --danger:#dc2626; --ok:#16a34a;
+    --line:#e2e8f0; --r:16px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:#cbd5e1; color:var(--ink);
+    display:flex; justify-content:center; align-items:center; min-height:100vh; padding:16px;
+  }
+  .phone{
+    width:100%; max-width:430px; height:min(88vh,860px);
+    background:var(--bg); border-radius:26px; overflow:hidden;
+    box-shadow:0 24px 60px rgba(2,6,23,.35); display:flex; flex-direction:column;
+    border:8px solid #0f172a;
+  }
+  /* ---------- Header ---------- */
+  .top{
+    background:var(--primary); color:#fff; padding:12px 14px 10px;
+  }
+  .top-row{display:flex; justify-content:space-between; align-items:center}
+  .brand{display:flex; align-items:center; gap:8px; font-weight:800; font-size:16px}
+  .brand small{display:block; font-weight:400; font-size:11px; opacity:.85}
+  .who{font-size:11px; text-align:right; opacity:.95; line-height:1.3}
+  .outlets{display:flex; gap:6px; overflow-x:auto; margin-top:10px; padding-bottom:2px; -ms-overflow-style:none; scrollbar-width:none}
+  .outlets::-webkit-scrollbar{display:none}
+  .outlet{
+    flex:0 0 auto; border:1px solid rgba(255,255,255,.4); background:transparent; color:#fff;
+    padding:7px 12px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap;
+  }
+  .outlet.active{background:#fff; color:var(--primary-dark); border-color:#fff}
+  /* ---------- Body ---------- */
+  .body{flex:1; overflow-y:auto; padding:14px}
+  .screen{display:none} .screen.active{display:block}
+  .hello{font-size:15px; font-weight:700; margin:2px 0 2px}
+  .hello small{display:block; font-weight:400; color:var(--muted); font-size:12px; margin-top:2px}
+  .section-title{font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin:16px 2px 8px}
+  /* Tiles */
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .tile{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--r);
+    padding:16px 12px; text-align:left; display:flex; flex-direction:column; gap:6px; cursor:pointer;
+    box-shadow:0 1px 2px rgba(2,6,23,.04);
+  }
+  .tile .ic{font-size:26px}
+  .tile b{font-size:15px}
+  .tile span{font-size:11px; color:var(--muted)}
+  .tile.big{grid-column:span 2; flex-direction:row; align-items:center; gap:14px; padding:18px 16px}
+  .tile.big .ic{font-size:34px}
+  .tile.primary{background:var(--primary); border-color:var(--primary); color:#fff}
+  .tile.primary span{color:rgba(255,255,255,.85)}
+  .badge{background:var(--danger); color:#fff; border-radius:999px; font-size:11px; font-weight:800; padding:2px 8px; margin-left:auto}
+  /* Cart / list cards */
+  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:12px; margin-bottom:10px}
+  .card .row{display:flex; justify-content:space-between; align-items:center; gap:8px}
+  .card .t{font-weight:700; font-size:14px}
+  .card .sub{font-size:12px; color:var(--muted); margin-top:3px}
+  .amt{font-weight:800; font-size:15px}
+  .pill{display:inline-block; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px}
+  .pill.busy{background:#fef3c7; color:#92400e}
+  .pill.free{background:#dcfce7; color:#166534}
+  .pill.unpaid{background:#fee2e2; color:#991b1b}
+  .pill.paid{background:#dcfce7; color:#166534}
+  /* Buttons */
+  button{font-family:inherit; cursor:pointer}
+  .btn{border:none; border-radius:12px; padding:13px 16px; font-size:15px; font-weight:700; width:100%}
+  .btn-primary{background:var(--primary); color:#fff}
+  .btn-cash{background:var(--ok); color:#fff}
+  .btn-card{background:#2563eb; color:#fff}
+  .btn-ghost{background:#fff; border:1px solid var(--line); color:var(--ink)}
+  .btn-sm{padding:10px 12px; font-size:13px; width:auto}
+  .btn-row{display:flex; gap:8px}
+  /* Chips */
+  .chips{display:flex; gap:6px; flex-wrap:wrap}
+  .chip{border:1px solid var(--line); background:#fff; border-radius:999px; padding:8px 12px; font-size:13px; font-weight:600}
+  .chip.active{background:var(--primary); color:#fff; border-color:var(--primary)}
+  .chip.busy{opacity:.55}
+  /* Steps */
+  .steps{display:flex; gap:6px; margin-bottom:12px}
+  .step{flex:1; text-align:center; font-size:11px; color:var(--muted); padding:6px 4px; border-bottom:3px solid var(--line)}
+  .step.active{color:var(--primary); border-color:var(--primary); font-weight:700}
+  /* Bottom nav */
+  .nav{display:flex; border-top:1px solid var(--line); background:#fff}
+  .nav button{
+    flex:1; border:none; background:transparent; padding:9px 4px 12px; color:var(--muted);
+    display:flex; flex-direction:column; align-items:center; gap:3px; font-size:11px; font-weight:600; position:relative;
+  }
+  .nav button .ni{font-size:21px; line-height:1}
+  .nav button.active{color:var(--primary)}
+  .nav .dot{position:absolute; top:4px; right:calc(50% - 24px); background:var(--danger); color:#fff; font-size:10px; font-weight:800; border-radius:999px; padding:1px 6px}
+  .muted{color:var(--muted)}
+  .note{font-size:11px; color:var(--muted); background:#f8fafc; border:1px dashed var(--line); border-radius:12px; padding:10px; margin-top:10px}
+  .doneStrike{text-decoration:line-through; opacity:.5}
+</style>
+</head>
+<body>
+<div class="phone">
+  <!-- HEADER -->
+  <header class="top">
+    <div class="top-row">
+      <div class="brand">
+        <span style="font-size:20px">🫧</span>
+        <div>Dayang Spa<small>Mode Kasir</small></div>
+      </div>
+      <div class="who">Kasir: <b>Rina</b><br>Outlet aktif ↓</div>
+    </div>
+    <div class="outlets" id="outlets">
+      <button class="outlet active">Dayang 1</button>
+      <button class="outlet">Dayang 2</button>
+      <button class="outlet">Dayang Putri</button>
+      <button class="outlet">Dream</button>
+      <button class="outlet">Rere</button>
+      <button class="outlet">Yulis</button>
+    </div>
+  </header>
+
+  <!-- BODY -->
+  <main class="body">
+
+    <!-- ============ HOME ============ -->
+    <section class="screen active" id="s-home">
+      <p class="hello">Selamat sore, Rina 👋<small>Mau ngapain hari ini? Pilih tombol besar di bawah.</small></p>
+
+      <button class="tile primary big" onclick="go('order')">
+        <span class="ic">➕</span>
+        <span><b>Catat Pesanan Baru</b><br><span style="font-size:12px">Tamu datang / jalan</span></span>
+      </button>
+
+      <div class="section-title">Paling sering dipakai</div>
+      <div class="grid">
+        <button class="tile" onclick="go('unpaid')">
+          <span class="ic">💳</span><b>Bayar</b><span>Tagihan belum lunas</span>
+          <span class="badge" style="position:absolute"></span>
+        </button>
+        <button class="tile" onclick="go('therapists')">
+          <span class="ic">💆</span><b>Cek Terapis</b><span>Siapa yang bebas</span>
+        </button>
+        <button class="tile" onclick="go('oncall')">
+          <span class="ic">🏨</span><b>Oncall</b><span>Massage ke hotel</span>
+        </button>
+        <button class="tile" onclick="alert('Contoh saja — halaman Reservasi')">
+          <span class="ic">🗓️</span><b>Reservasi</b><span>Check-in booking</span>
+        </button>
+        <button class="tile" onclick="alert('Contoh saja — halaman Struk')">
+          <span class="ic">🧾</span><b>Struk</b><span>Cetak / ulang struk</span>
+        </button>
+        <button class="tile" onclick="alert('Contoh saja — halaman Absensi')">
+          <span class="ic">✅</span><b>Absensi</b><span>Hadir / izin terapis</span>
+        </button>
+      </div>
+
+      <div class="note">Ide utama: tombol besar, bahasa sehari-hari, dan hanya menu yang dipakai kasir. Menu teknis (Koreksi Booking, Log Aktivitas, Kelola Terapis, dll) disembunyikan dari akun kasir.</div>
+    </section>
+
+    <!-- ============ CATAT PESANAN ============ -->
+    <section class="screen" id="s-order">
+      <div class="steps">
+        <div class="step active">1. Treatment</div>
+        <div class="step">2. Terapis</div>
+        <div class="step">3. Simpan</div>
+      </div>
+      <div class="chips" style="margin-bottom:10px">
+        <button class="chip active">Massage</button>
+        <button class="chip">Nail</button>
+        <button class="chip">Body Care</button>
+        <button class="chip">Waxing</button>
+        <button class="chip">Hair</button>
+      </div>
+      <div class="card">
+        <div class="row"><span class="t">Balinese Massage (60 mnt)</span><span class="amt">Rp350.000</span></div>
+        <div class="row" style="margin-top:8px"><span class="t">Lombok Massage (60 mnt)</span><span class="amt">Rp200.000</span></div>
+        <div class="row" style="margin-top:8px"><span class="t">Foot Massage (30 mnt)</span><span class="amt">Rp100.000</span></div>
+      </div>
+
+      <div class="section-title">Pilih terapis (yang bebas saja)</div>
+      <div class="chips">
+        <button class="chip active">Ali · Dayang 1</button>
+        <button class="chip">Nur</button>
+        <button class="chip busy">Destia 🔴 sedang ambil tamu</button>
+        <button class="chip">Mia</button>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="t">Ringkasan pesanan</div>
+        <div class="sub">Balinese Massage · Ali · 21:00–22:00</div>
+        <div class="row" style="margin-top:6px">
+          <span class="muted">Belum dibayar</span><span class="amt">Rp350.000</span>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" onclick="alert('Contoh: tersimpan. Buka WhatsApp bukti pesanan.')">💾 Simpan Pesanan</button>
+      <button class="btn btn-ghost" style="margin-top:8px" onclick="go('home')">Kembali</button>
+    </section>
+
+    <!-- ============ BAYAR / BELUM BAYAR ============ -->
+    <section class="screen" id="s-unpaid">
+      <p class="hello">Tagihan Belum Lunas <span class="pill unpaid">3 tagihan</span></p>
+      <p class="muted" style="font-size:12px;margin:4px 0 12px">Ketuk cara bayar. Terapis sudah bisa dipakai lagi meski belum dibayar.</p>
+
+      <div class="card">
+        <div class="row">
+          <div><div class="t">Foot Massage (30 mnt)</div>
+            <div class="sub">Bayu · Dayang 1 · selesai 21:10</div></div>
+          <span class="amt">Rp100.000</span>
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-cash btn-sm" style="flex:1" onclick="pay(this)">Bayar Cash</button>
+          <button class="btn btn-card btn-sm" style="flex:1" onclick="pay(this)">Bayar Cardless</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div><div class="t">Balinese Massage (60 mnt)</div>
+            <div class="sub">Nur · Dayang 1 · selesai 21:30 · <b style="color:var(--danger)">lewat jam</b></div></div>
+          <span class="amt">Rp350.000</span>
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-cash btn-sm" style="flex:1" onclick="pay(this)">Bayar Cash</button>
+          <button class="btn btn-card btn-sm" style="flex:1" onclick="pay(this)">Bayar Cardless</button>
+        </div>
+      </div>
+
+      <div class="card" id="paidDemo" style="display:none">
+        <div class="row"><div><div class="t doneStrike">Lombok Massage</div><div class="sub">Mia · sudah lunas</div></div><span class="pill paid">LUNAS</span></div>
+      </div>
+    </section>
+
+    <!-- ============ CEK TERAPIS ============ -->
+    <section class="screen" id="s-therapists">
+      <p class="hello">Status Terapis</p>
+      <div class="card"><div class="row"><span class="t">Ali</span><span class="pill free">BEBAS</span></div></div>
+      <div class="card"><div class="row"><span class="t">Mia</span><span class="pill free">BEBAS</span></div></div>
+      <div class="card"><div class="row"><span class="t">Destia</span><span class="pill busy">SEDANG AMBIL TAMU</span></div>
+        <div class="sub">Foot Massage · selesai 21:10</div></div>
+      <div class="card"><div class="row"><span class="t">Nur</span><span class="pill busy">BELUM BAYAR</span></div>
+        <div class="sub">Balinese Massage · selesai 21:30</div></div>
+    </section>
+
+    <!-- ============ ONCALL ============ -->
+    <section class="screen" id="s-oncall">
+      <p class="hello">Oncall (Massage ke Hotel)</p>
+      <div class="card">
+        <div class="row"><div><div class="t">Balinese Massage · Destia</div><div class="sub">Hotel Mamboo · 23:12 WIB · Cash</div></div><span class="amt">Rp350.000</span></div>
+        <div class="pill paid" style="margin-top:8px">SELESAI · LUNAS</div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-sm btn-ghost" style="flex:1" onclick="alert('Contoh')">✏️ Edit</button>
+          <button class="btn btn-sm btn-ghost" style="flex:1" onclick="alert('Contoh')">🗑️ Hapus</button>
+        </div>
+      </div>
+      <div class="note">Tombol "✅ Selesaikan" khusus akun office; sekarang sudah benar-benar melepas terapis saat ditekan.</div>
+    </section>
+
+  </main>
+
+  <!-- BOTTOM NAV -->
+  <nav class="nav">
+    <button id="n-home" class="active" onclick="go('home')"><span class="ni">🏠</span>Beranda</button>
+    <button id="n-order" onclick="go('order')"><span class="ni">➕</span>Pesanan</button>
+    <button id="n-unpaid" onclick="go('unpaid')"><span class="ni">💳</span>Bayar<span class="dot">3</span></button>
+    <button onclick="alert('Contoh menu Lainnya: Ringkasan, Laporan, Stok Minyak, Order Stok')"><span class="ni">☰</span>Lainnya</button>
+  </nav>
+</div>
+
+<script>
+  function go(name){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    var el = document.getElementById('s-'+name);
+    if(el) el.classList.add('active');
+    document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+    var nb = document.getElementById('n-'+name);
+    if(nb) nb.classList.add('active');
+    document.querySelector('.body').scrollTop = 0;
+  }
+  document.querySelectorAll('#outlets .outlet').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('#outlets .outlet').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+    });
+  });
+  function pay(btn){
+    var card = btn.closest('.card');
+    card.style.transition='opacity .25s';
+    card.style.opacity='.35';
+    card.querySelector('.t').classList.add('doneStrike');
+    alert('Contoh: pembayaran tersimpan & struk siap dicetak.');
+    card.style.display='none';
+    var d=document.getElementById('paidDemo'); if(d) d.style.display='block';
+  }
+</script>
+</body>
+</html>
