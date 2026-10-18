@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getRevenueSementara } from '../lib/reportService';
 import { openWhatsAppMessage } from '../lib/bookingService';
 
@@ -14,20 +14,28 @@ const OUTLET_BARIS = [
 const rp = (n) => 'Rp' + Math.round(Number(n || 0)).toLocaleString('id-ID');
 const angkaRingkas = (n) => Number(n || 0).toLocaleString('id-ID');
 
+// Lombok (Kuta) memakai UTC+8 / WITA, bukan UTC+7 / WIB seperti di Jawa.
+// Selisihnya satu jam, jadi kalau salah pakai +7, jam yang tampil satu jam
+// lebih belakang dari jam yang sebenarnya di tangan kasir.
+const OFFSET_LOKAL = 8 * 3600000;
+
+function waktuLokal(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  const s = new Date(d.getTime() + OFFSET_LOKAL).toISOString();
+  return { tanggal: s.slice(0, 10), jam: s.slice(11, 16) };
+}
+
 function tanggalSlash() {
-  const d = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
-  const [y, b, h] = d.split('-');
+  const { tanggal } = waktuLokal();
+  const [y, b, h] = tanggal.split('-');
   return `${h}/${b}/${y}`;
 }
 
-// Jam WIB dari waktu pengambilan data, bukan dari jam buka halaman, supaya
+// Jam lokal dari waktu pengambilan data, bukan dari jam buka halaman, supaya
 // angka dan jamnya selalu berasal dari momen yang sama.
-function jamWib(iso) {
+function jamLokal(iso) {
   if (!iso) return '';
-  const jam = new Date(new Date(iso).getTime() + 7 * 3600000)
-    .toISOString()
-    .slice(11, 16);
-  return `${jam} WIB`;
+  return `${waktuLokal(iso).jam} WITA`;
 }
 
 export default function RevenueSementaraPage() {
@@ -67,7 +75,7 @@ export default function RevenueSementaraPage() {
     baris.push(`oncall : ${rp(data.oncall.omzet)}`);
     baris.push(`Retail minyak : ${retail ? rp(retail) : ''}`);
     baris.push(`Total : ${rp(grandTotal)}`);
-    return `Revenue sementara ${tanggalSlash()} ${jamWib(data.waktu)}\n${baris.join('\n')}`;
+    return `Revenue sementara ${tanggalSlash()} ${jamLokal(data.waktu)}\n${baris.join('\n')}`;
   }, [data, retail, grandTotal]);
 
   // Sama seperti daftar terapis: buka WhatsApp dengan pesan yang sudah terisi,
@@ -94,7 +102,7 @@ export default function RevenueSementaraPage() {
       <p className="muted">
         Omzet berjalan hari ini per outlet, untuk rekap jam 15:00, 18:00, dan
         23:00. Tekan tombol kirim, WhatsApp terbuka dengan pesan yang sudah
-        terisi — tinggal tekan kirim di WhatsApp.
+        terisi â€” tinggal tekan kirim di WhatsApp.
       </p>
 
       <section>
@@ -103,7 +111,7 @@ export default function RevenueSementaraPage() {
             {sedangMuat ? 'Memuat...' : 'Muat ulang'}
           </button>
           <span className="muted" style={{ fontSize: 13 }}>
-            Angka diambil {jamWib(data?.waktu) || '-'}
+            Angka diambil {jamLokal(data?.waktu) || '-'}
           </span>
           <button onClick={kirimWa} disabled={!data}>
             Kirim ke WhatsApp
