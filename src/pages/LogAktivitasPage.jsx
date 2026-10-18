@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import { getAllLogs } from '../lib/logActivityService';
 
@@ -14,14 +14,18 @@ const ACTION_LABEL = {
 
 const OUTLET_NAME = Object.fromEntries(OUTLETS.map((o) => [o.id, o.name]));
 
-function wibDateStr(ts) {
-  const d = new Date(ts + 7 * 3600000);
-  return d.toISOString().slice(0, 10);
+// Lombok memakai WITA (UTC+8), bukan WIB (UTC+7). Kalau dipakai +7, semua
+// jam di halaman ini satu jam lebih belakang dari waktu sebenarnya.
+const ZONA_LOKAL = 'Asia/Makassar';
+const OFFSET_LOKAL = 8 * 3600000;
+
+function tanggalLokal(ts) {
+  return new Date(ts + OFFSET_LOKAL).toISOString().slice(0, 10);
 }
 
-function fmtWib(ts) {
+function fmtLokal(ts) {
   return new Date(ts).toLocaleString('id-ID', {
-    timeZone: 'Asia/Jakarta',
+    timeZone: ZONA_LOKAL,
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
   });
@@ -70,7 +74,7 @@ export default function LogAktivitasPage({ active, user }) {
       if (outletId !== 'semua' && r.outlet_id !== outletId) return false;
       if (date) {
         const d = (r.created_at ? new Date(r.created_at).getTime() : 0);
-        if (wibDateStr(d) !== date) return false;
+        if (tanggalLokal(d) !== date) return false;
       }
       return true;
     });
@@ -112,12 +116,12 @@ export default function LogAktivitasPage({ active, user }) {
         <div key={r.id} className="oil-card" style={{ margin: 0, marginBottom: 8, padding: '10px 12px', textAlign: 'left' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <strong style={{ fontSize: 13 }}>{ACTION_LABEL[r.action] || r.action}</strong>
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{fmtWib(new Date(r.created_at).getTime())}</span>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{fmtLokal(new Date(r.created_at).getTime())}</span>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
             <strong style={{ color: 'var(--primary-dark)' }}>{r.actor_name || 'system'}</strong>
-            {r.outlet_id ? ` · ${OUTLET_NAME[r.outlet_id] || r.outlet_id}` : ''}
-            {r.record_id ? ` · Booking: ${r.record_id.slice(0, 8)}…` : ''}
+            {r.outlet_id ? ` Â· ${OUTLET_NAME[r.outlet_id] || r.outlet_id}` : ''}
+            {r.record_id ? ` Â· Booking: ${r.record_id.slice(0, 8)}â€¦` : ''}
           </div>
           {r.action !== 'login' && r.detail && (
             <div style={{ fontSize: 12, marginTop: 4, color: 'var(--text)', wordBreak: 'break-word' }}>
