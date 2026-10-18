@@ -190,12 +190,13 @@ export default function RevenueSementaraPage() {
                     <th>Treatment</th>
                     <th>Harga</th>
                     <th>Komisi hotel</th>
+                    <th>Sisa spa</th>
                     <th>Komisi terapis</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.oncall.rincian.length === 0 && (
-                    <tr><td colSpan={6} className="muted">Belum ada oncall hari ini.</td></tr>
+                    <tr><td colSpan={7} className="muted">Belum ada oncall hari ini.</td></tr>
                   )}
                   {data.oncall.rincian.map((r, i) => (
                     <tr key={i}>
@@ -204,15 +205,19 @@ export default function RevenueSementaraPage() {
                       <td>{r.treatmentName}</td>
                       <td>{rp(r.treatmentPrice)}</td>
                       <td>{rp(r.hotelCommission)}</td>
+                      <td>{rp(r.netSpa)}</td>
                       <td>{rp(r.commissionAmount)}</td>
                     </tr>
                   ))}
                   {data.oncall.transaksi > 0 && (
                     <tfoot>
                       <tr>
-                        <th colSpan={3}>TOTAL {data.oncall.transaksi} oncall</th>
-                        <th>{rp(data.oncall.omzet)}</th>
+                        <th colSpan={3}>
+                          TOTAL {data.oncall.transaksi} oncall
+                        </th>
+                        <th>{rp(data.oncall.hargaPenuh)}</th>
                         <th>{rp(data.oncall.komisiHotel)}</th>
+                        <th>{rp(data.oncall.omzet)}</th>
                         <th>{rp(data.oncall.komisiTerapis)}</th>
                       </tr>
                     </tfoot>
@@ -223,9 +228,9 @@ export default function RevenueSementaraPage() {
           </section>
 
           <p className="muted" style={{ fontSize: 12 }}>
-            Retail minyak tidak ada di database, jadi angkanya harus diketik
-            di sini supaya total benar. Sisanya dihitung otomatis dari booking
-            yang tidak dibatalkan.
+            Angka oncall sudah dikurangi komisi hotel, karena bagian hotel
+            tidak pernah masuk ke spa. Retail minyak tidak ada di database,
+            jadi angkanya harus diketik di sini supaya total benar.
           </p>
         </>
       )}

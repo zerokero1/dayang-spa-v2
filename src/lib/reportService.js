@@ -945,30 +945,37 @@ export async function getRevenueSementara(outletId) {
   OUTLETS.forEach((o) => {
     perOutlet[o.id] = { id: o.id, nama: o.name, omzet: 0, transaksi: 0 };
   });
-  const oncall = { omzet: 0, transaksi: 0, komisiHotel: 0, komisiTerapis: 0, rincian: [] };
+  // Oncall dihitung setelah komisi hotel dipotong. Uangnya tidak seluruhnya
+  // sampai ke spa, jadi kalau masih pakai harga penuh, rekap ini menjadi
+  // terlalu besar dan tidak bisa dibandingkan dengan uang yang diterima.
+  // Komisi hotel disimpan terpisah supaya tetap kelihatan di rincian.
+  const oncall = { omzet: 0, transaksi: 0, komisiHotel: 0, komisiTerapis: 0, hargaPenuh: 0, rincian: [] };
 
-  (data || []).forEach((b) => {
-    if (b.status === 'batal') return;
-    const harga = Number(b.treatment_price || 0);
-    if (b.booking_source === 'oncall') {
-      oncall.omzet += harga;
-      oncall.transaksi += 1;
-      oncall.komisiHotel += Number(b.hotel_commission || 0);
-      oncall.komisiTerapis += Number(b.commission_amount || 0);
-      oncall.rincian.push({
-        outletId: b.outlet_id,
-        outlet: OUTLETS.find((o) => o.id === b.outlet_id)?.name || b.outlet_id,
-        therapistName: b.therapist_name || '-',
-        treatmentName: b.treatment_name || '-',
-        treatmentPrice: harga,
-        hotelCommission: Number(b.hotel_commission || 0),
-        commissionAmount: Number(b.commission_amount || 0)
-      });
-    } else if (perOutlet[b.outlet_id]) {
-      perOutlet[b.outlet_id].omzet += harga;
-      perOutlet[b.outlet_id].transaksi += 1;
-    }
-  });
+    (data || []).forEach((b) => {
+      if (b.status === 'batal') return;
+      const harga = Number(b.treatment_price || 0);
+      if (b.booking_source === 'oncall') {
+        const hotel = Number(b.hotel_commission || 0);
+        oncall.hargaPenuh += harga;
+        oncall.komisiHotel += hotel;
+        oncall.omzet += harga - hotel;
+        oncall.transaksi += 1;
+        oncall.komisiTerapis += Number(b.commission_amount || 0);
+        oncall.rincian.push({
+          outletId: b.outlet_id,
+          outlet: OUTLETS.find((o) => o.id === b.outlet_id)?.name || b.outlet_id,
+          therapistName: b.therapist_name || '-',
+          treatmentName: b.treatment_name || '-',
+          treatmentPrice: harga,
+          hotelCommission: hotel,
+          netSpa: harga - hotel,
+          commissionAmount: Number(b.commission_amount || 0)
+        });
+      } else if (perOutlet[b.outlet_id]) {
+        perOutlet[b.outlet_id].omzet += harga;
+        perOutlet[b.outlet_id].transaksi += 1;
+      }
+    });
 
   const daftarOutlet = Object.values(perOutlet);
   const totalOutlet = daftarOutlet.reduce((s, o) => s + o.omzet, 0);
