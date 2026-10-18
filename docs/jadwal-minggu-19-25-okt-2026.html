@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Jadwal 1 Minggu - Senin 19 s.d. Minggu 25 Okt 2026</title>
+<style>
+  @page { size: 330mm 215mm; margin: 6mm; }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+    color: #10357a;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 2px solid #10357a;
+    padding-bottom: 2px;
+    margin-bottom: 3px;
+  }
+
+  h1 { font-size: 11pt; margin: 0; letter-spacing: .2px; color: #0b2a63; }
+  .sub { font-size: 7pt; color: #10357a; margin: 1px 0 0 0; }
+  .meta { font-size: 7pt; color: #10357a; text-align: right; line-height: 1.25; }
+
+  .legend {
+    font-size: 8pt;
+    margin-bottom: 5px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    color: #10357a;
+  }
+
+  .chip {
+    display: inline-block;
+    min-width: 32px;
+    text-align: center;
+    padding: 1px 6px;
+    border: 1px solid #10357a;
+    border-radius: 2px;
+    font-weight: 700;
+    font-size: 8pt;
+    line-height: 15px;
+    margin-right: 3px;
+    background: #fff;
+    color: #10357a;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  thead th {
+    border: 1px solid #10357a;
+    border-bottom: 2px solid #10357a;
+    background: #fff;
+    font-size: 9pt;
+    font-weight: 700;
+    padding: 4px 3px;
+    text-align: center;
+    line-height: 1.2;
+    color: #0b2a63;
+  }
+
+  thead th .tgl {
+    display: block;
+    font-weight: 400;
+    font-size: 7.5pt;
+    color: #1d4e9c;
+  }
+
+  tbody td {
+    border: 1px solid #6c9ad6;
+    font-size: 9pt;
+    padding: 2.5px 4px;
+    line-height: 1.25;
+    text-align: center;
+    background: #fff;
+    color: #10357a;
+  }
+
+  td.no     { width: 26px; color: #4a7fc1; }
+  td.nama   { width: 80px; text-align: left; padding-left: 6px; font-weight: 700; color: #0b2a63; }
+  td.outlet { width: 50px; text-align: left; padding-left: 6px; color: #1d4e9c; }
+  td.s      { font-weight: 700; }
+
+  tr { page-break-inside: avoid; break-inside: avoid; }
+  thead { display: table-header-group; }
+
+  tr.grp td {
+    background: #fff !important;
+    font-size: 7.5pt;
+    font-weight: 700;
+    text-align: left;
+    padding: 1.5px 6px;
+    line-height: 1.3;
+    letter-spacing: .3px;
+    color: #0b2a63;
+    border-top: 2px solid #10357a;
+  }
+
+  .off, .ad, .st, .sp1, .sp2 { background: #fff !important; color: #10357a; }
+
+  .off { border: 1.5px solid #0b2a63 !important; font-weight: 700; }
+  .ad  { color: #1d4e9c !important; }
+  .st  { color: #2f6fc0 !important; }
+  .sp2 { color: #4a7fc1 !important; }
+
+  .foot { display: none; }
+
+  @media screen {
+    body { background: #e9e9e9; padding: 14px; }
+    .wrap {
+      background: #fff;
+      padding: 8mm;
+      margin: 0 auto;
+      width: 330mm;
+      box-shadow: 0 2px 12px rgba(0,0,0,.25);
+    }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div>
+      <h1>JADWAL SHIFT KARYAWAN &mdash; 1 MINGGU (SENIN &ndash; MINGGU)</h1>
+      <p class="sub">Senin 19 Oktober 2026 &ndash; Minggu 25 Oktober 2026 &nbsp;|&nbsp; 27 karyawan &nbsp;|&nbsp; 5 outlet</p>
+    </div>
+    <div class="meta">
+      <strong>UPDATE:</strong> Harnum &rarr; D2 &nbsp;&bull;&nbsp; Aisyah &rarr; Rere<br>
+      Data acuan: 17&ndash;23 Okt 2026 &nbsp;&bull;&nbsp; Kolom Minggu 25/10 dihitung dari siklus 7 hari<br>
+      Ukuran cetak: <strong>F4 landscape (330 &times; 215 mm)</strong>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><span class="chip off">OFF</span>Libur</span>
+    <span><span class="chip ad">AD</span>Shift AD</span>
+    <span><span class="chip st">ST</span>Shift ST</span>
+    <span><span class="chip sp1">SP1</span>Shift Pagi 1</span>
+    <span><span class="chip sp2">SP2</span>Shift Pagi 2</span>
+    <span style="color:#666">Siklus: SP1 &rarr; SP1 &rarr; SP1 &rarr; ST &rarr; OFF &rarr; AD &rarr; SP2 (tiap hari selalu 4 orang OFF)</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>No</th>
+        <th>Nama</th>
+        <th>Outlet</th>
+        <th>Senin<span class="tgl">19/10</span></th>
+        <th>Selasa<span class="tgl">20/10</span></th>
+        <th>Rabu<span class="tgl">21/10</span></th>
+        <th>Kamis<span class="tgl">22/10</span></th>
+        <th>Jumat<span class="tgl">23/10</span></th>
+        <th>Sabtu<span class="tgl">24/10</span></th>
+        <th>Minggu<span class="tgl">25/10</span></th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr class="grp"><td colspan="10">OUTLET D1 &mdash; 4 orang</td></tr>
+      <tr><td class="no">1</td><td class="nama">Fenty</td><td class="outlet">D1</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s off">OFF</td></tr>
+      <tr><td class="no">2</td><td class="nama">Illy</td><td class="outlet">D1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s ad">AD</td></tr>
+      <tr><td class="no">3</td><td class="nama">Reno</td><td class="outlet">D1</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td></tr>
+      <tr><td class="no">4</td><td class="nama">Ron</td><td class="outlet">D1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td></tr>
+
+      <tr class="grp"><td colspan="10">OUTLET D2 &mdash; 3 orang</td></tr>
+      <tr><td class="no">5</td><td class="nama">Doni</td><td class="outlet">D2</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td></tr>
+      <tr><td class="no">6</td><td class="nama">Harnum</td><td class="outlet">D2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td></tr>
+      <tr><td class="no">7</td><td class="nama">Sumi</td><td class="outlet">D2</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td></tr>
+
+      <tr class="grp"><td colspan="10">OUTLET DP &mdash; 6 orang</td></tr>
+      <tr><td class="no">8</td><td class="nama">Bayu</td><td class="outlet">DP</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td></tr>
+      <tr><td class="no">9</td><td class="nama">Ega</td><td class="outlet">DP</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td></tr>
+      <tr><td class="no">10</td><td class="nama">Nas</td><td class="outlet">DP</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td></tr>
+      <tr><td class="no">11</td><td class="nama">Novita</td><td class="outlet">DP</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s off">OFF</td></tr>
+      <tr><td class="no">12</td><td class="nama">Titik</td><td class="outlet">DP</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td></tr>
+      <tr><td class="no">13</td><td class="nama">Uswa</td><td class="outlet">DP</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td></tr>
+
+      <tr class="grp"><td colspan="10">OUTLET DREAM &mdash; 7 orang</td></tr>
+      <tr><td class="no">14</td><td class="nama">Ayy</td><td class="outlet">Dream</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s ad">AD</td></tr>
+      <tr><td class="no">15</td><td class="nama">Destiya</td><td class="outlet">Dream</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s ad">AD</td></tr>
+      <tr><td class="no">16</td><td class="nama">Indah</td><td class="outlet">Dream</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td></tr>
+      <tr><td class="no">17</td><td class="nama">Jefri</td><td class="outlet">Dream</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td></tr>
+      <tr><td class="no">18</td><td class="nama">Lia</td><td class="outlet">Dream</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td></tr>
+      <tr><td class="no">19</td><td class="nama">Nur</td><td class="outlet">Dream</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td></tr>
+      <tr><td class="no">20</td><td class="nama">Riska</td><td class="outlet">Dream</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td></tr>
+
+      <tr class="grp"><td colspan="10">OUTLET RERE &mdash; 7 orang</td></tr>
+      <tr><td class="no">21</td><td class="nama">Aisyah</td><td class="outlet">Rere</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td></tr>
+      <tr><td class="no">22</td><td class="nama">Ayuha</td><td class="outlet">Rere</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td></tr>
+      <tr><td class="no">23</td><td class="nama">Ijal</td><td class="outlet">Rere</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s ad">AD</td></tr>
+      <tr><td class="no">24</td><td class="nama">Putri</td><td class="outlet">Rere</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td></tr>
+      <tr><td class="no">25</td><td class="nama">Rifan</td><td class="outlet">Rere</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s off">OFF</td></tr>
+      <tr><td class="no">26</td><td class="nama">Riri</td><td class="outlet">Rere</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td></tr>
+      <tr><td class="no">27</td><td class="nama">Tumin</td><td class="outlet">Rere</td><td class="s sp1">SP1</td><td class="s st">ST</td><td class="s off">OFF</td><td class="s ad">AD</td><td class="s sp2">SP2</td><td class="s sp1">SP1</td><td class="s sp1">SP1</td></tr>
+
+    </tbody>
+  </table>
+
+</div>
+</body>
+</html>
