@@ -221,7 +221,32 @@ begin
     v_total := v_total + v_n;
   end if;
 
-  -- Booking tanpa terapis yang jelas.
+  -- Pembayaran yang terkunci dua kali.
+  --
+  -- mark_booking_paid sudah dipasang kuncinya (anti_pembayaran_ganda.sql),
+  -- jadi pembayaran kedua diabaikan dan dicatat di tabel pembayaran_ganda.
+  -- Pemeriksaan ini menghitungnya supaya kelihatan kalau tombol masih sering
+  -- diklik dua kali. Kalau angkanya tinggi, berarti sisi tampilannya masih
+  -- belum nonaktifkan tombolnya.
+  select count(*), left(string_agg(
+             coalesce(outlet_id,'-') || ' ' || coalesce(metode_lama,'-') || '->' ||
+             coalesce(metode_baru,'-') || ' ' || to_char(dicatat_pada at time zone 'Asia/Makassar','DD-MM HH24:MI'), ', '), 200)
+    into v_n, v_contoh
+    from pembayaran_ganda
+   where dicatat_pada > now() - interval '7 days';
+
+  if v_n > 0 then
+    insert into pemeriksaan_sistem
+      (tanggal, kode, kategori, berat, judul, keterangan, total, contoh)
+    values
+      (v_tanggal, 'pembayaran_ganda', 'transaksi', 'rendah',
+       'Tombol Lunas ditekan lebih dari sekali',
+       'Server sudah mengunci, jadi tidak ada dana yang terhitung dua kali. Tapi kalau sering muncul, tombolnya masih belum terkunci di layar dan kasir perlu menekan berkali-kali.',
+       v_n, v_contoh);
+    v_total := v_total + v_n;
+  end if;
+
+  -- Transaksi tanpa terapis yang jelas.
   select count(*), left(string_agg(coalesce(outlet_id,'-') || ' ' ||
              coalesce(treatment_name,'-') || ' ' || treatment_price::text, ', '), 200)
     into v_n, v_contoh

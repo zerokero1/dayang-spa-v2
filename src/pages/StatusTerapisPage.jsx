@@ -164,7 +164,7 @@ function buildUnpaidReminderText(list) {
   return text;
 }
 
-function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh, onBatalSebagian, onTandaiLunas, onContinue, onUnpaidPaid, unpaid, payTotal }) {
+function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh, onBatalSebagian, onTandaiLunas, onContinue, onUnpaidPaid, unpaid, payTotal, sedangBayar }) {
   const status = t.status || 'free';
   const busy = status === 'ambil_tamu';
   const isOncall = busy && (t.currentGroupId || '').startsWith('oncall:');
@@ -289,11 +289,19 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
               )}
               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Terima pembayaran:</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => confirmDiscount('cash')}>
-                  Lunas Cash
+                <button
+                  disabled={sedangBayar(t.id)}
+                  style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }}
+                  onClick={() => confirmDiscount('cash')}
+                >
+                  {sedangBayar(t.id) ? 'Menyimpan...' : 'Lunas Cash'}
                 </button>
-                <button style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => confirmDiscount('cardless')}>
-                  Lunas Cardless
+                <button
+                  disabled={sedangBayar(t.id)}
+                  style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }}
+                  onClick={() => confirmDiscount('cardless')}
+                >
+                  {sedangBayar(t.id) ? 'Menyimpan...' : 'Lunas Cardless'}
                 </button>
               </div>
             </div>
@@ -522,6 +530,12 @@ export default function StatusTerapisPage({ active, profile }) {
   const [cMethod, setCMethod] = useState('');
   const [cSaving, setCSaving] = useState(false);
   const [printLines, setPrintLines] = useState([]);
+
+// Therapis yang tombolnya sedang dikunci karena pembayaran belum selesai
+// disimpan. Kasir menekan dua kali sebelum sempat nonaktif adalah penyebab
+// tersbesar "Lunas" dan "Cardless" harus diisi dua kali.
+const [sedangBayarIds, setSedangBayarIds] = useState([]);
+const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
   const [printOutletId, setPrintOutletId] = useState(null);
 
   useEffect(() => {
@@ -667,6 +681,12 @@ export default function StatusTerapisPage({ active, profile }) {
 
   async function handleTandaiLunas(t, method, discountPct, discountReason) {
     if (!t.currentOutletId) return;
+    // Tombol dikunci selama permintaan berjalan. Tanpa ini, satu menekan
+    // tombol dua kali mengirim dua permintaan, dan kasir mengira jawabannya
+    // tidak masuk lalu menekan lagi. Sisi server juga mengunci, ini supaya
+    // kasir tidak perlu menekan dua kali.
+    if (sedangBayar(t.id)) return;
+    setSedangBayarIds((s) => [...s, t.id]);
     const disc = discountPct || 0;
     const reason = discountReason || '';
     try {
@@ -697,6 +717,7 @@ export default function StatusTerapisPage({ active, profile }) {
         usesOil: t.currentUsesOil
       }], t.currentOutletId);
     } catch (e) { setMessage('Gagal: ' + e.message); }
+    finally { setSedangBayarIds((s) => s.filter((x) => x !== t.id)); }
   }
 
   function openContinue(t) {
@@ -835,6 +856,7 @@ export default function StatusTerapisPage({ active, profile }) {
     onTandaiLunas: handleTandaiLunas,
     onContinue: openContinue,
     onUnpaidPaid: handleUnpaidPaid,
+    sedangBayar,
     payTotal
   };
 
