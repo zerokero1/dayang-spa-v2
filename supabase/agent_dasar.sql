@@ -133,8 +133,13 @@ begin
 
   -- Tabel laporan yang dibaca halaman Pemeriksaan Sistem dan Supervisor.
   -- Hanya boleh dibaca, tidak boleh diubah dari sisi browser.
+  --
+  -- pembayaran_ganda ikut di sini karena baru dibuat di file terpisah
+  -- (anti_pembayaran_ganda.sql). Tiap tabel baru HARUS masuk daftar ini.
+  -- Kalau lupa, tabel itu bocor sampai ditemukan Agent Keamanan.
   foreach v_tabel in array array[
-    'pemeriksaan_sistem', 'tabel_agent', 'catatan_agent', 'attendance_auto_log'
+    'pemeriksaan_sistem', 'tabel_agent', 'catatan_agent', 'attendance_auto_log',
+    'pembayaran_ganda'
   ] loop
     execute format('revoke all on table public.%I from anon', v_tabel);
     execute format('drop policy if exists "authenticated read" on public.%I', v_tabel);

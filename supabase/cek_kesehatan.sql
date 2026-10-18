@@ -197,29 +197,12 @@ begin
     v_total := v_total + v_n;
   end if;
 
-  -- Oncall dengan komisi hotel lebih besar dari komisi terapis. Nilai ini
-  -- tidak salah, tapi kalau ada laporan yang mengurangi komisi hotel sekali
-  -- lagi, hasilnya minus.
-  select count(*), left(string_agg(
-             coalesce(therapist_name,'-') || ' ' || coalesce(outlet_id,'-') || ' ' ||
-             'komisi ' || commission_amount::text || ' hotel ' || hotel_commission::text, ', '), 200)
-    into v_n, v_contoh
-    from bookings
-   where status <> 'batal'
-     and booking_source = 'oncall'
-     and hotel_commission > commission_amount
-     and (created_at at time zone 'Asia/Makassar')::date::text >= v_sejak;
-
-  if v_n > 0 then
-    insert into pemeriksaan_sistem
-      (tanggal, kode, kategori, berat, judul, keterangan, total, contoh)
-    values
-      (v_tanggal, 'komisi_hotel_lebih_besar', 'transaksi', 'rendah',
-       'Komisi hotel lebih besar dari komisi terapis',
-       'Normal untuk oncall. Tapi kalau laporan mengurangi komisi hotel lagi dari komisi terapis, hasilnya minus.',
-       v_n, v_contoh);
-    v_total := v_total + v_n;
-  end if;
+  -- CATATAN: tidak ada pemeriksaan "komisi hotel lebih besar dari komisi
+  -- terapis". Semuanya oncall, dan itu memang aturan yang berlaku:
+  -- komisi = 10% x (harga - komisi hotel). Kalau dibandINGkan dengan harga
+  -- penuh, hasilnya selalu lebih kecil. Dulu pemeriksaan ini ada dan
+  -- melaporkan 33 temuan, padahal itu kondisi normal yang sudah seharusnya
+  -- dan hanya bikin alarm terasa tidak serius.
 
   -- Pembayaran yang terkunci dua kali.
   --
@@ -270,8 +253,12 @@ begin
   -- KATEGORI: TRANSAKSI TERTAHAN
   ------------------------------------------------------------------
 
-  -- Sudah lewat jam selesai tapi masih berstatus berjalan. Ini yang membuat
-  -- omzet harian terus berubah.
+  -- Transaksi yang belum ditutup.
+  --
+  -- Dihitung hanya yang benar-benar tertinggal: sudah lewat lebih dari dua
+  -- jam. Treatment yang sedang berjalan hari ini itu wajar, bukan temuan.
+  -- Transaksi juga sudah ditutup otomatis oleh agent_tutup_booking, jadi
+  -- kalau angka ini besar berarti mekanisme itu belum jalan.
   select count(*), left(string_agg(
              to_char(now() at time zone 'Asia/Makassar', 'DD-MM') || ' ' ||
              coalesce(outlet_id,'-') || ' ' || coalesce(therapist_name,'-') || ' ' ||
@@ -280,15 +267,15 @@ begin
     from bookings
    where status = 'berjalan'
      and end_at is not null
-     and end_at < extract(epoch from now()) * 1000;
+     and end_at < extract(epoch from (now() - interval '2 hours')) * 1000;
 
   if v_n > 0 then
     insert into pemeriksaan_sistem
       (tanggal, kode, kategori, berat, judul, keterangan, total, contoh)
     values
       (v_tanggal, 'transaksi_tertahan', 'transaksi', 'sedang',
-       'Transaksi sudah selesai tapi masih berstatus berjalan',
-       'Omzet harian berubah terus sampai ditandai selesai. Jalankan penandaan sebelum tutup buku.',
+       'Transaksi lewat jam tapi belum ditutup',
+       'Treatment-nya sudah selesai lebih dari dua jam lalu, tapi statusnya masih berjalan. Omzet tetap benar karena yang dihitung hanya booking yang tidak batal, tapi papan status jadi terlihat salah.',
        v_n, v_contoh);
     v_total := v_total + v_n;
   end if;
@@ -353,28 +340,39 @@ begin
   ------------------------------------------------------------------
 
   -- Tercatat hadir tapi tidak ada satu pun treatment di hari itu.
-  -- Belum tentu bohong: bisa saja menyapu, terima barang, atau training.
+  --
+  -- Dulu pemeriksaan ini melaporkan 48 temuan, hampir semuanya staff kantor
+  -- (Uni, Meli, Azi, Mia) yang memang tidak menerima tamu. Itu bukan salah,
+  -- cuma hari biasa bagi mereka. Melaporkannya sebagai temuan hanya membuat
+  -- alarm terlihat tidak serius.
+  --
+  -- Jadi sekarang yang diperiksa hanya orang yang SEHARUSNYA punya treatment
+  -- tapi tidak punya: yaitu yang tercatat mengambil tamu di hari itu. Kalau
+  -- statusnya ambil_tamu tapi tidak ada satu pun treatment, itu baru layak
+  -- ditanyakan.
   select count(*), left(string_agg(
-             coalesce(a.employee_name,'-') || ' ' || a.date || ' ' ||
-             coalesce(a.outlet_id,'-'), ', '), 200)
+             coalesce(t.name,'-') || ' ' || coalesce(t.home_outlet_id,'-'), ', '), 200)
     into v_n, v_contoh
-    from attendance a
-   where a.type = 'hadir'
-     and a.date >= v_sejak
+    from therapists t
+   where t.status = 'ambil_tamu'
      and not exists (
        select 1 from bookings b
-        where b.therapist_id = a.employee_id
-          and (b.created_at at time zone 'Asia/Makassar')::date::text = a.date
+        where b.therapist_id = t.id
           and b.status <> 'batal'
+          and b.created_at >= ((now() at time zone 'Asia/Makassar')::date::text)::timestamptz
+                            - interval '1 day'
+          and b.created_at <  ((now() at time zone 'Asia/Makassar')::date::text)::timestamptz
+                            + interval '2 days'
      );
+
 
   if v_n > 0 then
     insert into pemeriksaan_sistem
       (tanggal, kode, kategori, berat, judul, keterangan, total, contoh)
     values
-      (v_tanggal, 'hadir_tanpa_treatment', 'absensi', 'rendah',
-       'Absen hadir tapi tidak ada treatment',
-       'Belum tentu salah: bisa menyapu, terima barang, atau training. Perlu ditanyakan kalau sering.',
+      (v_tanggal, 'ambil_tamu_tanpa_treatment', 'absensi', 'sedang',
+       'Status ambil tamu tapi tidak ada treatment',
+       'Papan status bilang orang ini sedang melayani tamu, tapi tidak ada satu pun treatment atas namanya. Bisa saja lupa menekan Selesai, atau tamunya batal tidak dihapus.',
        v_n, v_contoh);
     v_total := v_total + v_n;
   end if;
@@ -432,29 +430,75 @@ $$;
 
 
 -- Ringkasan temuan terbaru, dikelompokkan per kode.
--- Kolom agent ditambahkan, jadi bentuk return fungsi ini berubah.
--- PostgreSQL tidak bisa mengganti fungsi yang sudah ada kalau tipe
--- return-nya berbeda, jadi yang lama harus dihapus lebih dulu.
+--
+-- PENTING soal cara bacanya: kolom `total` itu JUMLAH KEJADIAN, bukan jumlah
+-- masalah. Satu masalah bisa berulang ratusan kali (misal 300 transaksi
+-- yang sama-sama belum ditutup), dan itu tetap satu masalah dengan satu
+-- penyebab. Menampilkan angka kejadian di depan membuat orang mengira ada
+-- ratusan hal yang rusak, padahal hanya beberapa jenis.
+--
+-- Karena itu halaman aplikasi menampilkan "jenis masalah" sebagai angka
+-- utama, dan jumlah kejadian hanya sebagai keterangan.
+--
+-- Kolom `urutan` ditambahkan, jadi bentuk return berubah dan fungsi lama
+-- harus dihapus lebih dulu.
 drop function if exists ringkasan_pemeriksaan();
 
 create or replace function ringkasan_pemeriksaan()
 returns table (
-  kode      text,
-  agent     text,
-  kategori  text,
-  berat     text,
-  judul     text,
-  total     integer,
-  tanggal   text,
-  contoh    text
+  kode        text,
+  agent       text,
+  kategori    text,
+  berat       text,
+  judul       text,
+  total       integer,
+  tanggal     text,
+  contoh      text,
+  urutan      integer
 )
 language sql
 stable
 as $$
-  select distinct on (agent, kode)
-         kode, agent, kategori, berat, judul, total, tanggal, contoh
-    from pemeriksaan_sistem
-   order by agent, kode, tanggal desc, dicek_pada desc;
+  with terbaru as (
+    select distinct on (agent, kode) kode, agent, kategori, berat, judul,
+           total, tanggal, contoh
+      from pemeriksaan_sistem
+     order by agent, kode, tanggal desc, dicek_pada desc
+  )
+  select t.kode, t.agent, t.kategori, t.berat, t.judul, t.total, t.tanggal, t.contoh,
+         case t.berat when 'tinggi' then 1 when 'sedang' then 2 else 3 end
+    from terbaru t
+   order by 8, t.total desc;
+$$;
+
+
+-- Angka utama untuk halaman: berapa BANYAK JENIS masalah yang aktif.
+create or replace function ringkasan_jumlah()
+returns table (
+  jenis_berat      integer,
+  jenis_sedang     integer,
+  jenis_rendah     integer,
+  kejadian_berat   bigint,
+  kejadian_sedang  bigint,
+  kejadian_rendah  bigint
+)
+language sql
+stable
+as $$
+  with terbaru as (
+    select distinct on (agent, kode) agent, kode, berat, total
+      from pemeriksaan_sistem
+     where tanggal = to_char(now() at time zone 'Asia/Makassar', 'YYYY-MM-DD')
+     order by agent, kode, dicek_pada desc
+  )
+  select
+    count(*) filter (where berat = 'tinggi')::int,
+    count(*) filter (where berat = 'sedang')::int,
+    count(*) filter (where berat = 'rendah')::int,
+    coalesce(sum(total) filter (where berat = 'tinggi'), 0),
+    coalesce(sum(total) filter (where berat = 'sedang'), 0),
+    coalesce(sum(total) filter (where berat = 'rendah'), 0)
+    from terbaru;
 $$;
 
 
@@ -482,36 +526,9 @@ as $$
 $$;
 
 
--- ============================================================================
--- JADWAL OTOMATIS
+-- CATATAN: tidak ada lagi jadwal cron di file ini.
 --
--- Pemeriksaan berjalan sendiri tiga kali sehari, tepat pada sore hari di
--- tempat rekap revenue dikirim:
---   15:00 WITA = 07:00 UTC
---   18:00 WITA = 10:00 UTC
---   23:00 WITA = 15:00 UTC
---
--- Tidak perlu ada yang membuka aplikasinya; pemeriksaan tetap jalan.
--- ============================================================================
-do $$
-declare
-  v_job bigint;
-begin
-  if not exists (select 1 from pg_extension where extname = 'pg_cron') then
-    raise notice 'pg_cron tidak tersedia, jadwal pemeriksaan tidak dipasang.';
-    return;
-  end if;
-
-  for v_job in
-    select jobid from cron.job where jobname = 'cek-kesehatan-sistem'
-  loop
-    perform cron.unschedule(v_job);
-  end loop;
-
-  perform cron.schedule(
-    'cek-kesehatan-sistem',
-    '0 7,10,15 * * *',
-    'select jalankan_pemeriksaan_sistem()'
-  );
-end;
-$$;
+-- Dulu file ini memasang job 'cek-kesehatan-sistem'. Sekarang pekerjaan itu menjadi salah satu agent (agent_kesalahan) yang
+-- dijadwalkan oleh agent_dasar.sql, supaya semua agent punya nama dan
+-- tempat yang sama di Supervisor. Kalau dua-duanya dibiarkan, pemeriksaan
+-- berjalan dua kali setiap periode dan catatan kerjanya ambigu.

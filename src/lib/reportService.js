@@ -1002,10 +1002,29 @@ export async function getPemeriksaanSistem() {
   const { data, error } = await supabase.rpc('ringkasan_pemeriksaan');
   if (error) throw new Error(error.message);
 
+  // Angka utama adalah JUMLAH JENIS masalah, bukan jumlah kejadian.
+  // Satu masalah bisa berulang ratusan kali (misal 300 transaksi yang belum
+  // ditutup), dan itu tetap satu masalah dengan satu penyebab. Menampilkan
+  // jumlah kejadian sebagai judul membuat orang mengira ada ratusan hal
+  // berbeda yang rusak.
+  const { data: jumlah, error: errJumlah } = await supabase.rpc('ringkasan_jumlah');
+  if (errJumlah) throw new Error(errJumlah.message);
+
+  const j = (jumlah && jumlah[0]) || {};
   const urut = { tinggi: 0, sedang: 1, rendah: 2 };
-  return [...(data || [])].sort(
-    (a, b) => (urut[a.berat] ?? 9) - (urut[b.berat] ?? 9) || b.total - a.total
-  );
+  return {
+    daftar: [...(data || [])].sort(
+      (a, b) => (urut[a.berat] ?? 9) - (urut[b.berat] ?? 9) || b.total - a.total
+    ),
+    ringkas: {
+      jenisBerat: Number(j.jenis_berat || 0),
+      jenisSedang: Number(j.jenis_sedang || 0),
+      jenisRendah: Number(j.jenis_rendah || 0),
+      kejadianBerat: Number(j.kejadian_berat || 0),
+      kejadianSedang: Number(j.kejadian_sedang || 0),
+      kejadianRendah: Number(j.kejadian_rendah || 0)
+    }
+  };
 }
 
 /** Jalankan seluruh aturan pemeriksaan sekarang juga. */

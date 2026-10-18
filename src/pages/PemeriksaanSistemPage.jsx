@@ -20,7 +20,7 @@ const KATEGORI = [
 ];
 
 export default function PemeriksaanSistemPage() {
-  const [temuan, setTemuan] = useState([]);
+  const [hasil, setHasil] = useState({ daftar: [], ringkas: null });
   const [riwayat, setRiwayat] = useState([]);
   const [sedangMuat, setSedangMuat] = useState(true);
   const [sedangJalan, setSedangJalan] = useState(false);
@@ -31,10 +31,9 @@ export default function PemeriksaanSistemPage() {
   const muat = useCallback(async () => {
     setSedangMuat(true);
     setGalat('');
-    try {
-      setTemuan(await getPemeriksaanSistem());
-      setRiwayat(await getRiwayatPemeriksaan(14));
-    } catch (e) {
+      try {
+        setHasil(await getPemeriksaanSistem());
+      } catch (e) {
       setGalat('Gagal memuat hasil pemeriksaan: ' + (e.message || e));
     } finally {
       setSedangMuat(false);
@@ -58,8 +57,8 @@ export default function PemeriksaanSistemPage() {
     }
   };
 
-  const totalTinggi = temuan.filter((t) => t.berat === 'tinggi').length;
-  const totalSemua = temuan.reduce((n, t) => n + t.total, 0);
+  const temuan = hasil.daftar || [];
+  const R = hasil.ringkas;
 
   return (
     <div className="kasir-page">
@@ -100,10 +99,61 @@ export default function PemeriksaanSistemPage() {
 
       {!sedangMuat && temuan.length > 0 && (
         <>
-          <p className={totalTinggi > 0 ? 'message warn' : 'muted'}>
-            {totalSemua} masalah di {temuan.length} jenis, davon {totalTinggi}{' '}
-            yang perlu ditangani.
-          </p>
+          <section>
+            <p
+              className={
+                R && R.jenisBerat > 0 ? 'message warn' : 'message ok'
+              }
+            >
+              {R && R.jenisBerat + R.jenisSedang + R.jenisRendah === 1
+                ? 'Ada 1 jenis masalah yang perlu dilihat.'
+                : 'Ada ' +
+                  ((R && R.jenisBerat + R.jenisSedang + R.jenisRendah) ||
+                    temuan.length) +
+                  ' jenis masalah yang perlu dilihat.'}
+            </p>
+            {R && (
+              <div className="table-wrap" style={{ marginTop: 8 }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Level</th>
+                      <th>Jenis masalah</th>
+                      <th>Total kejadian</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <span className="badge danger">Perlu ditangani</span>
+                      </td>
+                      <td>{R.jenisBerat}</td>
+                      <td>{R.kejadianBerat.toLocaleString('id-ID')}</td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <span className="badge warn">Periksa</span>
+                      </td>
+                      <td>{R.jenisSedang}</td>
+                      <td>{R.kejadianSedang.toLocaleString('id-ID')}</td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <span className="badge muted">Tahu saja</span>
+                      </td>
+                      <td>{R.jenisRendah}</td>
+                      <td>{R.kejadianRendah.toLocaleString('id-ID')}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+              Angka "kejadian" adalah berapa kali masalah itu muncul, bukan
+              berapa masalah. Satu masalah bisa berulang ratusan kali tapi
+              tetap cuma satu penyebab, jadi yang perlu diperbaiki satu saja.
+            </p>
+          </section>
 
           {KATEGORI.map(([kat, judul]) => {
             const isi = temuan.filter((t) => t.kategori === kat);
