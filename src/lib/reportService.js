@@ -906,3 +906,109 @@ export async function getPayslip(periode, outletId) {
     }
   };
 }
+
+/** Label hari ini dalam WIB (UTC+7) sebagai YYYY-MM-DD. */
+function fmtDate(d = new Date()) {
+  return new Date(d.getTime() + 7 * 3600000).toISOString().slice(0, 10);
+}
+
+/**
+ * Revenue sementara per outlet untuk hari ini (WIB).
+ *
+ * Dipakai untuk rekap yang dikirim ke grup WhatsApp pada jam 15:00, 18:00,
+ * dan 23:00. Sengaja menampilkan omzet berjalan supaya cocok dengan rekap
+ * manual yang sedang dikerjakan kasir, bukan angka final.
+ *
+ * Semua outlet ikut, termasuk yang tidak ada di format rekap manual.
+ * Melewatkannya membuat total kurang dari seharusnya.
+ *
+ * Penjualan minyak ritel tidak dicatat di database, jadi dikembalikan
+ * sebagai nol dan harus ditambahkan manual oleh pemakainya.
+ *
+ * @param {string} outletId batasi ke satu outlet, kosong = semua
+ */
+export async function getRevenueSementara(outletId) {
+  const hariIni = fmtDate();
+  const { startUtc, endUtc } = wibRangeBounds(hariIni, hariIni);
+  let q = supabase
+    .from('bookings')
+    .select('outlet_id, treatment_price, hotel_commission, commission_amount, status, booking_source, therapist_name, treatment_name, created_at')
+    .gte('created_at', startUtc.toISOString())
+    .lte('created_at', endUtc.toISOString())
+    .limit(RANGE_LIMIT);
+  if (outletId) q = q.eq('outlet_id', outletId);
+  const { data, error } = await q;
+  if (error) throw error;
+
+  const perOutlet = {};
+  OUTLETS.forEach((o) => {
+    perOutlet[o.id] = { id: o.id, nama: o.name, omzet: 0, transaksi: 0 };
+  });
+  const oncall = { omzet: 0, transaksi: 0, komisiHotel: 0, komisiTerapis: 0, rincian: [] };
+
+  (data || []).forEach((b) => {
+    if (b.status === 'batal') return;
+    const harga = Number(b.treatment_price || 0);
+    if (b.booking_source === 'oncall') {
+      oncall.omzet += harga;
+      oncall.transaksi += 1;
+      oncall.komisiHotel += Number(b.hotel_commission || 0);
+      oncall.komisiTerapis += Number(b.commission_amount || 0);
+      oncall.rincian.push({
+        outletId: b.outlet_id,
+        outlet: OUTLETS.find((o) => o.id === b.outlet_id)?.name || b.outlet_id,
+        therapistName: b.therapist_name || '-',
+        treatmentName: b.treatment_name || '-',
+        treatmentPrice: harga,
+        hotelCommission: Number(b.hotel_commission || 0),
+        commissionAmount: Number(b.commission_amount || 0)
+      });
+    } else if (perOutlet[b.outlet_id]) {
+      perOutlet[b.outlet_id].omzet += harga;
+      perOutlet[b.outlet_id].transaksi += 1;
+    }
+  });
+
+  const daftarOutlet = Object.values(perOutlet);
+  const totalOutlet = daftarOutlet.reduce((s, o) => s + o.omzet, 0);
+  return {
+    daftarOutlet,
+    oncall,
+    totalOutlet,
+    total: totalOutlet + oncall.omzet,
+    catatan: outletId
+      ? `Hanya outlet ${OUTLETS.find((o) => o.id === outletId)?.name || outletId}`
+      : null
+  };
+}
+
+/**
+ * Hasil pemeriksaan kesehatan sistem terakhir.
+ *
+ * Pemeriksaan dijalankan sendiri oleh jadwal di server tiga kali sehari, jadi
+ * membuka halaman ini tidak perlu mengubah apa pun. Tombol jalankan hanya
+ * untuk mencoba sooner saat ada yang mencurigai ada masalah.
+ */
+export async function getPemeriksaanSistem() {
+  const { data, error } = await supabase.rpc('ringkasan_pemeriksaan');
+  if (error) throw new Error(error.message);
+
+  const urut = { tinggi: 0, sedang: 1, rendah: 2 };
+  return [...(data || [])].sort(
+    (a, b) => (urut[a.berat] ?? 9) - (urut[b.berat] ?? 9) || b.total - a.total
+  );
+}
+
+/** Jalankan seluruh aturan pemeriksaan sekarang juga. */
+export async function jalankanPemeriksaan() {
+  const { data, error } = await supabase.rpc('jalankan_pemeriksaan_sistem');
+  if (error) throw new Error(error.message);
+  return Number(data) || 0;
+}
+
+/** Riwayat temuan beberapa hari terakhir, untuk melihat tren. */
+export async function getRiwayatPemeriksaan(hari = 14) {
+  const { data, error } = await supabase.rpc('riwayat_pemeriksaan', { jumlah_hari: hari });
+  if (error) throw new Error(error.message);
+  return data || [];
+}
