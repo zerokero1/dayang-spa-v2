@@ -32,20 +32,37 @@ create table if not exists pemeriksaan_sistem (
   dicek_pada  timestamptz default now()
 );
 
+-- Nama agent yang menulis temuan ini. Tanpa kolom ini, tiap agent menghapus
+-- temuan agent sebelumnya dan halaman hanya menampilkan agent terakhir.
+alter table pemeriksaan_sistem
+  add column if not exists agent text not null default 'kesalahan';
+
 create index if not exists idx_pemeriksaan_tanggal
   on pemeriksaan_sistem (tanggal);
 create index if not exists idx_pemeriksaan_kode
   on pemeriksaan_sistem (kode, tanggal desc);
+create index if not exists idx_pemeriksaan_agent
+  on pemeriksaan_sistem (agent, tanggal desc);
 
 
--- Hapus hasil pemeriksaan sebelumnya untuk satu tanggal supaya pemeriksaan
--- ulang tidak menumpuk baris yang sama.
-create or replace function bersihkan_pemeriksaan_sebelumnya()
+-- Hapus hasil pemeriksaan sebelumnya untuk satu tanggal, tapi HANYA milik
+-- agent yang sedang jalan. Kalau penghapusan dilakukan untuk seluruh tabel,
+-- agent yang jalan belakangan menghapus temuan agent yang jalan lebih dulu.
+create or replace function bersihkan_pemeriksaan_oleh(p_agent text)
 returns void
 language sql
 as $$
   delete from pemeriksaan_sistem
-   where tanggal = to_char(now() at time zone 'Asia/Makassar', 'YYYY-MM-DD');
+   where tanggal = to_char(now() at time zone 'Asia/Makassar', 'YYYY-MM-DD')
+     and agent = p_agent;
+$$;
+
+-- Dipakai oleh pemeriksaan bug (agent 'kesalahan').
+create or replace function bersihkan_pemeriksaan_sebelumnya()
+returns void
+language sql
+as $$
+  select bersihkan_pemeriksaan_oleh('kesalahan');
 $$;
 
 
@@ -390,9 +407,15 @@ $$;
 
 
 -- Ringkasan temuan terbaru, dikelompokkan per kode.
+-- Kolom agent ditambahkan, jadi bentuk return fungsi ini berubah.
+-- PostgreSQL tidak bisa mengganti fungsi yang sudah ada kalau tipe
+-- return-nya berbeda, jadi yang lama harus dihapus lebih dulu.
+drop function if exists ringkasan_pemeriksaan();
+
 create or replace function ringkasan_pemeriksaan()
 returns table (
   kode      text,
+  agent     text,
   kategori  text,
   berat     text,
   judul     text,
@@ -403,9 +426,10 @@ returns table (
 language sql
 stable
 as $$
-  select distinct on (kode) kode, kategori, berat, judul, total, tanggal, contoh
+  select distinct on (agent, kode)
+         kode, agent, kategori, berat, judul, total, tanggal, contoh
     from pemeriksaan_sistem
-   order by kode, tanggal desc, dicek_pada desc;
+   order by agent, kode, tanggal desc, dicek_pada desc;
 $$;
 
 

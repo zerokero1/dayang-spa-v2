@@ -11,7 +11,13 @@ const WARNA = {
   rendah: { label: 'Tahu saja', cls: 'muted' }
 };
 
-const KATEGORI = ['transaksi', 'stok', 'absensi'];
+const KATEGORI = [
+  ['keamanan', 'Keamanan'],
+  ['supervisor', 'Supervisor'],
+  ['transaksi', 'Transaksi'],
+  ['stok', 'Stok'],
+  ['absensi', 'Absensi']
+];
 
 export default function PemeriksaanSistemPage() {
   const [temuan, setTemuan] = useState([]);
@@ -99,12 +105,12 @@ export default function PemeriksaanSistemPage() {
             yang perlu ditangani.
           </p>
 
-          {KATEGORI.map((kat) => {
+          {KATEGORI.map(([kat, judul]) => {
             const isi = temuan.filter((t) => t.kategori === kat);
             if (!isi.length) return null;
             return (
               <section key={kat}>
-                <h3>{kat.toUpperCase()}</h3>
+                <h3>{judul}</h3>
                 <div className="table-wrap">
                   <table>
                     <thead>

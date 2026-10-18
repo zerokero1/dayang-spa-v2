@@ -77,3 +77,6 @@ dist/
 # Database backups (sensitive data — never push)
 supabase/backup/
 *.dburl
+
+# Salinan database lokal (berisi data sensitif, jangan pernah di-push)
+backup/
