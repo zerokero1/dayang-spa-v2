@@ -222,6 +222,11 @@ declare
   v_total integer := 0;
   v_n     integer;
   v_contoh text;
+  -- Dipisah per pemeriksaan supaya catatan kerja agent jujur. Kalau cuma satu
+  -- variabel, isinya akan menimpa dan catatan menyebut hal yang salah.
+  v_jumlah_tanpa_rls    integer := 0;
+  v_jumlah_search_path  integer := 0;
+  v_jumlah_audit        integer := 0;
 begin
   perform bersihkan_pemeriksaan_oleh('keamanan');
 
@@ -243,6 +248,7 @@ begin
        'Tabel tanpa pengunci baris (RLS)',
        'Peran anon punya hak baca bawaan dari PostgREST. Tabel tanpa RLS bisa dibuka siapa pun tanpa login.',
        v_n, v_contoh, 'keamanan');
+    v_jumlah_tanpa_rls := v_n;
     v_total := v_total + v_n;
   end if;
 
@@ -264,6 +270,7 @@ begin
        'Fungsi dengan hak akses tanpa search_path',
        'Fungsi SECURITY DEFINER harus mengunci search_path. Tanpa itu, nama objek bisa dialihkan ke objek milik penyerang.',
        v_n, v_contoh, 'keamanan');
+    v_jumlah_search_path := v_n;
     v_total := v_total + v_n;
   end if;
 
@@ -287,6 +294,7 @@ begin
        'Jejak audit boleh diubah atau dihapus',
        'Log aktivitas bisa dihapus oleh akun biasa. Kalau ada yang tidak sengaja menghapus jejaknya, tidak ada bukti.',
        v_n, v_contoh, 'keamanan');
+    v_jumlah_audit := v_n;
     v_total := v_total + v_n;
   end if;
 
@@ -298,14 +306,14 @@ begin
    where schemaname = 'public'
      and (tablename ilike '%backup%' or tablename ilike 'bk_%');
 
-  if v_n > 6 then
+  if v_n > 12 then
     insert into pemeriksaan_sistem
       (tanggal, kode, kategori, berat, judul, keterangan, total, contoh, agent)
     values
       (to_char(v_mulai at time zone 'Asia/Makassar','YYYY-MM-DD'),
        'backup_menumpuk', 'keamanan', 'rendah',
        'Tabel backup menumpuk',
-       'Setiap perbaikan data membuat tabel backup baru. Kalau dibiarkan, database makin berat dan sulit dicari.',
+       'Setiap perbaikan data membuat tabel backup baru. Kalau dibiarkan, database makin berat dan sulit dicari. Tabel lama yang tidak diperlukan sebaiknya dihapus.',
        v_n, v_contoh, 'keamanan');
     v_total := v_total + v_n;
   end if;
@@ -313,7 +321,11 @@ begin
   perform catat_agent_hasil(
     'keamanan', 'selesai',
     'Pemeriksaan keamanan selesai', v_total,
-    jsonb_build_object('tabel_tanpa_rls', v_contoh),
+    jsonb_build_object(
+      'tabel_tanpa_rls', v_jumlah_tanpa_rls,
+      'fungsi_tanpa_search_path', v_jumlah_search_path,
+      'audit_bisa_dihapus', v_jumlah_audit,
+      'contoh_tabel_backup', v_contoh),
     v_mulai
   );
 
@@ -526,12 +538,17 @@ begin
   --    diperiksa. Kalau sudah beberapa hari nol berturut-turut, berarti
   --    memang sudah bersih, dan kalau tetap berbunyi setiap hari cuma
   --    membuat alarm diabaikan.
+  --    Supervisor tidak ikut diperiksa di sini. Kalau iya, ia akan menemukan
+  --    temuannya sendiri (temuan "nol mendadak"), temuan itu jadi temuan
+  --    baru, lalu run berikutnya ia terbangi sering bermasalah, dan seterusnya.
+  --    Supervisor yang mengawasi dirinya sendiri tidak ada gunanya.
   for v_agent in
     select c1.agent,
            count(*)::int as sering_mendapati,
            max(c1.dicatat_pada) as terakhir_mendapati
       from catatan_agent c1
      where c1.temuan > 0
+       and c1.agent <> 'pemeriksa_rekan'
        and c1.dicatat_pada > now() - interval '7 days'
      group by c1.agent
   loop
@@ -728,7 +745,10 @@ as $$
 $$;
 
 
--- Riwayat kerja semua agent untuk melihat pola dari waktu ke waktu.
+-- Riwayat kerja agent. Bentuk return berubah karena rincian ditambahkan,
+-- jadi fungsi yang lama harus dihapus lebih dulu.
+drop function if exists supervisor_riwayat(integer);
+
 create or replace function supervisor_riwayat(jumlah int default 40)
 returns table (
   agent     text,
@@ -737,13 +757,40 @@ returns table (
   durasi_ms integer,
   status    text,
   temuan    integer,
-  pesan     text
+  pesan     text,
+  rincian   jsonb
 )
 language sql
 stable
 as $$
-  select c.agent, c.mulai, c.selesai, c.durasi_ms, c.status, c.temuan, c.pesan
+  select c.agent, c.mulai, c.selesai, c.durasi_ms, c.status, c.temuan, c.pesan, c.rincian
     from catatan_agent c
    order by c.dicatat_pada desc
-   limit greatest(1, least(coalesce(jumlah, 40), 200));
+   limit greatest(1, least(coalesce(jumlah, 40), 500));
+$$;
+
+
+-- Riwayat kerja satu agent saja, untuk halaman detail.
+create or replace function supervisor_riwayat_agent(
+  p_agent text,
+  p_jumlah int default 20
+)
+returns table (
+  agent     text,
+  mulai     timestamptz,
+  selesai   timestamptz,
+  durasi_ms integer,
+  status    text,
+  temuan    integer,
+  pesan     text,
+  rincian   jsonb
+)
+language sql
+stable
+as $$
+  select c.agent, c.mulai, c.selesai, c.durasi_ms, c.status, c.temuan, c.pesan, c.rincian
+    from catatan_agent c
+   where c.agent = p_agent
+   order by c.dicatat_pada desc
+   limit greatest(1, least(coalesce(p_jumlah, 20), 200));
 $$;
