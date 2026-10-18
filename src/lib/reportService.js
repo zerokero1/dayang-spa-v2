@@ -936,9 +936,10 @@ export async function getRevenueSementara(outletId) {
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString())
     .limit(RANGE_LIMIT);
-  if (outletId) q = q.eq('outlet_id', outletId);
-  const { data, error } = await q;
-  if (error) throw error;
+    if (outletId) q = q.eq('outlet_id', outletId);
+    const { data, error } = await q;
+    if (error) throw error;
+    const waktuAmbil = new Date();
 
   const perOutlet = {};
   OUTLETS.forEach((o) => {
@@ -972,11 +973,12 @@ export async function getRevenueSementara(outletId) {
   const daftarOutlet = Object.values(perOutlet);
   const totalOutlet = daftarOutlet.reduce((s, o) => s + o.omzet, 0);
   return {
-    daftarOutlet,
-    oncall,
-    totalOutlet,
-    total: totalOutlet + oncall.omzet,
-    catatan: outletId
+      daftarOutlet,
+      oncall,
+      totalOutlet,
+      total: totalOutlet + oncall.omzet,
+      waktu: waktuAmbil.toISOString(),
+      catatan: outletId
       ? `Hanya outlet ${OUTLETS.find((o) => o.id === outletId)?.name || outletId}`
       : null
   };
