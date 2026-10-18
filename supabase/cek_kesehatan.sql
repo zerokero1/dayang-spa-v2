@@ -45,7 +45,7 @@ returns void
 language sql
 as $$
   delete from pemeriksaan_sistem
-   where tanggal = to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM-DD');
+   where tanggal = to_char(now() at time zone 'Asia/Makassar', 'YYYY-MM-DD');
 $$;
 
 
@@ -55,11 +55,11 @@ returns integer
 language plpgsql
 as $$
 declare
-  v_tanggal text := to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM-DD');
+  v_tanggal text := to_char(now() at time zone 'Asia/Makassar', 'YYYY-MM-DD');
   v_total   integer := 0;
   v_n       integer;
   v_contoh  text;
-  v_sejak   text := to_char(now() at time zone 'Asia/Jakarta' - interval '14 days', 'YYYY-MM-DD');
+  v_sejak   text := to_char(now() at time zone 'Asia/Makassar' - interval '14 days', 'YYYY-MM-DD');
 begin
   perform bersihkan_pemeriksaan_sebelumnya();
 
@@ -74,7 +74,7 @@ begin
     from bookings
    where payment_method is not null
      and payment_method::text like '{%'
-     and (created_at at time zone 'Asia/Jakarta')::date::text >= v_sejak;
+     and (created_at at time zone 'Asia/Makassar')::date::text >= v_sejak;
 
   if v_n > 0 then
     insert into pemeriksaan_sistem
@@ -99,7 +99,7 @@ begin
     into v_n, v_contoh
     from (
       select outlet_id || ' ' ||
-             to_char(to_timestamp(start_at / 1000) at time zone 'Asia/Jakarta', 'DD-MM HH24:MI') || ' ' ||
+             to_char(to_timestamp(start_at / 1000) at time zone 'Asia/Makassar', 'DD-MM HH24:MI') || ' ' ||
              coalesce(nullif(customer_name, ''), '(tanpa nama)') || ' ' ||
              coalesce(therapist_name, '-') || ' ' ||
              treatment_name || ' ' || treatment_price::text || ' x' || count(*)::text
@@ -108,7 +108,7 @@ begin
         from bookings
        where status in ('selesai', 'berjalan')
          and treatment_name !~* '\(per\s'
-         and (created_at at time zone 'Asia/Jakarta')::date::text >= v_sejak
+         and (created_at at time zone 'Asia/Makassar')::date::text >= v_sejak
        group by outlet_id, start_at, customer_name, therapist_name, treatment_name, treatment_price
       having count(*) > 1
        order by count(*) desc, treatment_price desc
@@ -133,7 +133,7 @@ begin
       select group_id, count(distinct outlet_id) as jml, string_agg(distinct outlet_id, ',') as outlet_dipakai
         from bookings
        where group_id is not null
-         and (created_at at time zone 'Asia/Jakarta')::date::text >= v_sejak
+         and (created_at at time zone 'Asia/Makassar')::date::text >= v_sejak
        group by group_id
       having count(distinct outlet_id) > 1
     ) d;
@@ -167,7 +167,7 @@ begin
          round((case when booking_source = 'oncall'
                      then treatment_price - coalesce(hotel_commission, 0)
                      else treatment_price end) * commission_percent / 100.0)
-     and (created_at at time zone 'Asia/Jakarta')::date::text >= v_sejak;
+     and (created_at at time zone 'Asia/Makassar')::date::text >= v_sejak;
 
   if v_n > 0 then
     insert into pemeriksaan_sistem
@@ -191,7 +191,7 @@ begin
    where status <> 'batal'
      and booking_source = 'oncall'
      and hotel_commission > commission_amount
-     and (created_at at time zone 'Asia/Jakarta')::date::text >= v_sejak;
+     and (created_at at time zone 'Asia/Makassar')::date::text >= v_sejak;
 
   if v_n > 0 then
     insert into pemeriksaan_sistem
@@ -211,7 +211,7 @@ begin
     from bookings
    where status <> 'batal'
      and therapist_id is null
-     and (created_at at time zone 'Asia/Jakarta')::date::text >= v_sejak;
+     and (created_at at time zone 'Asia/Makassar')::date::text >= v_sejak;
 
   if v_n > 0 then
     insert into pemeriksaan_sistem
@@ -231,7 +231,7 @@ begin
   -- Sudah lewat jam selesai tapi masih berstatus berjalan. Ini yang membuat
   -- omzet harian terus berubah.
   select count(*), left(string_agg(
-             to_char(now() at time zone 'Asia/Jakarta', 'DD-MM') || ' ' ||
+             to_char(now() at time zone 'Asia/Makassar', 'DD-MM') || ' ' ||
              coalesce(outlet_id,'-') || ' ' || coalesce(therapist_name,'-') || ' ' ||
              treatment_name || ' ' || treatment_price::text, ', '), 200)
     into v_n, v_contoh
@@ -322,7 +322,7 @@ begin
      and not exists (
        select 1 from bookings b
         where b.therapist_id = a.employee_id
-          and (b.created_at at time zone 'Asia/Jakarta')::date::text = a.date
+          and (b.created_at at time zone 'Asia/Makassar')::date::text = a.date
           and b.status <> 'batal'
      );
 
@@ -340,17 +340,17 @@ begin
   -- Ada treatment tapi absensinya kosong (hari yang sudah lewat).
   select count(*), left(string_agg(
              coalesce(b.therapist_name,'-') || ' ' ||
-             (b.created_at at time zone 'Asia/Jakarta')::date::text, ', '), 200)
+             (b.created_at at time zone 'Asia/Makassar')::date::text, ', '), 200)
     into v_n, v_contoh
     from bookings b
    where b.status <> 'batal'
      and b.therapist_id is not null
-     and (b.created_at at time zone 'Asia/Jakarta')::date::text between v_sejak
-         and to_char(now() at time zone 'Asia/Jakarta' - interval '1 day', 'YYYY-MM-DD')
+     and (b.created_at at time zone 'Asia/Makassar')::date::text between v_sejak
+         and to_char(now() at time zone 'Asia/Makassar' - interval '1 day', 'YYYY-MM-DD')
      and not exists (
        select 1 from attendance a
         where a.employee_id = b.therapist_id
-          and a.date = (b.created_at at time zone 'Asia/Jakarta')::date::text
+          and a.date = (b.created_at at time zone 'Asia/Makassar')::date::text
      );
 
   if v_n > 0 then
@@ -425,7 +425,7 @@ as $$
   select tanggal, kode, judul, berat, total
     from pemeriksaan_sistem
    where tanggal >= to_char(
-           now() at time zone 'Asia/Jakarta' - (jumlah_hari || ' days')::interval,
+           now() at time zone 'Asia/Makassar' - (jumlah_hari || ' days')::interval,
            'YYYY-MM-DD')
    order by tanggal desc,
             case berat when 'tinggi' then 1 when 'sedang' then 2 else 3 end,
@@ -438,9 +438,9 @@ $$;
 --
 -- Pemeriksaan berjalan sendiri tiga kali sehari, tepat pada sore hari di
 -- tempat rekap revenue dikirim:
---   15:00 WIB = 08:00 UTC
---   18:00 WIB = 11:00 UTC
---   23:00 WIB = 16:00 UTC
+--   15:00 WITA = 07:00 UTC
+--   18:00 WITA = 10:00 UTC
+--   23:00 WITA = 15:00 UTC
 --
 -- Tidak perlu ada yang membuka aplikasinya; pemeriksaan tetap jalan.
 -- ============================================================================
@@ -461,7 +461,7 @@ begin
 
   perform cron.schedule(
     'cek-kesehatan-sistem',
-    '0 8,11,16 * * *',
+    '0 7,10,15 * * *',
     'select jalankan_pemeriksaan_sistem()'
   );
 end;

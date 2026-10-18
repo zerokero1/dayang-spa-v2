@@ -11,8 +11,8 @@
 -- terima barang, training), absensinya dikosongkan — bukan dianggap alpa,
 -- karena itu akan merugikan orangnya.
 --
--- Zona waktu: tanggal absensi memakai WIB (UTC+7), sama seperti halaman
--- Absensi. Server memakai UTC, jadi jadwal 23:00 WIB = 16:00 UTC.
+-- Zona waktu: tanggal absensi memakai jam lokal Lombok (WITA, UTC+8), bukan
+-- WIB. Server memakai UTC, jadi jadwal 23:00 WITA = 15:00 UTC.
 -- ============================================================================
 
 -- Riwayat perubahan absensi otomatis, supaya koreksi kasir tidak hilang
@@ -38,7 +38,7 @@ create index if not exists idx_attendance_auto_log_date
 create index if not exists idx_attendance_auto_log_employee
   on attendance_auto_log (employee_id, date);
 
--- Jumlah treatment tiap terapis per hari (WIB), hanya yang tidak batal.
+-- Jumlah treatment tiap terapis per hari (WITA), hanya yang tidak batal.
 create or replace function treatment_harian(p_tanggal text)
 returns table (
   therapist_id   uuid,
@@ -56,7 +56,7 @@ as $$
     from bookings b
    where b.status <> 'batal'
      and b.therapist_id is not null
-     and (b.created_at at time zone 'Asia/Jakarta')::date::text = p_tanggal
+     and (b.created_at at time zone 'Asia/Makassar')::date::text = p_tanggal
    group by b.therapist_id;
 $$;
 
@@ -82,10 +82,10 @@ declare
   v_sudah_ada integer := 0;
   r           record;
 begin
-  -- Default = hari ini WIB, bukan tanggal server.
+  -- Default = hari ini WITA, bukan tanggal server.
   v_tanggal := coalesce(
     p_tanggal,
-    (now() at time zone 'Asia/Jakarta')::date::text
+    (now() at time zone 'Asia/Makassar')::date::text
   );
 
   for r in
