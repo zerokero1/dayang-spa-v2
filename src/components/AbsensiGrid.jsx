@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ATTENDANCE_TYPES, OUTLETS, SHIFT_LABEL } from '../lib/constants';
 import {
   deleteAttendance, getAttendanceRange, deleteOvertime, recordAttendance, saveOvertime
@@ -103,6 +103,10 @@ export default function AbsensiGrid({
       checkIn: rec?.checkIn != null ? minutesToClock(rec.checkIn) : '',
       checkOut: rec?.checkOut != null ? minutesToClock(rec.checkOut) : '',
       lembur: rec?.overtimeMinutes > 0 ? String(rec.overtimeMinutes) : '',
+      // Kotak telat sengaja dikosongkan saat membuka sel, supaya yang tampil
+      // adalah hitungan otomatis. Baru diisi kalau kasir memang mau
+      // mengoreksinya.
+      telat: '',
       note: rec?.note || ''
     });
   }
@@ -112,6 +116,18 @@ export default function AbsensiGrid({
     const rec = recMap[`${employee.id}|${cellEdit.date}`];
     setSavingCell(true);
     try {
+      // Telat boleh dikoreksi manual, sama seperti lembur. Kotak yang dikosongkan
+      // berarti "pakai hitungan sistem", jadi null, bukan 0.
+      //
+      // Status Hadir dikecualikan: aturannya sudah lama disepakati bahwa hadir
+      // selalu 0 menit telat. Kalau override ikut terkirim, aturan itu bisa
+      // dilanggar tanpa sengaja.
+      const telatTerisi = (draft.telat ?? '').toString().trim() !== '';
+      const lateMinutesOverride =
+        draft.status === ATTENDANCE_TYPES.HADIR || !telatTerisi
+          ? null
+          : Math.max(0, Number(draft.telat) || 0);
+
       const { lateMinutes } = await recordAttendance({
         outletId: employee.outletId || outletFilter || null,
         employeeId: employee.id,
@@ -123,7 +139,7 @@ export default function AbsensiGrid({
         checkOut: clockToMinutes(draft.checkOut),
         shift: employee.shift || null,
         recordedBy: user?.email || user?.name || null,
-        lateMinutesOverride: null
+        lateMinutesOverride
       });
 
       // Lembur lama harus dihapus kalau kasir mengosongkan atau menurunkannya.
@@ -165,8 +181,10 @@ export default function AbsensiGrid({
     const draftNext = {
       ...cellDraft,
       status: value,
-      checkIn: value === ATTENDANCE_TYPES.TELAT ? cellDraft.checkIn : cellDraft.checkIn,
-      lembur: value === ATTENDANCE_TYPES.LIBUR ? '' : cellDraft.lembur
+      lembur: value === ATTENDANCE_TYPES.LIBUR ? '' : cellDraft.lembur,
+      // Pilih Hadir berarti hadir tepat waktu. Menyorot telat di sini
+      //bisa muncul kalau ada angka yang tertinggal dari sebelumnya.
+      telat: value === ATTENDANCE_TYPES.HADIR ? '' : cellDraft.telat
     };
     setCellDraft(draftNext);
     if (!cellEdit) return;
@@ -247,6 +265,18 @@ export default function AbsensiGrid({
   /** Telat = jam datang - jam mulai shift; null kalau tidak bisa dihitung. */
   const editLate = useMemo(() => {
     if (!editEmployee || cellDraft?.status !== ATTENDANCE_TYPES.TELAT || !cellDraft?.checkIn) return null;
+    const inMin = clockToMinutes(cellDraft.checkIn);
+    const start = shiftStartMinutes(editEmployee.shift);
+    if (inMin == null || start == null) return null;
+    return Math.max(0, inMin - start);
+  }, [editEmployee, cellDraft]);
+
+  // Petunjuk untuk kotak Telat. Menampilkan hitungan otomatis sebagai
+  // placeholder bikin kasir bisa lihat berapa yang dihitung sistem tanpa
+  // perlu masuk ke tab Harian.
+  const editLateOtomatis = useMemo(() => {
+    if (!editEmployee || !cellDraft?.checkIn) return null;
+    if (cellDraft.status === ATTENDANCE_TYPES.HADIR) return 0;
     const inMin = clockToMinutes(cellDraft.checkIn);
     const start = shiftStartMinutes(editEmployee.shift);
     if (inMin == null || start == null) return null;
@@ -423,6 +453,21 @@ export default function AbsensiGrid({
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
               <label style={{ fontSize: 12 }}>
+                Telat (menit)
+                <input
+                  type="number"
+                  min="0"
+                  placeholder={
+                    editLateOtomatis == null
+                      ? 'otomatis'
+                      : 'otomatis: ' + editLateOtomatis
+                  }
+                  value={cellDraft.telat || ''}
+                  disabled={cellDraft.status === ATTENDANCE_TYPES.HADIR}
+                  onChange={(e) => setCellDraft((d) => ({ ...d, telat: e.target.value }))}
+                />
+              </label>
+              <label style={{ fontSize: 12 }}>
                 Lembur (menit)
                 <input
                   type="number"
@@ -501,8 +546,17 @@ export default function AbsensiGrid({
 }
 
 function editDraftLateText(draft, late) {
-  if (draft?.status !== ATTENDANCE_TYPES.TELAT) return 'Telat dihitung otomatis dari jam datang dibanding mulai shift.';
-  if (!draft?.checkIn) return 'Isi jam datang untuk menghitung menit telat.';
-  if (late == null) return 'Shift belum diatur, telat tidak bisa dihitung.';
-  return `Telat diperkirakan ${late} menit.`;
-}
+    const terisi = (draft?.telat ?? '').toString().trim() !== '';
+    if (draft?.status === ATTENDANCE_TYPES.HADIR) {
+      return 'Status Hadir selalu dihitung 0 menit telat, berapa pun jam datangnya.';
+    }
+    if (terisi) {
+      return 'Telat diisi manual ' +
+        Math.max(0, Number(draft.telat) || 0) +
+        ' menit. Kosongkan lagi kalau mau kembali ke hitungan otomatis.';
+    }
+    if (draft?.status !== ATTENDANCE_TYPES.TELAT) return 'Telat dihitung otomatis dari jam datang dibanding mulai shift.';
+    if (!draft?.checkIn) return 'Isi jam datang untuk menghitung menit telat.';
+    if (late == null) return 'Shift belum diatur, telat tidak bisa dihitung.';
+    return `Telat diperkirakan ${late} menit.`;
+  }
