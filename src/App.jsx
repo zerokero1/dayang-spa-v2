@@ -39,6 +39,7 @@ const LaporanProduksiPage = lazy(() => import('./pages/LaporanProduksiPage'));
 const OrderStockPage = lazy(() => import('./pages/OrderStockPage'));
 const LaporanDiskonPage = lazy(() => import('./pages/LaporanDiskonPage'));
 const SlipGajiPage = lazy(() => import('./pages/SlipGajiPage'));
+const TransaksiTerapisPage = lazy(() => import('./pages/TransaksiTerapisPage'));
 const RevenueSementaraPage = lazy(() => import('./pages/RevenueSementaraPage'));
 const PemeriksaanSistemPage = lazy(() => import('./pages/PemeriksaanSistemPage'));
 const SupervisorPage = lazy(() => import('./pages/SupervisorPage'));
@@ -71,6 +72,7 @@ const PAGES = {
   belumDitandai: { label: 'Belum Ditandai Lunas', icon: '🚩', Component: LaporanBelumDitandaiPage, global: true },
   laporanDiskon: { label: 'Laporan Diskon', icon: '🏷️', Component: LaporanDiskonPage, global: true },
   slipGaji: { label: 'Slip Gaji', icon: '💵', Component: SlipGajiPage, global: true, officeOnly: true },
+  transaksiTerapis: { label: 'Transaksi Terapis', icon: '🔍', Component: TransaksiTerapisPage, global: true, officeOnly: true },
   revenueSementara: { label: 'Revenue Sementara', icon: '📊', Component: RevenueSementaraPage, global: true, officeOnly: true },
   pemeriksaanSistem: { label: 'Pemeriksaan Sistem', icon: '🔎', Component: PemeriksaanSistemPage, global: true, officeOnly: true },
   supervisor: { label: 'Supervisor', icon: '🛡️', Component: SupervisorPage, global: true, officeOnly: true },

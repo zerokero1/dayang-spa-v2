@@ -68,6 +68,68 @@ const DAILY_COLUMNS = 'outlet_id, therapist_id, therapist_name, treatment_name, 
 // Batas baris untuk satu query rentang. Satu bulan penuh masih di bawah ini.
 const RANGE_LIMIT = 20000;
 
+/**
+ * Semua transaksi milik SATU terapis dalam rentang tanggal.
+ *
+ * Fungsi ini ada karena tidak ada halaman lain yang bisa melakukan filter
+ * per terapis. Halaman lain hanya punya filter outlet + rentang tanggal,
+ * jadi untuk melihat transaksi satu orang harus mengunduh Excel lalu
+ * mencari namanya di antara ratusan baris.
+ *
+ * Booking `batal` ikut diambil (dengan penanda), bukan dibuang, karena
+ * kadang kasir perlu tahu treatment apa yang dibatalkan agar bisa
+ * mencocokkan dengan rekap manual.
+ */
+export async function getTherapistTransactionsRange(
+  therapistId,
+  startDate,
+  endDate
+) {
+  const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(
+      'id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, ' +
+      'commission_percent, commission_amount, status, paid, payment_method, ' +
+      'original_price, booking_source, hotel_commission, created_at, start_at, ' +
+      'oil_type, uses_oil, customer_name, duration_minutes'
+    )
+    .eq('therapist_id', therapistId)
+    .gte('created_at', startUtc.toISOString())
+    .lte('created_at', endUtc.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(RANGE_LIMIT);
+  if (error) throw error;
+
+  const semua = (data || []).map(mapBooking);
+
+  const valid = semua.filter((b) => b.status !== 'batal');
+  const batal = semua.filter((b) => b.status === 'batal');
+  const jumlah = (list) => list.reduce((n, b) => n + (b.treatmentPrice || 0), 0);
+  const komisi = (list) => list.reduce((n, b) => n + (b.commissionAmount || 0), 0);
+
+  return {
+    semua,
+    valid,
+    batal,
+    rekap: {
+      jumlahValid: valid.length,
+      jumlahBatal: batal.length,
+      omzet: jumlah(valid),
+      komisi: komisi(valid),
+      omzetBatal: jumlah(batal),
+      sudahLunas: valid.filter((b) => b.paid).length,
+      belumLunas: valid.filter((b) => !b.paid).length,
+      oncall: valid.filter((b) => b.bookingSource === 'oncall').length,
+      hotelCommission: valid.reduce(
+        (n, b) => n + (b.hotelCommission || 0),
+        0
+      ),
+     treatmentCount: valid.reduce((n, b) => n + (b.usesOil ? 1 : 0), 0)
+    }
+  };
+}
+
 async function getAllDailyBookings(dateStr) {
   const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
   const { data, error } = await supabase
