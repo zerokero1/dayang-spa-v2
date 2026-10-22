@@ -576,14 +576,14 @@ function addLine(t, tera, opts = {}) {
                       <button
                         className={modePct ? 'pos-chip active' : 'pos-chip'}
                         onClick={() => handleDiscountMode(i, 'pct')}
-                        style={{ fontSize: 11, padding: '2px 8px' }}
+                       
                       >
                         Persen %
                       </button>
                       <button
                         className={modeAmount ? 'pos-chip active' : 'pos-chip'}
                         onClick={() => handleDiscountMode(i, 'amount')}
-                        style={{ fontSize: 11, padding: '2px 8px' }}
+                       
                       >
                         Potong Rp
                       </button>
@@ -594,7 +594,7 @@ function addLine(t, tera, opts = {}) {
                             handleDiscountMode(i, modeAmount ? 'pct' : 'amount');
                             if (modeAmount) handleDiscount(i, 0);
                           }}
-                          style={{ fontSize: 11, padding: '2px 8px' }}
+                         
                         >
                           ✕
                         </button>
@@ -608,7 +608,7 @@ function addLine(t, tera, opts = {}) {
                             key={p}
                             className={line.discountPct === p ? 'pos-chip active' : 'pos-chip'}
                             onClick={() => handleDiscount(i, p)}
-                            style={{ fontSize: 11, padding: '2px 8px' }}
+                           
                           >
                             {p}%
                           </button>
@@ -666,7 +666,7 @@ function addLine(t, tera, opts = {}) {
                   })()}
                 </span>
                 <button
-                  style={{ width: 'auto', padding: '4px 8px', fontSize: 11, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }}
+                  className="btn btn-danger btn-sm"
                   onClick={() => handleRemoveFromCart(i)}
                 >
                   ✕

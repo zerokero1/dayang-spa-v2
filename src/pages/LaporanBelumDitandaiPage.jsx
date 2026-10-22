@@ -247,14 +247,14 @@ export default function LaporanBelumDitandaiPage({ active, profile }) {
             <button
               className={onlyFinished ? 'pos-chip' : 'pos-chip active'}
               onClick={() => setOnlyFinished(false)}
-              style={{ fontSize: 12 }}
+
             >
               Semua ({rows.length})
             </button>
             <button
               className={onlyFinished ? 'pos-chip active' : 'pos-chip'}
               onClick={() => setOnlyFinished(true)}
-              style={{ fontSize: 12 }}
+
             >
               Selesai saja ({selesai.length})
             </button>

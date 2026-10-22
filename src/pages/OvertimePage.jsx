@@ -125,7 +125,7 @@ export default function OvertimePage({ isOffice }) {
             <strong>Total lembur: {totalOvertime} menit</strong>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {corrMsg && <small style={{ color: 'var(--text-secondary)' }}>{corrMsg}</small>}
-              <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={handleDownload}>
+              <button className="btn btn-outline btn-sm" onClick={handleDownload}>
                 ⬇ Download Excel
               </button>
             </div>
@@ -181,7 +181,7 @@ export default function OvertimePage({ isOffice }) {
                   />
                   <button
                     type="button"
-                    style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', margin: 0 }}
+                    className="btn btn-outline btn-sm"
                     onClick={() => handleSaveCorrection(r)}
                   >
                     💾 Simpan koreksi
@@ -189,7 +189,7 @@ export default function OvertimePage({ isOffice }) {
                   {r.corrected && (
                     <button
                       type="button"
-                      style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', margin: 0, background: 'transparent' }}
+                      className="btn btn-ghost btn-sm"
                       onClick={() => handleResetCorrection(r)}
                     >
                       ↩ Reset

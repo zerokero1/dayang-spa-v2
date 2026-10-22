@@ -293,10 +293,10 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
         </p>
         {!booking.paid ? (
           <div className="koreksi-actions">
-            <button className="koreksi-btn" style={{ background: 'var(--primary-dark)', color: '#fff' }} disabled={paySaving} onClick={() => savePayment(true, 'cash')}>
+            <button className="koreksi-btn btn-primary" disabled={paySaving} onClick={() => savePayment(true, 'cash')}>
               Tandai Lunas (Cash)
             </button>
-            <button className="koreksi-btn" style={{ background: 'var(--primary-dark)', color: '#fff' }} disabled={paySaving} onClick={() => savePayment(true, 'cardless')}>
+            <button className="koreksi-btn btn-primary" disabled={paySaving} onClick={() => savePayment(true, 'cardless')}>
               Tandai Lunas (Cardless)
             </button>
           </div>
@@ -305,7 +305,7 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
             <span className="koreksi-note" style={{ margin: 0, fontWeight: 600 }}>Ganti metode:</span>
             <button className="koreksi-btn" disabled={paySaving} onClick={() => savePayment(true, 'cash')}>Cash</button>
             <button className="koreksi-btn" disabled={paySaving} onClick={() => savePayment(true, 'cardless')}>Cardless</button>
-            <button className="koreksi-btn" style={{ background: 'var(--busy)', color: '#fff' }} disabled={paySaving} onClick={() => savePayment(false)}>
+            <button className="koreksi-btn btn-warning" disabled={paySaving} onClick={() => savePayment(false)}>
               Batalkan lunas
             </button>
           </div>
@@ -318,7 +318,7 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
         <button className="koreksi-btn" disabled={saving} onClick={handleSave}>
           {saving ? 'Menyimpan...' : 'Simpan koreksi'}
         </button>
-        <button className="koreksi-btn" style={{ background: 'var(--text-secondary)', color: '#fff' }} onClick={onCancel}>
+        <button className="koreksi-btn btn-ghost" onClick={onCancel}>
           Batal
         </button>
       </div>
@@ -454,7 +454,7 @@ export default function KoreksiBookingPage({ active, isOffice }) {
                 <button className="koreksi-btn" onClick={() => setEditingId(b.id)}>
                   Koreksi
                 </button>
-                <button className="koreksi-btn" style={{ background: 'var(--danger)', color: '#fff' }} onClick={() => handleDelete(b)}>
+                <button className="koreksi-btn btn-danger" onClick={() => handleDelete(b)}>
                   Hapus treatment
                 </button>
               </div>

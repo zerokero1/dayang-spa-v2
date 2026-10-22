@@ -11,6 +11,7 @@ import KasirBeranda from './components/KasirBeranda';
 import LoginPage from './pages/LoginPage';
 import './styles.css';
 import './styles-laporan.css';
+import './styles-ui.css';
 
 const KasirPage = lazy(() => import('./pages/KasirPage'));
 const AbsensiPage = lazy(() => import('./pages/AbsensiPage'));
@@ -87,6 +88,18 @@ const PAGES = {
   logAktivitas: { label: 'Log Aktivitas', icon: '📜', Component: LogAktivitasPage, global: true, officeOnly: true },
   periksaKomisi: { label: 'Periksa Komisi', icon: '💰', Component: PeriksaKomisiPage, global: true, officeOnly: true }
 };
+
+// Pengelompokan menu sidebar. Sebagian besar halaman dalam daftar PAGES
+// adalah laporan, sehingga menu.flatten (30+ item berderet) sulit dipindai.
+// Label grup di sini hanya mengubah TAMPILAN, bukan hak akses: halaman yang
+// tidak lolos filter peran tetap disembunyikan seperti sebelumnya.
+const NAV_GROUPS = [
+  { label: 'Operasional', keys: ['kasir', 'oncall', 'ambilOrder', 'reservasi', 'status', 'struk', 'dashboard', 'ringkasan'] },
+  { label: 'Terapis & Absensi', keys: ['absensi', 'dashboardTerapis', 'kelolaTerapis', 'overtime'] },
+  { label: 'Stok', keys: ['stok', 'orderStock'] },
+  { label: 'Laporan', keys: ['laporan', 'laporanAbsensi', 'laporanInventory', 'laporanOvertime', 'laporanPemakaianStok', 'laporanProduksi', 'laporanDiskon', 'jadwalMingguan', 'laporanKeseluruhan', 'revenueSementara', 'belumDitandai', 'slipGaji', 'periksaKomisi', 'transaksiTerapis', 'logAktivitas'] },
+  { label: 'Sistem', keys: ['koreksiBooking', 'koreksiOncall', 'pemeriksaanSistem', 'supervisor'] }
+];
 
 // Role yang hanya boleh melihat sebagian halaman (staff order-taking).
 // Semua role lain (admin_pusat, kasir) tetap melihat semua halaman seperti biasa,
@@ -181,6 +194,15 @@ export default function App() {
     return true;
   });
 
+  // Susun menu sidebar per grup. Halaman yang tidak masuk grup mana pun
+  // tetap ditampilkan di grup "Lainnya" supaya tidak ada menu hilang.
+  const groupedNav = NAV_GROUPS
+    .map((g) => ({ label: g.label, entries: visiblePageEntries.filter(([key]) => g.keys.includes(key)) }))
+    .filter((g) => g.entries.length > 0);
+  const knownKeys = NAV_GROUPS.flatMap((g) => g.keys);
+  const restEntries = visiblePageEntries.filter(([key]) => !knownKeys.includes(key));
+  if (restEntries.length > 0) groupedNav.push({ label: 'Lainnya', entries: restEntries });
+
   const userName = profile.name || user.email || 'Pengguna';
   const roleLabel = ROLE_LABEL[profile.role] || profile.role;
   const activeOutletName = OUTLETS.find((o) => o.id === activeOutlet)?.name || activeOutlet;
@@ -225,7 +247,7 @@ export default function App() {
               onOpen={openPage}
             />
           ) : (
-            <Suspense fallback={<div style={{ padding: 24, fontSize: 14, color: 'var(--text-secondary)' }}>Memuat…</div>}>
+            <Suspense fallback={<div className="page-loading">Memuat halaman…</div>}>
               <div className="kasir-subhead">
                 <button className="kasir-back" onClick={() => openPage('beranda')} title="Kembali ke Beranda">←</button>
                 <span>{currentPage ? currentPage.label : ''}</span>
@@ -290,20 +312,25 @@ export default function App() {
           </span>
         </div>
         <nav className="sidebar-nav">
-          {visiblePageEntries.map(([key, p]) => (
-            <button
-              key={key}
-              className={activePage === key ? 'nav-item active' : 'nav-item'}
-              onClick={() => setActivePage(key)}
-            >
-              <span className="nav-icon">{p.icon}</span>
-              <span className="nav-label">{p.label}</span>
-              {key === 'status' && unpaidCount > 0 && (
-                <span className={overdueCount > 0 ? 'nav-badge overdue' : 'nav-badge'}>
-                  {unpaidCount}
-                </span>
-              )}
-            </button>
+          {groupedNav.map((g) => (
+            <div key={g.label} className="nav-group">
+              <div className="nav-group-label">{g.label}</div>
+              {g.entries.map(([key, p]) => (
+                <button
+                  key={key}
+                  className={activePage === key ? 'nav-item active' : 'nav-item'}
+                  onClick={() => setActivePage(key)}
+                >
+                  <span className="nav-icon">{p.icon}</span>
+                  <span className="nav-label">{p.label}</span>
+                  {key === 'status' && unpaidCount > 0 && (
+                    <span className={overdueCount > 0 ? 'nav-badge overdue' : 'nav-badge'}>
+                      {unpaidCount}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="sidebar-user">
@@ -341,7 +368,7 @@ export default function App() {
         </header>
 
         <main className={overdueCount > 0 ? 'content has-banner' : 'content'}>
-          <Suspense fallback={<div style={{ padding: 24, fontSize: 14, color: 'var(--text-secondary)' }}>Memuat…</div>}>
+          <Suspense fallback={<div className="page-loading">Memuat halaman…</div>}>
             {currentPage && currentPage.Component && (
               <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} onOpen={(k) => setActivePage(k)} {...(currentPage.props || {})} />
             )}

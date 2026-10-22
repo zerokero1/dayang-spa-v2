@@ -227,32 +227,25 @@ export default function DashboardTerapisPage({ active }) {
         <p>Tanggal</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          <button
-            style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }}
+          <button className="btn btn-outline btn-sm"
             onClick={() => setDate(todayWib())}
             disabled={date === todayWib()}
           >
             Hari ini
           </button>
           <button
-            style={{
-              width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none',
-              background: auto ? 'var(--primary-dark)' : undefined, color: auto ? '#fff' : undefined
-            }}
+            className={auto ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm'}
             onClick={() => setAuto((a) => !a)}
           >
             Auto-refresh {auto ? 'ON' : 'OFF'}
           </button>
           <button
-            style={{
-              width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none',
-              background: showLibur ? undefined : 'var(--primary-dark)', color: showLibur ? undefined : '#fff'
-            }}
+            className={showLibur ? 'btn btn-outline btn-sm' : 'btn btn-primary btn-sm'}
             onClick={() => setShowLibur((v) => !v)}
           >
             Tampilkan yang libur: {showLibur ? 'ON' : 'OFF'}
           </button>
-          <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={load} disabled={loading}>
+          <button className="btn btn-outline btn-sm" onClick={load} disabled={loading}>
             {loading ? 'Memuat...' : '⟳ Muat ulang'}
           </button>
         </div>
@@ -283,7 +276,7 @@ export default function DashboardTerapisPage({ active }) {
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0' }}>
           {hiddenLibur} terapis sedang libur dan disembunyikan.{' '}
           <button
-            style={{ width: 'auto', padding: '2px 8px', fontSize: 11, boxShadow: 'none' }}
+            className="btn btn-ghost btn-sm"
             onClick={() => setShowLibur(true)}
           >
             Tampilkan

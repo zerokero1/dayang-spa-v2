@@ -164,7 +164,7 @@ export default function LaporanProduksiPage({ profile }) {
         <button onClick={load} disabled={loading}>
           {loading ? 'Memuat...' : 'Tampilkan'}
         </button>
-        <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={handleDownload}>
+        <button className="btn btn-outline btn-sm" onClick={handleDownload}>
           ⬇ Ekspor Excel
         </button>
       </div>

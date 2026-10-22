@@ -65,8 +65,7 @@ export default function StrukPage({ outletId, active }) {
                 {b.therapistName} · {b.customerName || 'Tanpa nama'} · {rp(b.treatmentPrice)}
               </div>
             </div>
-            <button
-              style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }}
+            <button className="btn btn-outline btn-sm"
               onClick={() => handlePrint(b)}
             >
               Cetak

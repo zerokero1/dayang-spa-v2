@@ -236,7 +236,7 @@ export default function AmbilOrderPage({ active }) {
                   </div>
                 </div>
                 <button
-                  style={{ width: 'auto', padding: '6px 10px', fontSize: 12, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }}
+                  className="btn btn-danger btn-sm"
                   onClick={() => handleRemoveFromCart(i)}
                 >
                   Hapus
@@ -248,14 +248,14 @@ export default function AmbilOrderPage({ active }) {
                 <button
                   className={modePct ? 'pos-chip active' : 'pos-chip'}
                   onClick={() => handleDiscountMode(i, 'pct')}
-                  style={{ fontSize: 11, padding: '2px 8px' }}
+                 
                 >
                   Persen %
                 </button>
                 <button
                   className={modeAmount ? 'pos-chip active' : 'pos-chip'}
                   onClick={() => handleDiscountMode(i, 'amount')}
-                  style={{ fontSize: 11, padding: '2px 8px' }}
+                 
                 >
                   Potong Rp
                 </button>
@@ -268,7 +268,7 @@ export default function AmbilOrderPage({ active }) {
                       key={p}
                       className={line.discountPct === p ? 'pos-chip active' : 'pos-chip'}
                       onClick={() => handleDiscount(i, p)}
-                      style={{ fontSize: 11, padding: '2px 8px' }}
+                     
                     >
                       {p}%
                     </button>
@@ -407,7 +407,7 @@ export default function AmbilOrderPage({ active }) {
 
       {canAddLine && (
         <button
-          style={{ background: 'var(--text)', marginBottom: 8 }}
+          className="btn btn-primary btn-block" style={{ marginBottom: 8 }}
           onClick={handleAddToCart}
         >
           + Tambah treatment lain untuk pelanggan ini

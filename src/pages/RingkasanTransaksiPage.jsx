@@ -94,10 +94,10 @@ function EditRow({ booking, treatments, onSave, onCancel }) {
       {error && <p className="error">{error}</p>}
 
       <div style={{ display: 'flex', gap: 6 }}>
-        <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} disabled={saving} onClick={handleSave}>
+        <button className="btn btn-outline btn-sm" disabled={saving} onClick={handleSave}>
           {saving ? 'Menyimpan...' : 'Simpan perubahan'}
         </button>
-        <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff' }} onClick={onCancel}>
+        <button className="btn btn-ghost btn-sm" onClick={onCancel}>
           Batal
         </button>
       </div>
@@ -207,7 +207,7 @@ export default function RingkasanTransaksiPage({ active, profile }) {
                     </div>
                   )}
                 </div>
-                <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => setEditingId(b.id)}>
+                <button className="btn btn-outline btn-sm" onClick={() => setEditingId(b.id)}>
                   Edit
                 </button>
               </div>

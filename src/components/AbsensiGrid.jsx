@@ -404,19 +404,19 @@ export default function AbsensiGrid({
       {cellEdit && editEmployee && (
         <div className="att-cell-editor">
           <div className="oil-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="att-editor-head">
               <strong>{editEmployee.name}</strong>
               <span className="muted">{cellEdit.date}</span>
             </div>
             {editEmployee.shift && (
-              <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+              <p className="muted att-editor-sub">
                 Shift {SHIFT_LABEL[editEmployee.shift] || editEmployee.shift} mulai{' '}
                 {minutesToClock(shiftStartMinutes(editEmployee.shift)) || '-'}
               </p>
             )}
 
-            <p style={{ fontSize: 13, marginBottom: 4 }}>Status</p>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <p className="att-editor-label">Status</p>
+            <div className="att-editor-status">
               {QUICK.map((q) => (
                 <button
                   key={q.value}
@@ -430,8 +430,8 @@ export default function AbsensiGrid({
               ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
-              <label style={{ fontSize: 12 }}>
+            <div className="att-editor-fields">
+              <label>
                 Jam datang
                 <input
                   type="time"
@@ -440,7 +440,7 @@ export default function AbsensiGrid({
                   onChange={(e) => setCellDraft((d) => ({ ...d, checkIn: e.target.value }))}
                 />
               </label>
-              <label style={{ fontSize: 12 }}>
+              <label>
                 Jam pulang
                 <input
                   type="time"
@@ -451,8 +451,8 @@ export default function AbsensiGrid({
               </label>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-              <label style={{ fontSize: 12 }}>
+            <div className="att-editor-fields">
+              <label>
                 Telat (menit)
                 <input
                   type="number"
@@ -467,7 +467,7 @@ export default function AbsensiGrid({
                   onChange={(e) => setCellDraft((d) => ({ ...d, telat: e.target.value }))}
                 />
               </label>
-              <label style={{ fontSize: 12 }}>
+              <label>
                 Lembur (menit)
                 <input
                   type="number"
@@ -477,7 +477,7 @@ export default function AbsensiGrid({
                   onChange={(e) => setCellDraft((d) => ({ ...d, lembur: e.target.value }))}
                 />
               </label>
-              <label style={{ fontSize: 12 }}>
+              <label>
                 Catatan
                 <input
                   type="text"
@@ -488,20 +488,20 @@ export default function AbsensiGrid({
               </label>
             </div>
 
-            <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            <p className="muted att-editor-hint">
               {editDraftLateText(cellDraft, editLate)}
             </p>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-              <button type="button" onClick={saveCell} disabled={savingCell || !cellDraft.status}>
+            <div className="att-editor-actions">
+              <button type="button" className="btn btn-primary" onClick={saveCell} disabled={savingCell || !cellDraft.status}>
                 {savingCell ? 'Menyimpan...' : 'Simpan'}
               </button>
               {editRec && (
-                <button type="button" onClick={clearCell} disabled={savingCell} style={{ color: '#b91c1c' }}>
+                <button type="button" className="btn btn-danger-outline" onClick={clearCell} disabled={savingCell}>
                   Kosongkan
                 </button>
               )}
-              <button type="button" onClick={() => setCellEdit(null)} disabled={savingCell}>
+              <button type="button" className="btn btn-ghost" onClick={() => setCellEdit(null)} disabled={savingCell}>
                 Batal
               </button>
             </div>
@@ -512,7 +512,7 @@ export default function AbsensiGrid({
       {showBulk && !loading && list.length > 0 && (
         <section className="att-bulk">
           <p>Isi satu hari untuk semua orang (Shortcut):</p>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className="att-bulk-row">
             <input
               type="date"
               value={bulkDateValid}
@@ -521,12 +521,13 @@ export default function AbsensiGrid({
               onChange={(e) => setBulkDate(e.target.value)}
             />
             {QUICK.slice(0, 2).map((q) => (
-              <button key={q.value} type="button" onClick={() => fillWholeDay(bulkDateValid, q.value)} disabled={savingCell}>
+              <button key={q.value} type="button" className="btn btn-outline btn-sm" onClick={() => fillWholeDay(bulkDateValid, q.value)} disabled={savingCell}>
                 Semua {q.label}
               </button>
             ))}
             <button
               type="button"
+              className="btn btn-soft btn-sm"
               onClick={() => {
                 const d = list.find((x) => x.isToday);
                 fillWholeDay((d || list[0]).date, ATTENDANCE_TYPES.HADIR);
@@ -536,7 +537,7 @@ export default function AbsensiGrid({
               Semua Hadir (hari ini)
             </button>
           </div>
-          <p className="muted" style={{ fontSize: 12 }}>
+          <p className="muted att-editor-hint">
             Borongan ini menimpa sel yang sudah terisi di tanggal tersebut.
           </p>
         </section>

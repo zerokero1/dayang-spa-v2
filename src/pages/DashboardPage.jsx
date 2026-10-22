@@ -105,7 +105,7 @@ export default function DashboardPage({ active, onOpen }) {
         </div>
         {onOpen && (
           <button
-            style={{ width: 'auto', padding: '10px 14px', fontSize: 13 }}
+            className="btn btn-outline btn-sm"
             onClick={() => onOpen('dashboardTerapis')}
           >
             Buka Dashboard Terapis →

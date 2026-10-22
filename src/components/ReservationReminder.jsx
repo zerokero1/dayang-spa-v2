@@ -49,21 +49,21 @@ export default function ReservationReminder({ outletId, onOpen }) {
   const mins = Math.max(1, Math.ceil((alert.scheduledAt - Date.now()) / 60000));
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: '#fff', borderRadius: 14, padding: 20, maxWidth: 360, width: '100%', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--busy)', letterSpacing: 1, marginBottom: 4 }}>⏰ REMINDER BOOKING</div>
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 10 }}>{mins} menit lagi</div>
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 14 }}>
+    <div className="modal-overlay">
+      <div className="modal-box">
+        <div className="modal-eyebrow">⏰ REMINDER BOOKING</div>
+        <div className="modal-title">{mins} menit lagi</div>
+        <div className="modal-body">
           Pelanggan: <strong>{alert.customerName || '-'}</strong><br />
           Terapis: <strong>{alert.therapistName}</strong><br />
           Kategori: <strong>{alert.category || alert.treatmentName || '-'}</strong><br />
           Jam: <strong>{fmtJam(alert.scheduledAt)}</strong>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button style={{ flex: 1, background: 'var(--primary-dark)', color: '#fff', boxShadow: 'none' }} onClick={() => { setAlert(null); onOpen(); }}>
+        <div className="modal-actions">
+          <button className="btn btn-primary" onClick={() => { setAlert(null); onOpen(); }}>
             Buka Reservasi
           </button>
-          <button style={{ width: 'auto', background: 'var(--text-secondary)', color: '#fff', boxShadow: 'none' }} onClick={() => setAlert(null)}>
+          <button className="btn btn-ghost" onClick={() => setAlert(null)}>
             Tutup
           </button>
         </div>

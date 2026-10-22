@@ -1,0 +1,1035 @@
+/* =====================================================================
+   DESIGN SYSTEM — DAYANG SPA PWA
+   ---------------------------------------------------------------------
+   File ini dimuat SESUDAH styles.css dan styles-laporan.css, jadi
+   setiap aturan di sini menimpa gaya lama kalau selektornya sama.
+
+   Tujuan utama (masukan user):
+     1. Tombol terlalu kecil  -> semua target sentuh minimal 44px.
+     2. Penempatan tidak rapi -> ada hierarki kartu/panel, jarak
+                                antar-bagian, dan tombol aksi utama
+                                yang jelas beda dari tombol sekunder.
+     3. Kurang "design"       -> sistem token yang konsisten (radius,
+                                bayangan, spasi, warna), state hover/
+                                focus/disabled yang seragam, tabel yang
+                                enak dibaca, dan gerak yang halus.
+
+   Prinsip:
+     - UKURAN tombol dinormalisasi lewat `!important` karena sebagian
+       besar halaman lama menulis ukuran inline (mis. padding 6px 12px,
+       fontSize 12). Tanpa !important, inline style selalu menang dan
+       normalisasi tidak akan berlaku.
+     - `!important` HANYA dipakai untuk geometri (tinggi, lebar, ukuran
+       huruf). Warna, latar, dan border tetap dikendalikan kelasnya
+       supaya makna tombol (primary / danger / ghost) tidak hilang.
+     - Target sentuh mengikuti pedoman 44px (Apple HIG / Material).
+   ===================================================================== */
+
+
+/* =====================================================================
+   1. TOKEN TAMBAHAN
+   ===================================================================== */
+:root {
+  /* Warna turunan */
+  --primary-soft: #F1F8F5;
+  --primary-ring: rgba(15, 110, 86, 0.28);
+  --border-strong: #D6D3CA;
+  --surface-2: #FCFCFB;
+  --danger-soft: #FCEAE8;
+  --danger-ring: rgba(192, 57, 43, 0.28);
+  --busy-soft: #FEF3E2;
+  --info: #1D4ED8;
+  --info-soft: #EEF3FF;
+  --info-ring: rgba(29, 78, 216, 0.25);
+
+  /* Radius */
+  --radius-sm: 10px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  /* Bayangan bertingkat */
+  --shadow-xs: 0 1px 2px rgba(16, 24, 20, 0.05);
+  --shadow-sm: 0 1px 3px rgba(16, 24, 20, 0.07), 0 1px 2px rgba(16, 24, 20, 0.04);
+  --shadow-md: 0 4px 14px rgba(16, 24, 20, 0.08), 0 1px 3px rgba(16, 24, 20, 0.05);
+  --shadow-lg: 0 14px 36px rgba(16, 24, 20, 0.13), 0 2px 8px rgba(16, 24, 20, 0.06);
+
+  /* Spasi */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Target sentuh */
+  --tap: 44px;
+  --tap-sm: 36px;
+  --tap-lg: 52px;
+
+  /* Gerak */
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --dur: 160ms;
+}
+
+
+/* =====================================================================
+   2. DASAR & AKSESIBILITAS
+   ===================================================================== */
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Cincin fokus yang jelas di semua tombol (sebelumnya hanya input). */
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--primary-ring);
+  outline-offset: 2px;
+}
+
+button {
+  font-family: inherit;
+  transition:
+    background-color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    transform var(--dur) var(--ease),
+    opacity var(--dur) var(--ease);
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* Tekan tombol terasa "ditekan" di layar sentuh. */
+button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+/* Scrollbar tipis & rapi (desktop). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #C9C6BE transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: #C9C6BE;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: #A8A49A; background-clip: content-box; }
+
+
+/* =====================================================================
+   3. TOMBOL
+   ===================================================================== */
+
+/* --- 3a. Kit tombol (.btn + varian) ------------------------------- */
+/* Warna/ukuran memakai !important karena halaman lama masih menulis
+   gaya inline (mis. background: 'var(--busy)') dan aturan legacy
+   `section > button` menimpa tombol yang memakai kit ini. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 0 18px !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm) !important;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  text-align: center;
+  width: auto;
+}
+.btn:disabled { opacity: 0.5; box-shadow: none; }
+
+.btn-primary {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #fff !important;
+  box-shadow: var(--shadow-sm);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-dark) !important;
+  border-color: var(--primary-dark) !important;
+  box-shadow: var(--shadow-md);
+}
+
+.btn-outline {
+  background: var(--surface) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text) !important;
+}
+.btn-outline:hover:not(:disabled) {
+  border-color: var(--primary) !important;
+  color: var(--primary-dark) !important;
+  background: var(--primary-soft) !important;
+}
+
+.btn-soft {
+  background: var(--primary-light) !important;
+  border-color: transparent !important;
+  color: var(--primary-dark) !important;
+}
+.btn-soft:hover:not(:disabled) { background: #D9EBE4 !important; }
+
+.btn-ghost {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--text-secondary) !important;
+  box-shadow: none !important;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--primary-light) !important;
+  color: var(--primary-dark) !important;
+}
+
+.btn-warning {
+  background: var(--busy) !important;
+  border-color: var(--busy) !important;
+  color: #fff !important;
+}
+.btn-warning:hover:not(:disabled) { background: #92400E !important; border-color: #92400E !important; }
+
+.btn-danger { background: var(--danger) !important; border-color: var(--danger) !important; color: #fff !important; }
+.btn-danger:hover:not(:disabled) { background: #A5301F !important; border-color: #A5301F !important; }
+
+.btn-danger-outline {
+  background: var(--surface) !important;
+  border-color: rgba(192, 57, 43, 0.35) !important;
+  color: var(--danger) !important;
+}
+.btn-danger-outline:hover:not(:disabled) { background: var(--danger-soft) !important; }
+
+.btn-sm { min-height: var(--tap-sm); padding: 0 14px !important; font-size: 13px; white-space: nowrap; }
+.btn-lg { min-height: var(--tap-lg); padding: 0 24px !important; font-size: 15.5px; }
+.btn-block { width: 100% !important; }
+
+/* --- 3b. Normalisasi ukuran tombol yang menulis inline style ------- */
+/* Tanpa aturan ini, tombol seperti
+   <button style={{ padding: '6px 12px', fontSize: 12 }}>tetap kecil. */
+.kasir-page button,
+.content > * button,
+.kasir-content > * button {
+  min-height: var(--tap) !important;
+  font-size: 14px !important;
+}
+
+/* Pengecualian per konteks (semakin spesifik = menang). */
+.kasir-page .btn { min-height: var(--tap) !important; font-size: 14px !important; width: auto; }
+.kasir-page .btn-sm { min-height: var(--tap-sm) !important; font-size: 13px !important; }
+.kasir-page .btn-lg { min-height: var(--tap-lg) !important; font-size: 15.5px !important; }
+.content .btn, .kasir-content .btn { min-height: var(--tap) !important; font-size: 14px !important; }
+.content .btn-sm, .kasir-content .btn-sm { min-height: var(--tap-sm) !important; font-size: 13px !important; }
+.content .btn-lg, .kasir-content .btn-lg { min-height: var(--tap-lg) !important; font-size: 15.5px !important; }
+.kasir-page .table-wrap button { min-height: var(--tap-sm) !important; font-size: 13px !important; }
+.kasir-page .att-month-grid button { min-height: 30px !important; font-size: 12px !important; padding: 4px 10px !important; }
+.kasir-page .attendance-grid button { min-height: 40px !important; font-size: 13px !important; }
+.kasir-page .oil-card button { min-height: 40px !important; font-size: 13px !important; }
+.kasir-page .grid-2 button { min-height: 48px !important; font-size: 14.5px !important; }
+.kasir-page .stok-tombol { min-height: 52px !important; }
+.kasir-page .koreksi-btn { min-height: 50px !important; font-size: 15px !important; }
+.kasir-page .stok-cepat-tombol { min-height: 40px !important; font-size: 14px !important; }
+.kasir-page .stok-lihat-lebih { min-height: 38px !important; font-size: 13px !important; padding: 0 14px !important; }
+
+/* Tombol aksi utama di dalam section: tinggi, nyata, ada hierarki.
+   Tombol yang memakai kit .btn dikecualikan supaya warnanya sendiri
+   (mis. "Hapus" merah, "Batal" transparan) tidak hilang.
+   Baris filter (.filters) dan baris aksi (.actions) juga dikecualikan
+   karena tombolnya memang harus mendatar, bukan selebar kartu. */
+.kasir-page > button:not(.btn),
+.kasir-page section:not(.filters):not(.actions) > button:not(.btn) {
+  width: 100%;
+  min-height: var(--tap-lg) !important;
+  padding: 0 20px !important;
+  font-size: 15.5px !important;
+  font-weight: 600 !important;
+  border-radius: var(--radius-sm) !important;
+  background: var(--primary);
+  color: #fff;
+  border: 1px solid var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+.kasir-page section:not(.filters):not(.actions) > button:not(.btn):hover:not(:disabled) {
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
+  box-shadow: var(--shadow-md);
+}
+.kasir-page section:not(.filters):not(.actions) > button:not(.btn):disabled {
+  background: #C4C4C4;
+  border-color: #C4C4C4;
+  color: #fff;
+  box-shadow: none;
+}
+/* Dua tombol bertumpuk perlu jarak, sebelumnya menempel. */
+.kasir-page > button + button,
+.kasir-page section > button + button { margin-top: var(--space-2); }
+
+/* Tombol di baris filter / baris aksi: inline, tinggi, tidak full-width. */
+.kasir-page section.filters > button,
+.kasir-page section.actions > button {
+  width: auto !important;
+  min-height: var(--tap) !important;
+  font-size: 14px !important;
+  padding: 0 18px !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+/* --- 3c. Kontrol kecil lain jadi lebih ramah sentuh ---------------- */
+.chip {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+.chip:hover:not(.active) { border-color: var(--primary); color: var(--primary-dark); background: var(--primary-soft); }
+.chip.active { box-shadow: var(--shadow-sm); }
+
+.tab {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 18px;
+  font-size: 13.5px;
+  border-radius: var(--radius-pill);
+}
+.tab:hover:not(.active) { border-color: var(--primary); color: var(--primary-dark); background: var(--primary-soft); }
+.tab.active { box-shadow: var(--shadow-sm); }
+
+.pos-chip {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 13.5px;
+}
+/* Chip status: hijau (terpilih/aktif), kuning (perhatian), merah (bahaya). */
+.pos-chip.active { background: var(--primary) !important; border-color: var(--primary) !important; color: #fff !important; }
+.pos-chip.active-warning { background: var(--warning) !important; border-color: var(--warning) !important; color: #fff !important; }
+.pos-chip.active-danger { background: var(--danger) !important; border-color: var(--danger) !important; color: #fff !important; }
+.pos-picker-chip {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 13.5px;
+}
+.pos-quick { min-height: 42px; font-size: 14px; }
+.pos-toggle { min-height: 40px; font-size: 13px; }
+
+.preset-buttons button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 13px;
+}
+.kasir-page .att-tabs button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 20px;
+  font-size: 13.5px;
+  border-radius: var(--radius-sm);
+}
+.kasir-page .stok-tab button {
+  min-height: var(--tap);
+  font-size: 14px;
+  border-radius: var(--radius-sm);
+}
+.kasir-page .att-cell-editor button {
+  min-height: 42px;
+  padding: 0 16px;
+  font-size: 13.5px;
+  border-radius: var(--radius-sm);
+}
+.kasir-page .att-bulk button {
+  min-height: 40px;
+  padding: 0 16px;
+  font-size: 13.5px;
+  border-radius: var(--radius-sm);
+}
+.kasir-more-grid button { min-height: 52px; }
+.kasir-back { min-width: 44px; height: 44px; border-radius: var(--radius-sm); }
+.logout-btn { min-width: 40px; height: 40px; border-radius: var(--radius-sm); }
+.kasir-logout { min-width: 42px; height: 42px; border-radius: var(--radius-sm); }
+.unpaid-banner-min-toggle { width: 40px; height: 40px; border-radius: var(--radius-sm); }
+.unpaid-banner-btn { min-height: 42px; border-radius: var(--radius-sm); font-size: 13.5px; }
+
+
+/* =====================================================================
+   4. KARTU, PANEL & STRUKTUR HALAMAN
+   ===================================================================== */
+.kasir-page {
+  padding: 22px 24px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  background: var(--surface);
+}
+
+.kasir-page h2 {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 4px;
+  color: var(--text);
+}
+
+/* Label bagian (eyebrow) */
+.kasir-page section > p:first-child,
+.kasir-page .section-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Jarak antar-bagian: sebelumnya section menempel dan tidak terbaca. */
+.kasir-page > section + section,
+.kasir-page > section + .oil-card,
+.kasir-page > .oil-card + section {
+  margin-top: var(--space-6);
+}
+.kasir-page section { margin-bottom: 16px; }
+.kasir-page > section:last-child { margin-bottom: 0; }
+
+/* Panel laporan & ringkasan */
+.kasir-page section.report-block,
+.kasir-page .oil-card {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.kasir-page section.summary-cards {
+  gap: 12px;
+}
+.kasir-page section.summary-cards .card {
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border-left: 3px solid var(--primary);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.kasir-page section.summary-cards .card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.kasir-page section.summary-cards .card strong { font-size: 22px; letter-spacing: -0.01em; }
+
+.kasir-page section.filters {
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  gap: 12px;
+}
+.kasir-page section.filters label { font-size: 11px; letter-spacing: 0.06em; }
+
+/* Kartu pilihan (grid-2) */
+.grid-2 {
+  gap: 10px;
+}
+
+/* Deretan 3 kolom (mis. pilihan ukuran minyak). */
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.grid-3 .chip { justify-content: center; }
+@media (max-width: 520px) {
+  .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.grid-2 button {
+  border-radius: var(--radius-sm);
+  border-color: var(--border);
+  box-shadow: var(--shadow-xs);
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease),
+              box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.grid-2 button:hover:not(.active) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  box-shadow: var(--shadow-sm);
+}
+.grid-2 button.active { box-shadow: var(--shadow-md); }
+
+
+/* =====================================================================
+   5. FORM
+   ===================================================================== */
+input,
+select,
+textarea {
+  min-height: var(--tap);
+  padding: 10px 13px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 14.5px;
+  color: var(--text);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) { border-color: var(--border-strong); }
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-ring);
+}
+input:disabled,
+select:disabled,
+textarea:disabled { background: var(--surface-2); color: var(--text-secondary); }
+input::placeholder, textarea::placeholder { color: #A6A69F; }
+
+/* Label form */
+.kasir-page label,
+.content label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+
+/* =====================================================================
+   6. TABEL
+   ===================================================================== */
+.kasir-page .table-wrap {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.kasir-page .table-wrap table { font-size: 13px; }
+.kasir-page .table-wrap th,
+.kasir-page .table-wrap td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.kasir-page .table-wrap th {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-strong);
+  box-shadow: 0 1px 0 var(--border);
+}
+.kasir-page .table-wrap tbody tr { transition: background-color var(--dur) var(--ease); }
+.kasir-page .table-wrap tbody tr:nth-child(even) { background: rgba(15, 110, 86, 0.02); }
+.kasir-page .table-wrap tbody tr:hover { background: var(--primary-soft); }
+.kasir-page .table-wrap tbody tr:last-child td { border-bottom: none; }
+.kasir-page .table-wrap tfoot td {
+  background: var(--surface-2);
+  border-top: 2px solid var(--primary);
+}
+
+/* Grid absensi harian */
+.kasir-page .attendance-grid input,
+.kasir-page .attendance-grid select { min-height: 38px; }
+
+
+/* =====================================================================
+   7. NAVIGASI: SIDEBAR & TOPBAR
+   ===================================================================== */
+
+/* --- Sidebar --- */
+.sidebar {
+  width: 244px;
+  background: #12241F;
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.04);
+}
+.sidebar-brand { padding: 20px 18px; }
+.sidebar-logo {
+  width: 42px; height: 42px;
+  font-size: 22px;
+  border-radius: 12px;
+}
+.sidebar-brand-text strong { font-size: 16px; letter-spacing: -0.01em; }
+
+.sidebar-nav { padding: 14px 12px; gap: 3px; }
+
+.nav-item {
+  font-size: 14px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  gap: 11px;
+}
+.nav-item:hover { background: rgba(255, 255, 255, 0.08); }
+.nav-item.active {
+  background: rgba(15, 110, 86, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  font-weight: 600;
+}
+.nav-icon { font-size: 17px; width: 22px; }
+
+/* Label grup menu */
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.nav-group-label {
+  padding: 16px 13px 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6E8A80;
+}
+.nav-group-label:first-child { padding-top: 4px; }
+
+/* --- Topbar --- */
+.topbar {
+  padding: 16px 24px;
+  box-shadow: var(--shadow-xs);
+}
+.topbar-title h1 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.topbar-outlet-label {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12.5px;
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+}
+.outlet-switch { gap: 8px; }
+.outlet-switch .chip { min-height: 40px; font-size: 13.5px; }
+
+/* --- Area konten --- */
+.content { padding: 26px; max-width: 1180px; }
+.content .kasir-page { max-width: 920px; }
+
+/* Placeholder saat halaman lazily-loaded masih diunduh. */
+.page-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 24px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+.page-loading::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+
+/* =====================================================================
+   8. MODE KASIR
+   ===================================================================== */
+.kasir-content { padding: 18px 16px 22px; }
+.kasir-content .kasir-page { max-width: 880px; margin: 0 auto; }
+
+.kasir-top { padding: 14px 16px; }
+.kasir-tiles { gap: 12px; }
+.kasir-tile {
+  padding: 18px 16px;
+  min-height: 104px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.kasir-tile:hover { box-shadow: var(--shadow-md); }
+.kasir-tile .txt {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.kasir-tile b { font-size: 15.5px; }
+.kasir-tile .sub { display: block; font-size: 11.5px; color: var(--text-secondary); line-height: 1.35; }
+.kasir-tile.primary .txt { gap: 2px; }
+.kasir-tile.primary .sub { color: rgba(255, 255, 255, 0.85); }
+.kasir-tile.primary { min-height: 84px; }
+
+.kasir-nav button { padding: 11px 4px 13px; font-size: 11.5px; }
+.kasir-nav button .ni { font-size: 21px; }
+
+.kasir-more { padding: 18px 16px 78px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.kasir-more-grid { gap: 10px; }
+
+
+/* =====================================================================
+   9. POS KASIR
+   ===================================================================== */
+.pos-layout { grid-template-columns: 168px 1fr 320px; gap: 16px; }
+.pos-sidebar button {
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: 13.5px;
+  border-radius: var(--radius-sm);
+}
+.pos-sidebar button.active { box-shadow: var(--shadow-sm); }
+.pos-picker-panel {
+  border-radius: var(--radius);
+  padding: 14px;
+  max-height: 320px;
+}
+.pos-product-table { border-radius: var(--radius); }
+.pos-product-row { padding: 14px 16px; }
+.pos-cart { border-radius: var(--radius); padding: 16px; }
+.pos-cart-title { font-size: 15px; }
+
+
+/* =====================================================================
+   9b. GRID ABSENSI: EDITOR SEL (bottom sheet)
+   ===================================================================== */
+.kasir-page .att-cell-editor {
+  background: rgba(255, 255, 255, 0.985);
+  backdrop-filter: blur(6px);
+  border-top: 1px solid var(--border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -10px 34px rgba(16, 24, 20, 0.16);
+  padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.kasir-page .att-cell-editor .oil-card {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.att-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.att-editor-head strong { font-size: 16px; }
+.att-editor-sub { font-size: 12.5px; margin: 8px 0 0; }
+
+.att-editor-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin: 14px 0 8px;
+}
+.att-editor-status {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.att-editor-status .pos-chip { min-height: 44px; font-size: 14px; padding: 0 16px; }
+
+.att-editor-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.att-editor-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.att-editor-fields input { margin-bottom: 0; }
+.att-editor-fields label:nth-child(3) { grid-column: 1 / -1; }
+
+.att-editor-hint {
+  font-size: 12.5px;
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.att-editor-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.att-editor-actions .btn { flex: 1 1 130px; }
+
+.att-bulk-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.att-bulk-row input[type="date"] { width: auto; min-width: 170px; margin-bottom: 0; }
+
+@media (max-width: 520px) {
+  .att-editor-fields { grid-template-columns: 1fr; }
+  .att-editor-fields label:nth-child(3) { grid-column: auto; }
+  .att-editor-actions .btn { flex: 1 1 100%; }
+}
+
+
+/* =====================================================================
+   9d. HALAMAN MASUK
+   ===================================================================== */
+.login-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(1000px 520px at 50% -10%, rgba(15, 110, 86, 0.10), transparent 70%),
+    var(--bg);
+}
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 28px;
+}
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 18px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.login-logo {
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 14px;
+  font-size: 24px;
+  box-shadow: var(--shadow-sm);
+}
+.login-brand-text { display: flex; flex-direction: column; line-height: 1.25; }
+.login-brand-text strong { font-size: 17px; letter-spacing: -0.01em; }
+.login-brand-text small { font-size: 12px; color: var(--text-secondary); }
+
+.login-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px;
+}
+.login-sub {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0 0 20px;
+}
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+.login-field input { margin-bottom: 0; }
+.login-note {
+  margin: 16px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+
+/* =====================================================================
+   9c. MODAL
+   ===================================================================== */.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(10, 18, 14, 0.55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: modal-muncul 180ms var(--ease);
+}
+@keyframes modal-muncul {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.modal-box {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  max-width: 380px;
+  width: 100%;
+  box-shadow: var(--shadow-lg);
+}
+.modal-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--busy);
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+.modal-title {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin-bottom: 12px;
+}
+.modal-body {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  line-height: 1.75;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.modal-actions {
+  display: flex;
+  gap: 10px;
+}
+.modal-actions .btn:first-child { flex: 1; }
+
+
+/* =====================================================================
+   10. PESAN, KOSONG, MEMUAT
+   ===================================================================== */.message {
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 13.5px;
+  border-left: 3px solid var(--primary);
+}
+.message.error { border-left-color: var(--danger); }
+.message.warn { border-left-color: var(--busy); }
+
+.error {
+  font-size: 13.5px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  border-left: 3px solid var(--danger);
+}
+
+/* Keadaan kosong: blok dashed yang santai, bukan baris teks melayang. */
+.kasir-page section > p.muted:only-child,
+.kasir-page > p.muted:only-child {
+  text-align: center;
+  padding: 30px 18px;
+  margin: 0;
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 13.5px;
+}
+
+/* ---------- Halaman Stok: blok aksi ---------- */
+.kasir-page .stok-aksi,
+.kasir-page .stok-tambah {
+  margin-top: var(--space-6);
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.kasir-page .stok-aksi-grup {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.kasir-page .stok-aksi-grup .btn { flex: 1 1 160px; }
+.kasir-page .stok-hapus { margin-top: 12px; }
+.kasir-page .stok-pilih-kategori {
+  width: 100%;
+  margin-bottom: 12px;
+}
+@media (max-width: 520px) {
+  .kasir-page .stok-aksi-grup .btn { flex: 1 1 100%; }
+}
+
+.muted { line-height: 1.55; }
+
+/* Placeholder "Memuat…" */
+.content > div[style*="Memuat"] { color: var(--text-secondary); }
+
+
+/* =====================================================================
+   11. RESPONSIF
+   ===================================================================== */
+@media (max-width: 860px) {
+  .content { padding: 16px; }
+  .kasir-page { padding: 18px 16px; border-radius: var(--radius); }
+  .topbar { padding: 12px 16px; }
+  .topbar-title h1 { font-size: 18px; }
+  .nav-item { font-size: 13px; padding: 9px 11px; }
+  /* Di layar kecil sidebar jadi baris horizontal: grup diratakan
+     mendatar dan label grup disembunyikan supaya tidak boros tempat. */
+  .nav-group { flex-direction: row; align-items: center; }
+  .nav-group-label { display: none; }
+}
+
+@media (max-width: 520px) {
+  .kasir-page { padding: 16px 14px; }
+  .kasir-tiles { gap: 10px; }
+  .kasir-tile { min-height: 92px; padding: 14px 13px; }
+  .kasir-tile.primary { min-height: 74px; }
+  .kasir-more-grid { grid-template-columns: 1fr; }
+  .outlet-switch .chip { min-height: 36px; padding: 0 13px; font-size: 13px; }
+}
+
+
+/* =====================================================================
+   12. GERAK & AKSESIBILITAS
+   ===================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

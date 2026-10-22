@@ -594,10 +594,10 @@ section > button {
   color: #fff;
   box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.25);
 }
-/* Desktop: sidebar di kiri selebar 230px — banner hanya menutupi area konten,
+/* Desktop: sidebar di kiri selebar 244px — banner hanya menutupi area konten,
    tidak menutupi menu & tombol logout yang ada di sidebar. */
 @media (min-width: 861px) {
-  .unpaid-banner { left: 230px; }
+  .unpaid-banner { left: 244px; }
 }
 /* Banner yang diperkecil: jadi pil tipis, tidak menghalangi. */
 .unpaid-banner.is-min {

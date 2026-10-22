@@ -274,7 +274,7 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
               <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
                 {[0, 5, 10, 15, 20, 25].map((p) => (
                   <button key={p} className={payDisc === p ? 'pos-chip active' : 'pos-chip'}
-                    onClick={() => { setPayDisc(p); if (p === 0) setPayReason(''); }} style={{ fontSize: 11, padding: '4px 10px', boxShadow: 'none' }}>
+                    onClick={() => { setPayDisc(p); if (p === 0) setPayReason(''); }}>
                     {p === 0 ? '0%' : `${p}%`}
                   </button>
                 ))}
@@ -291,14 +291,14 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
                   disabled={sedangBayar(t.id)}
-                  style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }}
+                  className="btn btn-primary" style={{ flex: 1 }}
                   onClick={() => confirmDiscount('cash')}
                 >
                   {sedangBayar(t.id) ? 'Menyimpan...' : 'Lunas Cash'}
                 </button>
                 <button
                   disabled={sedangBayar(t.id)}
-                  style={{ width: 'auto', flex: 1, padding: '10px 8px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }}
+                  className="btn btn-primary" style={{ flex: 1 }}
                   onClick={() => confirmDiscount('cardless')}
                 >
                   {sedangBayar(t.id) ? 'Menyimpan...' : 'Lunas Cardless'}
@@ -315,22 +315,22 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
           {!isOncall && (
           <>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-            <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none' }} onClick={() => onSelesai(t)}>
+            <button className="btn btn-outline" onClick={() => onSelesai(t)}>
               Tandai selesai
             </button>
-            <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--primary)', color: '#fff' }} onClick={() => onContinue(t)}>
+            <button className="btn btn-primary" onClick={() => onContinue(t)}>
               + Lanjutkan treatment
             </button>
             {multi ? (
-              <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--busy)', color: '#fff' }} onClick={() => setShowPartial((v) => !v)}>
+              <button className="btn btn-warning" onClick={() => setShowPartial((v) => !v)}>
                 Batal sebagian
               </button>
             ) : (
-              <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--busy)', color: '#fff' }} onClick={() => { setShowDiscount((v) => !v); setShowPartial(false); }}>
+              <button className="btn btn-warning" onClick={() => { setShowDiscount((v) => !v); setShowPartial(false); }}>
                 Batal + potongan harga
               </button>
             )}
-            <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }}
+            <button className="btn btn-danger"
               onClick={() => { if (confirm(`Batalkan ${multi ? `semua ${bookingIdsOf(t).length} treatment` : `booking ${t.name}`} sepenuhnya? Stok minyak akan dikembalikan.`)) onBatalPenuh(t); }}>
               Batalkan penuh
             </button>
@@ -342,9 +342,9 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
               {pNames.map((n, i) => (
                 <button
                   key={i}
-                  className={partialIdx === i ? 'active' : ''}
+                  className={partialIdx === i ? 'chip active' : 'chip'}
                   onClick={() => { setPartialIdx(i); setShowDiscount(true); }}
-                  style={{ fontSize: 12, marginRight: 6, marginBottom: 6, padding: '6px 10px', width: 'auto', boxShadow: 'none' }}
+                  style={{ marginRight: 6, marginBottom: 6 }}
                 >
                   {i + 1}. {n}
                 </button>
@@ -356,7 +356,7 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
             <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
               <input type="number" placeholder="Harga baru (Rp)" value={discountPrice}
                 onChange={(e) => setDiscountPrice(e.target.value)} style={{ margin: 0, flex: 1 }} />
-              <button style={{ width: 'auto', padding: '10px 14px', boxShadow: 'none' }} onClick={submitDiscount}>
+              <button className="btn btn-primary" onClick={submitDiscount}>
                 {multi ? `Simpan $${partialIdx + 1}` : 'Simpan'}
               </button>
             </div>
@@ -369,8 +369,8 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
       {!busy && (
         <div style={{ marginTop: 10, display: 'flex', gap: 6 }}>
           {Object.values(THERAPIST_STATUS).filter((s) => s !== 'ambil_tamu').map((s) => (
-            <button key={s} style={{ fontSize: 12, padding: '6px 12px', width: 'auto', boxShadow: 'none', fontWeight: 500 }}
-              className={status === s ? 'active' : ''} onClick={() => onManualStatus(t.id, s)}>
+            <button key={s} className={status === s ? 'pos-chip active' : 'pos-chip'}
+              onClick={() => onManualStatus(t.id, s)}>
               {STATUS_LABEL[s]}
             </button>
           ))}
@@ -390,10 +390,10 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
                 {u.end_at != null && Number(u.end_at) <= Date.now() ? ' · Lewat jam' : ''}
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                <button style={{ width: 'auto', padding: '7px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => onUnpaidPaid(u, 'cash')}>
+                <button className="btn btn-primary btn-sm" onClick={() => onUnpaidPaid(u, 'cash')}>
                   Lunas (Cash)
                 </button>
-                <button style={{ width: 'auto', padding: '7px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => onUnpaidPaid(u, 'cardless')}>
+                <button className="btn btn-outline btn-sm" onClick={() => onUnpaidPaid(u, 'cardless')}>
                   Lunas (Cardless)
                 </button>
               </div>
@@ -460,7 +460,7 @@ function GroupCard({ members, onCompleteGroup, onPayGroup, cardProps }) {
         <div style={{ display: 'flex', gap: 4, marginTop: 8, flexWrap: 'wrap' }}>
           {[0, 5, 10, 15, 20, 25].map((p) => (
             <button key={p} className={payDisc === p ? 'pos-chip active' : 'pos-chip'}
-              onClick={() => { setPayDisc(p); if (p === 0) setPayReason(''); }} style={{ fontSize: 11, padding: '4px 10px', boxShadow: 'none' }}>
+              onClick={() => { setPayDisc(p); if (p === 0) setPayReason(''); }}>
               {p === 0 ? '0%' : `${p}%`}
             </button>
           ))}
@@ -478,19 +478,19 @@ function GroupCard({ members, onCompleteGroup, onPayGroup, cardProps }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
         {!allPaid && (
           <>
-            <button disabled={busy} style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => handlePay('cash')}>
+            <button className="btn btn-primary" disabled={busy} onClick={() => handlePay('cash')}>
               Lunas Semua (Cash)
             </button>
-            <button disabled={busy} style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => handlePay('cardless')}>
+            <button className="btn btn-primary" disabled={busy} onClick={() => handlePay('cardless')}>
               Lunas Semua (Cardless)
             </button>
           </>
         )}
         {allPaid && <span style={{ fontSize: 12, color: 'var(--primary-dark)', alignSelf: 'center', fontWeight: 600 }}>✓ Semua sudah lunas</span>}
-        <button disabled={busy} style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none' }} onClick={handleComplete}>
+        <button className="btn btn-outline" disabled={busy} onClick={handleComplete}>
           Selesaikan Semua (1 Klik)
         </button>
-        <button style={{ width: 'auto', padding: '8px 14px', fontSize: 13, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff' }} onClick={() => setShowDetail((v) => !v)}>
+        <button className="btn btn-ghost" onClick={() => setShowDetail((v) => !v)}>
           {showDetail ? 'Sembunyikan detail' : 'Detail per orang'}
         </button>
       </div>
@@ -876,15 +876,12 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
       </p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <button style={{ width: 'auto', fontSize: 13, padding: '10px 14px' }} onClick={handleSendList}>
+        <button className="btn btn-primary" onClick={handleSendList}>
           Kirim daftar lengkap ke WhatsApp
         </button>
         <button
-          style={{
-            width: 'auto', fontSize: 13, padding: '10px 14px', boxShadow: 'none',
-            background: unpaidShown.filter((b) => b.end_at && Number(b.end_at) <= Date.now()).length > 0 ? 'var(--danger)' : 'var(--primary-dark)',
-            color: '#fff', opacity: unpaidShown.length === 0 ? 0.5 : 1
-          }}
+          className={unpaidShown.filter((b) => b.end_at && Number(b.end_at) <= Date.now()).length > 0 ? 'btn btn-danger' : 'btn btn-primary'}
+          style={{ opacity: unpaidShown.length === 0 ? 0.5 : 1 }}
           disabled={unpaidShown.length === 0}
           onClick={() => openWhatsAppMessage(buildUnpaidReminderText(unpaidShown))}
         >
@@ -915,14 +912,12 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
               {overdueIds.has(b.id) ? ' · Lewat jam' : ''}
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-              <button
-                style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }}
+              <button className="btn btn-primary btn-sm"
                 onClick={() => handleUnpaidPaid(b, 'cash')}
               >
                 Lunas (Cash)
               </button>
-              <button
-                style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }}
+              <button className="btn btn-outline btn-sm"
                 onClick={() => handleUnpaidPaid(b, 'cardless')}
               >
                 Lunas (Cardless)
@@ -1042,7 +1037,7 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <strong style={{ fontSize: 15 }}>Lanjutkan treatment — {continueTarget.name}</strong>
-              <button style={{ width: 'auto', padding: '6px 12px', boxShadow: 'none', background: 'var(--danger)', color: '#fff' }} onClick={() => setContinueTarget(null)}>✕</button>
+              <button className="btn btn-danger btn-sm" onClick={() => setContinueTarget(null)}>✕</button>
             </div>
 
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>Pilih treatment lanjutan untuk tamu ini</p>
@@ -1052,7 +1047,6 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
                   key={tr.id}
                   className={cTreatment?.id === tr.id ? 'active' : ''}
                   onClick={() => { setCTreatment(tr); setCOil(null); setCSize(null); }}
-                  style={{ fontSize: 12 }}
                 >
                   {tr.name} - {rp(tr.price)}
                 </button>
@@ -1073,7 +1067,7 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
                       // size-nya di sini — kalau tidak, size lama dari produk lain
                       // ikut terkirim dan tidak cocok.
                       onClick={() => { setCOil(oil); if (isSingleSizeProduct(oil)) setCSize(SIZE_NONE); }}
-                      style={{ fontSize: 12 }}
+                     
                     >
                       {oil}
                     </button>
@@ -1082,7 +1076,7 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
                 {!isSingleSizeProduct(cOil) && (
                   <div className="grid-3" style={{ marginTop: 8 }}>
                     {OIL_SIZES.map((sz) => (
-                      <button key={sz} className={cSize === sz ? 'active' : ''} onClick={() => setCSize(sz)} style={{ fontSize: 12 }}>{sz}</button>
+                      <button key={sz} className={cSize === sz ? 'chip active' : 'chip'} onClick={() => setCSize(sz)}>{sz}</button>
                     ))}
                   </div>
                 )}
@@ -1101,7 +1095,7 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
                       key={val}
                       className={cMethod === val ? 'pos-chip active' : 'pos-chip'}
                       onClick={() => setCMethod(val)}
-                      style={{ fontSize: 12 }}
+                     
                     >
                       {label}
                     </button>
@@ -1115,7 +1109,7 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
 
             <button
               disabled={!cTreatment || (treatmentUsesOil(cTreatment) && (!cOil || !cSize)) || cSaving}
-              style={{ width: '100%', padding: '12px', fontSize: 15 }}
+              className="btn btn-primary btn-block"
               onClick={handleSubmitContinue}
             >
               {cSaving ? 'Menyimpan…' : 'Catat lanjutan'}

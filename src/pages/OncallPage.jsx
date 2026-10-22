@@ -517,8 +517,7 @@ export default function OncallPage({ outletId, active, isOffice, profile }) {
                     {isOffice && (
                       <button
                         type="button"
-                        className="pos-chip"
-                        style={{ background: 'var(--primary)', color: 'white' }}
+                        className="pos-chip active"
                         onClick={() => handleSelesai(b)}
                       >
                         ✅ Selesaikan
@@ -527,8 +526,7 @@ export default function OncallPage({ outletId, active, isOffice, profile }) {
                     {isOffice && terapisMasihTerkunci(b) && (
                       <button
                         type="button"
-                        className="pos-chip"
-                        style={{ background: 'var(--warning)', color: 'white' }}
+                        className="pos-chip active-warning"
                         onClick={() => handleBebaskan(b)}
                       >
                         🔓 Bebaskan Terapis

@@ -399,7 +399,7 @@ export default function ReservasiPage({ outletId, active }) {
           style={{ width: 'auto' }}
         />
         <button
-          style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary)', color: '#fff' }}
+          className="btn btn-primary btn-sm"
           disabled={listHariIni.length === 0}
           onClick={() => kirimListReservasiKeGrup(listHariIni, tanggalPanjang(new Date(listDate + 'T00:00:00+07:00').getTime()))}
         >
@@ -429,19 +429,19 @@ export default function ReservasiPage({ outletId, active }) {
                   {r.customerName || 'Tanpa nama'}{r.customerPhone ? ` · ${r.customerPhone}` : ''} · {countdownText(r.scheduledAt)}
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                  <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }} onClick={() => openProcess(r)}>
+                  <button className="btn btn-primary btn-sm" onClick={() => openProcess(r)}>
                     Isi Treatment
                   </button>
-                  <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={() => kirimPengingatWa(r)}>
+                  <button className="btn btn-outline btn-sm" onClick={() => kirimPengingatWa(r)}>
                     {normalizeWaNumber(r.customerPhone) ? '📱 Kirim WA' : '📱 Pilih kontak manual'}
                   </button>
                   <button
-                    style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary)', color: '#fff' }}
+                    className="btn btn-primary btn-sm"
                     onClick={() => kirimReservasiKeGrup(r)}
                   >
                     📢 Kirim ke grup
                   </button>
-                  <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }} onClick={() => handleCancel(r)}>
+                  <button className="btn btn-danger btn-sm" onClick={() => handleCancel(r)}>
                     Batal
                   </button>
                 </div>
@@ -493,7 +493,7 @@ export default function ReservasiPage({ outletId, active }) {
                 <strong style={{ fontSize: 12 }}>Orang {i + 1}</strong>
                 {guests.length > 1 && (
                   <button
-                    style={{ width: 'auto', padding: '2px 8px', fontSize: 11, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }}
+                    className="btn btn-danger btn-sm"
                     onClick={() => hapusTamu(g.uid)}
                   >
                     Hapus
@@ -538,7 +538,7 @@ export default function ReservasiPage({ outletId, active }) {
           );
         })}
 
-        <button style={{ width: '100%', marginTop: 4 }} onClick={tambahTamu}>
+        <button className="btn btn-primary btn-block" style={{ marginTop: 4 }} onClick={tambahTamu}>
           ＋ Tambah orang lain
         </button>
       </section>
@@ -560,13 +560,13 @@ export default function ReservasiPage({ outletId, active }) {
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
                   <button
-                    style={{ width: 'auto', padding: '4px 10px', fontSize: 11, boxShadow: 'none', background: 'var(--primary-dark)', color: '#fff' }}
+                    className="btn btn-primary btn-sm"
                     onClick={() => openProcess(s)}
                   >
                     Isi Treatment
                   </button>
                   <button
-                    style={{ width: 'auto', padding: '4px 10px', fontSize: 11, boxShadow: 'none' }}
+                    className="btn btn-outline btn-sm"
                     onClick={() => kirimPengingatWa(s)}
                   >
                     📱 WA
@@ -577,14 +577,14 @@ export default function ReservasiPage({ outletId, active }) {
           </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             <button
-              style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--primary)', color: '#fff' }}
+              className="btn btn-primary btn-sm"
               onClick={() => (saved.length > 1
                 ? kirimGrupBanyak(saved, saved[0].scheduledAt)
                 : kirimReservasiKeGrup(saved[0]))}
             >
               📢 Kirim ke grup
             </button>
-            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff' }} onClick={() => setSaved([])}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setSaved([])}>
               Tutup
             </button>
           </div>
@@ -592,14 +592,14 @@ export default function ReservasiPage({ outletId, active }) {
       )}
 
       <div style={{ display: 'flex', gap: 8 }}>
-        <button disabled={!canSave || saving} onClick={() => handleSave(true)} style={{ flex: 2 }}>
+        <button className="btn btn-primary" disabled={!canSave || saving} onClick={() => handleSave(true)} style={{ flex: 2 }}>
           {saving
             ? 'Menyimpan...'
             : guests.length > 1
               ? `Simpan ${guests.length} reservasi & kirim ke grup`
               : 'Simpan & kirim pengingat WA'}
         </button>
-        <button disabled={!canSave || saving} onClick={() => handleSave(false)} style={{ flex: 1 }}>
+        <button className="btn btn-outline" disabled={!canSave || saving} onClick={() => handleSave(false)} style={{ flex: 1 }}>
           Simpan saja
         </button>
       </div>
@@ -614,7 +614,7 @@ export default function ReservasiPage({ outletId, active }) {
                   {processTarget.therapistName} · {formatSchedule(processTarget.scheduledAt)}
                 </div>
               </div>
-              <button style={{ width: 'auto', padding: '4px 10px', fontSize: 12, boxShadow: 'none', background: 'var(--text-secondary)', color: '#fff' }} onClick={() => setProcessTarget(null)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setProcessTarget(null)}>✕</button>
             </div>
 
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 10px' }}>
@@ -631,7 +631,7 @@ export default function ReservasiPage({ outletId, active }) {
                     <strong style={{ fontSize: 12 }}>Treatment {idx + 1}</strong>
                     {pItems.length > 1 && (
                       <button
-                        style={{ width: 'auto', padding: '2px 8px', fontSize: 11, boxShadow: 'none', background: 'var(--danger)', color: '#fff' }}
+                        className="btn btn-danger btn-sm"
                         onClick={() => hapusBaris(b.uid)}
                       >
                         Hapus
@@ -645,7 +645,6 @@ export default function ReservasiPage({ outletId, active }) {
                       <button
                         key={c}
                         className={b.category === c ? 'active' : ''}
-                        style={{ fontSize: 12 }}
                         onClick={() => ubahBaris(b.uid, { category: c, treatment: null, oil: null, size: null })}
                       >
                         {c}
@@ -726,13 +725,13 @@ export default function ReservasiPage({ outletId, active }) {
 
             <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
               <button
-                style={{ width: 'auto', flex: 1, marginBottom: 0 }}
+                className="btn btn-outline" style={{ flex: 1, marginBottom: 0 }}
                 onClick={() => setPItems((list) => [...list, barisBaru(list[0]?.category, null, '')])}
               >
                 ＋ Treatment orang lain
               </button>
               <button
-                style={{ width: 'auto', flex: 1, marginBottom: 0 }}
+                className="btn btn-outline" style={{ flex: 1, marginBottom: 0 }}
                 onClick={() => setPItems((list) => [...list, barisBaru(list[0]?.category, null, list[0]?.customerName)])}
               >
                 ＋ Treatment orang yang sama
@@ -746,7 +745,7 @@ export default function ReservasiPage({ outletId, active }) {
             </div>
 
             <div style={{ display: 'flex', gap: 8 }}>
-              <button disabled={!pSiap || pSaving} onClick={handleProcessSave} style={{ flex: 1 }}>
+              <button className="btn btn-primary btn-block" disabled={!pSiap || pSaving} onClick={handleProcessSave}>
                 {pSaving
                   ? 'Membuat booking...'
                   : `Buat ${pItems.length} Booking & Selesai Reservasi`}

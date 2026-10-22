@@ -51,8 +51,9 @@ export default class ErrorBoundary extends Component {
           {String(galat && (galat.stack || galat.message || galat))}
         </pre>
         <button
+          className="btn btn-primary"
           onClick={this.cobaLagi}
-          style={{ marginTop: 12, padding: '8px 14px', cursor: 'pointer' }}
+          style={{ marginTop: 12 }}
         >
           Coba lagi
         </button>

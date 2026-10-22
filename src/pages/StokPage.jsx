@@ -399,35 +399,32 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
           </section>
 
           {selItem && (
-            <section>
+            <section className="stok-aksi">
               <p>Jumlah untuk {selItem.name}</p>
               <input type="number" placeholder="Jumlah" value={qty} onChange={(e) => setQty(e.target.value)} />
               <input placeholder="Catatan (opsional)" value={note} onChange={(e) => setNote(e.target.value)} />
-              <div className="grid-2">
-                <button onClick={handleIn} disabled={busy || !qty}>Barang masuk</button>
-                <button onClick={handleOut} disabled={busy || !qty}>Barang keluar</button>
+              <div className="stok-aksi-grup">
+                <button className="btn btn-primary" onClick={handleIn} disabled={busy || !qty}>
+                  Barang masuk
+                </button>
+                <button className="btn btn-outline" onClick={handleOut} disabled={busy || !qty}>
+                  Barang keluar
+                </button>
               </div>
+              <button className="btn btn-danger-outline btn-sm stok-hapus" onClick={handleDelete} disabled={busy}>
+                Hapus item ini
+              </button>
             </section>
           )}
 
-          {selItem && (
-            <button
-              onClick={handleDelete}
-              disabled={busy}
-              style={{ width: 'auto', padding: '6px 12px', fontSize: 12, background: 'var(--danger)', color: '#fff', boxShadow: 'none', marginTop: 8 }}
-            >
-              Hapus item ini
-            </button>
-          )}
-
-          <section style={{ marginTop: 20 }}>
+          <section className="stok-tambah">
             <p>Tambah item baru</p>
             <input placeholder="Nama barang" value={newName} onChange={(e) => setNewName(e.target.value)} />
             <input placeholder="Satuan (pcs/botol/lusin)" value={newUnit} onChange={(e) => setNewUnit(e.target.value)} />
             <select
+              className="stok-pilih-kategori"
               value={newCategory}
               onChange={(e) => setNewCategory(e.target.value)}
-              style={{ width: '100%', padding: 11, marginBottom: 8, borderRadius: 8, border: '1px solid var(--border)' }}
             >
               {INVENTORY_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>

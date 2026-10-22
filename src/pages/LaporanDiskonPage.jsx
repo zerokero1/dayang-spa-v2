@@ -278,14 +278,14 @@ export default function LaporanDiskonPage({ active, profile }) {
             <button
               className={hanyaBermasalah ? 'pos-chip' : 'pos-chip active'}
               onClick={() => setHanyaBermasalah(false)}
-              style={{ fontSize: 12 }}
+
             >
               Semua ({denganFlag.length})
             </button>
             <button
               className={hanyaBermasalah ? 'pos-chip active' : 'pos-chip'}
               onClick={() => setHanyaBermasalah(true)}
-              style={{ fontSize: 12 }}
+
             >
               Perlu ditinjau ({bermasalah.length})
             </button>

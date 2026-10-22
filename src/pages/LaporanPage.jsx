@@ -225,7 +225,7 @@ export default function LaporanPage({ outletId, profile }) {
         <section style={{ marginTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0 }}>{outletId}</h3>
-            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={handleDownloadOutlet}>
+            <button className="btn btn-outline btn-sm" onClick={handleDownloadOutlet}>
               ⬇ Download Excel
             </button>
           </div>
@@ -261,7 +261,7 @@ export default function LaporanPage({ outletId, profile }) {
         <section style={{ marginTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0 }}>Rekap semua outlet</h3>
-            <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={handleDownloadCombined}>
+            <button className="btn btn-outline btn-sm" onClick={handleDownloadCombined}>
               ⬇ Download Excel
             </button>
           </div>
@@ -293,11 +293,11 @@ export default function LaporanPage({ outletId, profile }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <h3 style={{ margin: 0 }}>Komisi Staff</h3>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }} onClick={handleDownloadKomisi}>
+              <button className="btn btn-outline btn-sm" onClick={handleDownloadKomisi}>
                 ⬇ Ringkasan per Staff
               </button>
               <button
-                style={{ width: 'auto', padding: '6px 12px', fontSize: 12 }}
+                className="btn btn-outline btn-sm"
                 onClick={handleDownloadKomisiHarian}
                 disabled={harianLoading}
               >

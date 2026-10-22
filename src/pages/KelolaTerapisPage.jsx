@@ -86,7 +86,7 @@ export default function KelolaTerapisPage({ active }) {
           }}
           onClick={() => setOutletFilter('')}
         >
-          <button style={{ width: 'auto', padding: '2px 8px', fontSize: 11, boxShadow: 'none', marginRight: 6 }} onClick={(e) => { e.stopPropagation(); setOutletFilter(''); }}>
+          <button className="btn btn-ghost btn-sm" style={{ marginRight: 6 }} onClick={(e) => { e.stopPropagation(); setOutletFilter(''); }}>
             Semua
           </button>
           <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{therapists.length} terapis</span>
@@ -204,7 +204,7 @@ function TerapisRow({ t, onSetOutlet, onSetRole, onSetShift, onSetStatus, onRemo
         </select>
         <button
           onClick={() => onRemove(t)}
-          style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, background: 'var(--danger)', color: '#fff', border: 'none', width: 'auto', marginLeft: 'auto' }}
+          className="btn btn-danger btn-sm" style={{ marginLeft: 'auto' }}
         >
           Hapus
         </button>
