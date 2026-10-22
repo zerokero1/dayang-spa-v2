@@ -68,6 +68,9 @@ node_modules/
 # Kredensial PostgreSQL untuk menjalankan .sql lokal (sql-jalankan.mjs)
 .env-pg
 
+# Skrip bantu sekali pakai (cek/perbaikan stok di server) — dibaca .env-pg
+.*.mjs
+
 # Build output
 dist/
 
@@ -77,6 +80,10 @@ dist/
 # Database backups (sensitive data — never push)
 supabase/backup/
 *.dburl
+
+# Ekspor jadwal kasir (data internal, tetap lokal)
+docs/jadwal-kasir*.csv
+docs/jadwal-kasir*.html
 
 # Salinan database lokal (berisi data sensitif, jangan pernah di-push)
 backup/
