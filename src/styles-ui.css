@@ -505,6 +505,15 @@ input:disabled,
 select:disabled,
 textarea:disabled { background: var(--surface-2); color: var(--text-secondary); }
 input::placeholder, textarea::placeholder { color: #A6A69F; }
+/* Checkbox & radio jangan ikut membesar seperti input teks. */
+input[type="checkbox"],
+input[type="radio"] {
+  min-height: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  accent-color: var(--primary);
+}
 
 /* Label form */
 .kasir-page label,
@@ -997,17 +1006,69 @@ input::placeholder, textarea::placeholder { color: #A6A69F; }
 
 /* =====================================================================
    11. RESPONSIF
+
+   CATATAN PENTING: file ini dimuat PALING AKHIR. Jadi setiap nilai
+   desktop di atas (lebar sidebar 244px, grid POS 3 kolom, padding
+   konten 26px) HARUS dikembalikan di sini untuk layar kecil. Tanpa itu,
+   aturan desktop menang atas breakpoint lama di styles.css dan tampilan
+   di HP jadi berantakan (menu menutupi layar, POS 3 kolom gepeng).
    ===================================================================== */
+
+/* --- HP & tablet: sidebar jadi bar atas yang bisa digeser --- */
 @media (max-width: 860px) {
-  .content { padding: 16px; }
-  .kasir-page { padding: 18px 16px; border-radius: var(--radius); }
-  .topbar { padding: 12px 16px; }
-  .topbar-title h1 { font-size: 18px; }
-  .nav-item { font-size: 13px; padding: 9px 11px; }
-  /* Di layar kecil sidebar jadi baris horizontal: grup diratakan
-     mendatar dan label grup disembunyikan supaya tidak boros tempat. */
-  .nav-group { flex-direction: row; align-items: center; }
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .sidebar-brand { padding: 10px 12px; }
+  .sidebar-logo { width: 32px; height: 32px; font-size: 16px; border-radius: 9px; }
+  .sidebar-brand-text strong { font-size: 14px; }
+
+  .sidebar-nav {
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 6px;
+    gap: 2px;
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  /* Semua tombol dari semua grup ikut satu baris mendatar. Label grup
+     dibuang supaya tidak boros tempat di layar HP. */
+  .nav-group { display: contents; }
   .nav-group-label { display: none; }
+  .nav-item {
+    width: auto;
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 9px 11px;
+    font-size: 13px;
+    gap: 8px;
+  }
+  .nav-icon { width: 18px; font-size: 15px; }
+  .sidebar-user { flex-shrink: 0; padding: 6px 8px; }
+  .logout-btn { min-width: 34px; height: 34px; }
+
+  .topbar { padding: 10px 14px; position: static; }
+  .topbar-title h1 { font-size: 17px; }
+  .content { padding: 14px; }
+  .kasir-page { padding: 18px 16px; border-radius: var(--radius); }
+}
+
+/* --- POS: satu kolom, keranjang turun ke bawah --- */
+@media (max-width: 820px) {
+  .pos-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .pos-sidebar button { white-space: nowrap; }
 }
 
 @media (max-width: 520px) {
