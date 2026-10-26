@@ -2,15 +2,10 @@ import { useEffect, useState } from 'react';
 import { OUTLETS, OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor, sizesForProduct, isSingleSizeProduct } from '../lib/constants';
 import { listenTreatments } from '../lib/treatmentService';
 import { getDailyBookingsRange } from '../lib/reportService';
+import { businessDate } from '../lib/businessDate';
 import { editBookingDetails } from '../lib/bookingService';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
-
-function todayId() {
-  // Tanggal LOKAL WIB (UTC+7) — konsisten dengan reportService & Status Terapis
-  const now = new Date(Date.now() + 7 * 3600000);
-  return now.toISOString().slice(0, 10);
-}
 
 function EditRow({ booking, treatments, onSave, onCancel }) {
   const [category, setCategory] = useState(TREATMENT_CATEGORIES[0]);
@@ -108,8 +103,8 @@ function EditRow({ booking, treatments, onSave, onCancel }) {
 export default function RingkasanTransaksiPage({ active, profile }) {
   const [outletId, setOutletId] = useState(profile?.role === 'kasir' ? (profile?.outletId || OUTLETS[0].id) : OUTLETS[0].id);
   const viewOutlets = profile?.role === 'kasir' ? OUTLETS.filter((o) => o.id === profile.outletId) : OUTLETS;
-  const [startDate, setStartDate] = useState(todayId());
-  const [endDate, setEndDate] = useState(todayId());
+  const [startDate, setStartDate] = useState(businessDate());
+  const [endDate, setEndDate] = useState(businessDate());
   const [bookings, setBookings] = useState([]);
   const [treatments, setTreatments] = useState([]);
   const [loading, setLoading] = useState(false);

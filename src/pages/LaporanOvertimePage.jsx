@@ -3,12 +3,13 @@ import { OUTLETS } from '../lib/constants';
 import { getAttendanceRange } from '../lib/attendanceService';
 import { listenAllTherapists } from '../lib/therapistService';
 import { exportExcelReport } from '../lib/excelExport';
+import { businessDate, businessDateDaysAgo, businessMonth } from '../lib/businessDate';
 
 const ALL_OUTLETS = '__all__';
 
-const todayWib = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
-const thisMonthWib = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 7);
-const daysAgo = (n) => new Date(Date.now() + 7 * 3600000 - n * 86400000).toISOString().slice(0, 10);
+const todayBusinessDate = businessDate;
+const thisBusinessMonth = businessMonth;
+const daysAgo = businessDateDaysAgo;
 
 /** 135 menit -> "2j 15m". Lebih enak dibaca daripada "135 menit" di tabel panjang. */
 function durasi(menit) {
@@ -41,8 +42,8 @@ export default function LaporanOvertimePage({ active, profile }) {
   const myOutletId = profile?.outletId;
 
   const [outletId, setOutletId] = useState(isKasir ? myOutletId : ALL_OUTLETS);
-  const [startDate, setStartDate] = useState(() => `${thisMonthWib()}-01`);
-  const [endDate, setEndDate] = useState(todayWib);
+  const [startDate, setStartDate] = useState(() => `${thisBusinessMonth()}-01`);
+  const [endDate, setEndDate] = useState(todayBusinessDate);
   const [records, setRecords] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -184,13 +185,13 @@ export default function LaporanOvertimePage({ active, profile }) {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             style={navBtn}
-            onClick={() => { const b = thisMonthWib(); setStartDate(`${b}-01`); setEndDate(todayWib()); }}
+            onClick={() => { const b = thisBusinessMonth(); setStartDate(`${b}-01`); setEndDate(todayBusinessDate()); }}
           >
             Bulan ini
           </button>
           <button
             style={navBtn}
-            onClick={() => { setStartDate(daysAgo(29)); setEndDate(todayWib()); }}
+            onClick={() => { setStartDate(daysAgo(29)); setEndDate(todayBusinessDate()); }}
           >
             30 hari
           </button>

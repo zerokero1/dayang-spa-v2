@@ -2,19 +2,15 @@ import { useEffect, useState } from 'react';
 import ExcelJS from 'exceljs';
 import { OUTLETS } from '../lib/constants';
 import { getProductionBookings, buildProductionReport } from '../lib/reportService';
-
-function todayId() {
-  const now = new Date(Date.now() + 7 * 3600000);
-  return now.toISOString().slice(0, 10);
-}
+import { businessDate } from '../lib/businessDate';
 
 export default function LaporanProduksiPage({ profile }) {
   const isKasir = profile?.role === 'kasir';
   const cols = isKasir ? OUTLETS.filter((o) => o.id === profile.outletId) : OUTLETS;
   const colIds = cols.map((o) => o.id);
 
-  const [startDate, setStartDate] = useState(todayId());
-  const [endDate, setEndDate] = useState(todayId());
+  const [startDate, setStartDate] = useState(businessDate());
+  const [endDate, setEndDate] = useState(businessDate());
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState(null);
 

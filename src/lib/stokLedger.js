@@ -1,3 +1,5 @@
+import { businessDateFromTimestamp, businessRangeIso, shiftBusinessDate } from './businessDate';
+
 // ============================================================
 // MATEMATIKA BUKU STOK — murni, tanpa database / tanpa React
 // ------------------------------------------------------------
@@ -30,26 +32,25 @@
 // diuji tanpa browser (tanpa import.meta.env / Supabase).
 // ============================================================
 
-/** Konversi created_at (UTC) ke tanggal LOKAL WIB (YYYY-MM-DD). */
+/** Konversi created_at (UTC) ke tanggal lokal Lombok (YYYY-MM-DD). */
 export function wibDate(iso) {
-  return new Date(new Date(iso).getTime() + 7 * 3600000).toISOString().slice(0, 10);
+  return businessDateFromTimestamp(iso);
 }
 
 /** Tanggal-tanggal berurutan mulai startDate, sebanyak count hari. */
 export function eachDayCount(startDate, count) {
   const days = [];
-  const start = new Date(`${startDate}T00:00:00Z`).getTime();
   for (let i = 0; i < count; i++) {
-    days.push(new Date(start + i * 24 * 3600000).toISOString().slice(0, 10));
+    days.push(shiftBusinessDate(startDate, i));
   }
   return days;
 }
 
-/** Awal (WIB) dan akhir (WIB) rentang tanggal, sebagai ISO UTC untuk query. */
+/** Awal dan akhir rentang tanggal Lombok, sebagai ISO UTC untuk query. */
 export function rangeIso(startDate, days) {
-  const from = new Date(`${startDate}T00:00:00+07:00`);
-  const to = new Date(from.getTime() + days.length * 24 * 3600000 - 1);
-  return { fromIso: from.toISOString(), toIso: to.toISOString() };
+  if (!days.length) return { fromIso: '', toIso: '' };
+  const { startUtc, endUtc } = businessRangeIso(startDate, days[days.length - 1]);
+  return { fromIso: startUtc.toISOString(), toIso: endUtc.toISOString() };
 }
 
 /** Kunci item. Pemisah '|' supaya nama yg mengandung spasi tetap aman. */

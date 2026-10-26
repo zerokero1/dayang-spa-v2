@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { businessRangeBoundsUtc, shiftBusinessDate } from './businessDate';
 import {
   buildItemLedgerDays,
   buildOilLedgerDays,
@@ -9,18 +10,13 @@ import {
 } from './stokLedger';
 
 function dayStrUtc(dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return Date.UTC(y, m - 1, d, 0, 0, 0) - 7 * 3600000; // 00:00 WIB = UTC-7 jam
+  return businessRangeBoundsUtc(dateStr, dateStr).startUtc.getTime();
 }
 
 function eachDay(startDate, endDate) {
   const days = [];
-  const start = dayStrUtc(startDate);
-  const end = dayStrUtc(endDate);
-  for (let t = start; t <= end; t += 24 * 3600000) {
-    // label hari harus WIB (instant 00:00 WIB + 7 jam = tanggal WIB yang benar),
-    // bukan tanggal UTC dari instant tsb (yang mundur sehari).
-    days.push(new Date(t + 7 * 3600000).toISOString().slice(0, 10));
+  for (let date = startDate; date <= endDate; date = shiftBusinessDate(date, 1)) {
+    days.push(date);
   }
   return days;
 }
@@ -142,7 +138,7 @@ function prefixOutlet(outletId, label) {
 /**
  * Buku stok gabungan 6 outlet untuk rentang tanggal bebas.
  *
- * `startDate`/`endDate` inklusif batas hari WIB. Setiap outlet punya rantai
+ * `startDate`/`endDate` inklusif batas hari Lombok. Setiap outlet punya rantai
  * mundur sendiri yang diturunkan dari stok terkini outlet itu, lalu digabung
  * setelah itu — jadi angka akhirnya tetap sama dengan penjumlahan stok
  * outlet-outlet tersebut, dan untuk periode yang tidak ada pergerakannya

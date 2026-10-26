@@ -22,21 +22,21 @@ import {
 
 export const todayWib = () => fmtLocalDate(new Date());
 
-// Epoch ms "sekarang" pada tanggal WIB tertentu (untuk status jeda shift).
+// Epoch ms "sekarang" pada tanggal Lombok tertentu (untuk status jeda shift).
 // nowMs boleh diteruskan supaya fungsi ini deterministik dan bisa diuji.
 function nowMsOnWib(dateStr, nowMs = Date.now()) {
   const { startUtc } = wibDayBoundsUtc(dateStr);
   const now = Number(nowMs) || Date.now();
   // Kalau tanggal yang diminta = hari ini, pakai waktu sungguhan.
   if (now >= startUtc.getTime() && now < startUtc.getTime() + 24 * 3600000) return now;
-  // Tanggal lain: pakai tengah hari WIB agar tidak jadi jam tengah malam
+  // Tanggal lain: pakai tengah hari Lombok agar tidak jadi jam tengah malam
   // yang menyesatkan.
   return startUtc.getTime() + 12 * 3600000;
 }
 
 function fmtTime(ms) {
   if (ms == null) return '-';
-  const d = new Date(Number(ms) + 7 * 3600000);
+  const d = new Date(Number(ms) + 8 * 3600000);
   const h = String(d.getUTCHours()).padStart(2, '0');
   const m = String(d.getUTCMinutes()).padStart(2, '0');
   return `${h}:${m}`;
@@ -55,7 +55,7 @@ const outletName = (id) => OUTLETS.find((o) => o.id === id)?.name || id || '-';
 /**
  * Muat data dashboard terapis.
  * @param {object} opts
- * @param {string} opts.date        tanggal WIB (YYYY-MM-DD), default hari ini
+ * @param {string} opts.date        tanggal Lombok (YYYY-MM-DD), default hari ini
  * @param {string[]} opts.outletIds daftar outlet yang ditampilkan; null/[] = semua
  * @param {number}  opts.nowMs      waktu referensi (default Date.now())
  */

@@ -3,6 +3,7 @@ import { OUTLETS, INVENTORY_CATEGORIES, DEFAULT_INVENTORY_CATEGORY, isSingleSize
 import { getOilLedgerRange, getItemLedgerRange, getAllOutletLedger } from '../lib/stockUsageService';
 import { exportStockLedger } from '../lib/excelExport';
 import { labelHari, shiftDate, startOfWeek } from '../lib/stokLedger';
+import { businessDate } from '../lib/businessDate';
 
 const LOW_STOCK_OIL = 1;
 const LOW_STOCK_ITEM = 2;
@@ -10,7 +11,7 @@ const SUB_HEADERS = ['Stock', 'In', 'Out', 'Sisa'];
 const ALL_OUTLETS = '__all__';
 const MAX_DAYS = 62;
 
-const todayId = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+const todayId = businessDate;
 
 // Nilai kosong ditampilkan "–", bukan 0. 0 berarti "tidak bergerak" dan itu
 // berbeda dari "tidak punya catatan".

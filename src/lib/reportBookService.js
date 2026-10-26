@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { OUTLETS, SHIFT_LABEL } from './constants';
 import { lateMinutesFor } from './shiftService';
 import { getConsumableUsage } from './stockUsageService';
+import { businessDateFromTimestamp, businessRangeIso } from './businessDate';
 
 /**
  * ==========================================================================
@@ -11,7 +12,7 @@ import { getConsumableUsage } from './stockUsageService';
  *   3. Komisi     : komisi 10%
  *   4. Revenue    : income per hari + grand total per outlet
  *
- * DASAR TANGGAL: created_at (WIB) — tanggal saat transaksi dicatat. Dipakai
+ * DASAR TANGGAL: created_at (WITA) — tanggal saat transaksi dicatat. Dipakai
  * supaya konsisten dengan Laporan Keuangan yang sudah ada. Kolom completed_at
  * TIDAK dipakai: isinya rusak (ribuan booking hasil backfill massal satu
  * timestamp), sehingga tidak bisa jadi dasar pengelompokan harian.
@@ -20,19 +21,15 @@ import { getConsumableUsage } from './stockUsageService';
 
 // ---------------------------------------------------------------- utils
 
-const WIB_OFFSET_MS = 7 * 3600000;
-
-/** Tanggal WIB (YYYY-MM-DD) dari kolom timestamptz. */
+/** Tanggal Lombok (YYYY-MM-DD) dari kolom timestamptz. */
 export function wibDateOf(iso) {
-  if (!iso) return '';
-  return new Date(new Date(iso).getTime() + WIB_OFFSET_MS).toISOString().slice(0, 10);
+  return businessDateFromTimestamp(iso);
 }
 
-/** Batas UTC untuk satu hari WIB. */
+/** Batas UTC untuk satu hari Lombok. */
 function wibDayUtc(dateStr, endOfDay = false) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const start = Date.UTC(y, m - 1, d, 0, 0, 0) - WIB_OFFSET_MS;
-  return new Date(endOfDay ? start + 24 * 3600000 - 1 : start).toISOString();
+  const { startIso, endIso } = businessRangeIso(dateStr, dateStr);
+  return endOfDay ? endIso : startIso;
 }
 
 export function eachDay(startDate, endDate) {
@@ -42,14 +39,14 @@ export function eachDay(startDate, endDate) {
   let t = Date.UTC(y1, m1 - 1, d1);
   const end = Date.UTC(y2, m2 - 1, d2);
   while (t <= end) {
-    days.push(new Date(t + WIB_OFFSET_MS).toISOString().slice(0, 10));
+    days.push(new Date(t).toISOString().slice(0, 10));
     t += 24 * 3600000;
   }
   return days;
 }
 
 export function todayWib() {
-  return new Date(Date.now() + WIB_OFFSET_MS).toISOString().slice(0, 10);
+  return businessDateFromTimestamp(new Date());
 }
 
 export function outletName(id) {
@@ -417,6 +414,13 @@ const BOOKING_FIELDS =
   'commission_percent, commission_amount, discount_pct, booking_source, ' +
   'hotel_commission, paid, payment_method, created_at';
 
+function revenueAmount(row) {
+  const price = Number(row.treatment_price) || 0;
+  return row.booking_source === 'oncall'
+    ? price - (Number(row.hotel_commission) || 0)
+    : price;
+}
+
 export async function getRevenueCommissionBook({ startDate, endDate, outletId }) {
   const { data, error } = await bookingQuery({ startDate, endDate, outletId, extraSelect: BOOKING_FIELDS });
   if (error) throw error;
@@ -431,7 +435,7 @@ export async function getRevenueCommissionBook({ startDate, endDate, outletId })
     const cell = dayOutlet[d][r.outlet_id] = dayOutlet[d][r.outlet_id] || {
       trx: 0, omzet: 0, cash: 0, nonCash: 0, diskon: 0
     };
-    const price = Number(r.treatment_price) || 0;
+    const price = revenueAmount(r);
     cell.trx++;
     cell.omzet += price;
     if (Number(r.discount_pct) > 0) cell.diskon += price * (Number(r.discount_pct) / 100);
@@ -492,7 +496,7 @@ export async function getRevenueCommissionBook({ startDate, endDate, outletId })
       trx: 0, omzet: 0, komisi: 0, persen: new Set()
     };
     c.trx++;
-    c.omzet += Number(r.treatment_price) || 0;
+    c.omzet += revenueAmount(r);
     c.komisi += Number(r.commission_amount) || 0;
     c.persen.add(Number(r.commission_percent) || 0);
   });
@@ -540,12 +544,12 @@ export async function getRevenueCommissionBook({ startDate, endDate, outletId })
     const o = unpaidByOutlet[r.outlet_id] = unpaidByOutlet[r.outlet_id]
       || { outlet: outletName(r.outlet_id), trx: 0, omzet: 0, komisi: 0 };
     o.trx++;
-    o.omzet += Number(r.treatment_price) || 0;
+    o.omzet += revenueAmount(r);
     o.komisi += Number(r.commission_amount) || 0;
   });
   const unpaidTotal = {
     trx: unpaid.length,
-    omzet: unpaid.reduce((s, r) => s + (Number(r.treatment_price) || 0), 0),
+    omzet: unpaid.reduce((s, r) => s + revenueAmount(r), 0),
     komisi: unpaid.reduce((s, r) => s + (Number(r.commission_amount) || 0), 0),
     byOutlet: Object.values(unpaidByOutlet).sort((a, b) => b.omzet - a.omzet)
   };
@@ -558,7 +562,7 @@ export async function getRevenueCommissionBook({ startDate, endDate, outletId })
     const o = allByOutlet[r.outlet_id] = allByOutlet[r.outlet_id]
       || { outlet: outletName(r.outlet_id), trx: 0, omzet: 0, komisi: 0 };
     o.trx++;
-    o.omzet += Number(r.treatment_price) || 0;
+    o.omzet += revenueAmount(r);
     o.komisi += Number(r.commission_amount) || 0;
   });
 
@@ -571,7 +575,7 @@ export async function getRevenueCommissionBook({ startDate, endDate, outletId })
     const sumber = r.booking_source === 'oncall' ? 'oncall' : 'in_house';
     const s = bySource[sumber] = bySource[sumber] || { sumber, trx: 0, omzet: 0, komisi: 0 };
     s.trx++;
-    s.omzet += Number(r.treatment_price) || 0;
+    s.omzet += revenueAmount(r);
     s.komisi += Number(r.commission_amount) || 0;
   });
   const commissionBySource = Object.values(bySource).sort((a, b) => b.komisi - a.komisi);
@@ -591,15 +595,15 @@ export async function getRevenueCommissionBook({ startDate, endDate, outletId })
     unpaidTotal,
     allTotal: {
       trx: rows.length,
-      omzet: rows.reduce((s, r) => s + (Number(r.treatment_price) || 0), 0),
+      omzet: rows.reduce((s, r) => s + revenueAmount(r), 0),
       komisi: rows.reduce((s, r) => s + (Number(r.commission_amount) || 0), 0),
       byOutlet: Object.values(allByOutlet).sort((a, b) => b.omzet - a.omzet)
     },
     ratesUsed: [...rateSet].sort((a, b) => a - b),
     caveats: [
-      `Omzet di laporan ini = ${MONEY(grandTotal.omzet)} dari transaksi yang SUDAH LUNAS. `
+      `Revenue di laporan ini = ${MONEY(grandTotal.omzet)} dari transaksi yang SUDAH LUNAS, setelah komisi hotel dipotong dari oncall. `
       + `Ada ${unpaid.length} transaksi belum dibayar senilai ${MONEY(unpaidTotal.omzet)}. `
-      + `Total seluruh transaksi (lunas + belum bayar) = ${MONEY(rows.reduce((s, r) => s + (Number(r.treatment_price) || 0), 0))}.`,
+      + `Total seluruh transaksi (lunas + belum bayar) = ${MONEY(rows.reduce((s, r) => s + revenueAmount(r), 0))}.`,
       rateSet.size > 1
         ? `Tarif komisi tidak seragam (${[...rateSet].join('%, ')}%).`
         : null,
@@ -819,7 +823,7 @@ export function buildBookSheets({ range, outletLabel, inventory, attendance, rev
           headers: ['Tanggal', 'Outlet', 'Transaksi', 'Omzet', 'Cash', 'Non-Cash', 'Diskon'],
           rows: revDailyRows,
           currencyColumns: [3, 4, 5, 6],
-          note: 'Tanggal = tanggal transaksi dicatat (WIB). Baris TOTAL = total per hari.'
+          note: 'Tanggal = tanggal transaksi dicatat menurut waktu Lombok (WITA). Baris TOTAL = total per hari.'
         }
       ],
       note: `GRAND TOTAL = seluruh outlet yang difilter · ${subtitle}`

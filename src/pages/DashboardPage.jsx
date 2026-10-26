@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { OUTLETS } from '../lib/constants';
 import { getCombinedDailyReport } from '../lib/reportService';
 import { getTherapistBoardSummary } from '../lib/therapistBoardService';
+import { businessDate } from '../lib/businessDate';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -16,8 +17,7 @@ function MiniStat({ label, value, bg }) {
 }
 
 function todayId() {
-  const now = new Date(Date.now() + 7 * 3600000);
-  return now.toISOString().slice(0, 10);
+  return businessDate();
 }
 
 export default function DashboardPage({ active, onOpen }) {
@@ -64,6 +64,7 @@ export default function DashboardPage({ active, onOpen }) {
   }, [active]);
 
   const grand = report || { grandTotalRevenue: 0, grandTotalCommission: 0, grandTotalTreatment: 0, grandTotalDiscount: 0, grandOncallRevenue: 0, grandOncallCount: 0 };
+  const grandTotalRevenueNet = grand.grandTotalRevenue + grand.grandOncallRevenue;
   const perOutlet = report?.perOutlet || {};
 
   return (
@@ -115,13 +116,17 @@ export default function DashboardPage({ active, onOpen }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
         <div className="oil-card" style={{ textAlign: 'center', padding: 14 }}>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Omzet Outlet</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Revenue Reguler</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary-dark)', marginTop: 4 }}>{rp(grand.grandTotalRevenue)}</div>
         </div>
         <div className="oil-card" style={{ textAlign: 'center', padding: 14 }}>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Omzet Oncall</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Omzet Oncall (net)</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary)', marginTop: 4 }}>{rp(grand.grandOncallRevenue)}</div>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{grand.grandOncallCount || 0} transaksi</div>
+        </div>
+        <div className="oil-card" style={{ textAlign: 'center', padding: 14 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Total Revenue Net</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary-dark)', marginTop: 4 }}>{rp(grandTotalRevenueNet)}</div>
         </div>
         <div className="oil-card" style={{ textAlign: 'center', padding: 14 }}>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Komisi Terapis</div>
@@ -146,7 +151,7 @@ export default function DashboardPage({ active, onOpen }) {
                   <th style={{ textAlign: 'left', padding: 8 }}>Outlet</th>
                   <th style={{ padding: 8 }}>Treatment</th>
                   <th style={{ padding: 8 }}>Omzet</th>
-                  <th style={{ padding: 8 }}>Oncall</th>
+                  <th style={{ padding: 8 }}>Oncall (net)</th>
                   <th style={{ padding: 8 }}>Cash</th>
                   <th style={{ padding: 8 }}>Cardless</th>
                   <th style={{ padding: 8 }}>Belum Bayar</th>

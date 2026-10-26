@@ -3,11 +3,12 @@ import { OUTLETS } from '../lib/constants';
 import { getConsumableUsage, getItemLedger, getOilLedger } from '../lib/stockUsageService';
 import { exportExcelReport, exportStockLedger } from '../lib/excelExport';
 import { labelHari, shiftDate, startOfWeek } from '../lib/stokLedger';
+import { businessDate } from '../lib/businessDate';
 
 const DAY_COUNT = 7;
 const SUB_HEADERS = ['Stock', 'In', 'Out', 'Sisa'];
 
-const todayId = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+const todayId = businessDate;
 
 const sel = (v) => (v === null || v === undefined ? '–' : v);
 

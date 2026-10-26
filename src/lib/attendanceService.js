@@ -1,10 +1,10 @@
 import { supabase } from './supabase';
 import { ATTENDANCE_TYPES } from './constants';
 import { lateMinutesFor, shiftEndMinutes } from './shiftService';
+import { businessDate } from './businessDate';
 
 function todayId(date = new Date()) {
-  // WIB = UTC+7: label "hari" harus pakai tanggal WIB, bukan UTC.
-  return new Date(date.getTime() + 7 * 3600000).toISOString().slice(0, 10);
+  return businessDate(date);
 }
 
 function mapAttendance(r) {

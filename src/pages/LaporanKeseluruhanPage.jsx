@@ -4,15 +4,12 @@ import {
   buildBookSheets, getReportBook, outletName, todayWib
 } from '../lib/reportBookService';
 import { exportExcelWorkbook } from '../lib/excelExport';
-
-function daysAgo(n) {
-  return new Date(Date.now() + 7 * 3600000 - n * 24 * 3600000).toISOString().slice(0, 10);
-}
+import { businessDateDaysAgo } from '../lib/businessDate';
 
 const PRESETS = [
   { label: 'Hari ini', from: () => todayWib(), to: () => todayWib() },
-  { label: '7 hari', from: () => daysAgo(6), to: () => todayWib() },
-  { label: '30 hari', from: () => daysAgo(29), to: () => todayWib() },
+  { label: '7 hari', from: () => businessDateDaysAgo(6), to: () => todayWib() },
+  { label: '30 hari', from: () => businessDateDaysAgo(29), to: () => todayWib() },
   { label: 'Bulan ini', from: () => todayWib().slice(0, 8) + '01', to: () => todayWib() }
 ];
 
@@ -31,7 +28,7 @@ function clock(minutes) {
  * menghasilkan SATU file Excel berisi semua sheet di bawah ini.
  */
 export default function LaporanKeseluruhanPage({ active }) {
-  const [startDate, setStartDate] = useState(() => daysAgo(29));
+  const [startDate, setStartDate] = useState(() => businessDateDaysAgo(29));
   const [endDate, setEndDate] = useState(() => todayWib());
   const [outletId, setOutletId] = useState('');
   const [data, setData] = useState(null);

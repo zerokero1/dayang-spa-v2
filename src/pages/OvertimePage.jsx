@@ -1,11 +1,7 @@
 import { useState } from 'react';
 import { getOvertimeReport, setOvertimeAdjustment, removeOvertimeAdjustment } from '../lib/overtimeService';
+import { businessDate } from '../lib/businessDate';
 import { exportExcelReport } from '../lib/excelExport';
-
-function todayId() {
-  const now = new Date(Date.now() + 7 * 3600000);
-  return now.toISOString().slice(0, 10);
-}
 
 const SHIFT_LABEL = { sp: 'Shift SP (Split)', malam: 'Shift Malam', st: 'Shift ST (Short)' };
 
@@ -15,8 +11,8 @@ function fmtEnd(ms) {
 }
 
 export default function OvertimePage({ isOffice }) {
-  const [startDate, setStartDate] = useState(todayId());
-  const [endDate, setEndDate] = useState(todayId());
+  const [startDate, setStartDate] = useState(businessDate());
+  const [endDate, setEndDate] = useState(businessDate());
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState(null);
   const [corr, setCorr] = useState({});

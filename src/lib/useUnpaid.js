@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
+import { businessDate, businessRangeBoundsUtc } from './businessDate';
 
 function todayBoundsMs() {
-  const now = new Date(Date.now() + 7 * 3600000);
-  const start = Date.parse(now.toISOString().slice(0, 10) + 'T00:00:00+07:00');
-  return { start, end: start + 24 * 3600000 };
+  const today = businessDate();
+  const { startUtc, endUtc } = businessRangeBoundsUtc(today, today);
+  return { start: startUtc.getTime(), end: endUtc.getTime() };
 }
 
 /**
- * Pantau jumlah transaksi hari ini yang BELUM BAYAR.
+  * Pantau jumlah transaksi hari ini di Lombok yang BELUM BAYAR.
  * Return: { count, overdue }
  *   - count   : total transaksi belum bayar (semua status berjalan/selesai)
  *   - overdue : yang jam selesai treatment-nya sudah lewat tapi belum dibayar

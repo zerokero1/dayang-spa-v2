@@ -8,21 +8,19 @@ import { getShiftWindowStatus, SHIFT_WINDOW_LABEL } from '../lib/shiftService';
 import { SHIFT_LABEL, SHIFT_SHORT_CODE } from '../lib/constants';
 import { ReceiptLines } from '../components/Receipt';
 import { supabase } from '../lib/supabase';
+import { businessDate, businessRangeBoundsUtc } from '../lib/businessDate';
 
 const STATUS_LABEL = { free: 'Free', libur: 'Libur', ambil_tamu: 'Ambil Tamu', break: 'Break' };
 const OUTLET_NAME = Object.fromEntries(OUTLETS.map((o) => [o.id, o.name]));
 
 function todayId() {
-  // Tanggal LOKAL WIB (UTC+7) — bukan UTC, agar konsisten dengan getDailyBookings
-  const now = new Date(Date.now() + 7 * 3600000); // geser ke WIB
-  return now.toISOString().slice(0, 10);
+  return businessDate();
 }
 
-/** Rentang hari ini (WIB) dalam epoch ms, untuk kueri booking. */
+/** Rentang hari ini di Lombok dalam epoch ms, untuk kueri booking. */
 function todayBoundsMs() {
-  const now = new Date(Date.now() + 7 * 3600000);
-  const start = Date.parse(now.toISOString().slice(0, 10) + 'T00:00:00+07:00');
-  return { start, end: start + 24 * 3600000 };
+  const { startUtc, endUtc } = businessRangeBoundsUtc(todayId(), todayId());
+  return { start: startUtc.getTime(), end: endUtc.getTime() };
 }
 
 function formatCountdown(endAt) {

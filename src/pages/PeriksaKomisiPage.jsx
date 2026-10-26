@@ -1,21 +1,17 @@
 import { useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import { getCommissionAudit } from '../lib/reportService';
+import { businessDate } from '../lib/businessDate';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
-
-function todayStr() {
-  const d = new Date(Date.now() + 7 * 3600000);
-  return d.toISOString().slice(0, 10);
-}
 
 function outletName(id) {
   return OUTLETS.find((o) => o.id === id)?.name || id;
 }
 
 export default function PeriksaKomisiPage({ active }) {
-  const [startDate, setStartDate] = useState(todayStr());
-  const [endDate, setEndDate] = useState(todayStr());
+  const [startDate, setStartDate] = useState(businessDate());
+  const [endDate, setEndDate] = useState(businessDate());
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);

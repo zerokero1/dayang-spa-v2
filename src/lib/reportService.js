@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { OUTLETS, SIZE_NONE } from './constants';
+import { businessDateFromTimestamp, businessRangeBoundsUtc, shiftBusinessDate } from './businessDate';
 
 function mapBooking(row) {
   return {
@@ -28,25 +29,20 @@ function mapBooking(row) {
     discountReason: row.discount_reason,
     bookingSource: row.booking_source,
     hotelCommission: row.hotel_commission != null ? Number(row.hotel_commission) : 0,
-    // Tanggal WIB dihitung dari created_at, BUKAN dari kolom wib_date.
+    // Tanggal Lombok dihitung dari created_at, bukan kolom wib_date.
     // Di database banyak baris wib_date meleset +1 hari, jadi kolom itu
     // tidak boleh dipercaya untuk pengelompokan tanggal.
-    wibDate: wibDateStr(row.created_at),
+    wibDate: businessDateFromTimestamp(row.created_at),
     createdAt: row.created_at,
     completedAt: row.completed_at,
     cancelledAt: row.cancelled_at
   };
 }
 
-// Batas UTC untuk satu hari LOKAL (WIB = UTC+7) agar konsisten,
+// Batas UTC untuk satu hari lokal Lombok (WITA = UTC+8) agar konsisten,
 // tidak bergantung zona waktu mesin/browser.
 function wibDayBoundsUtc(dateStr) {
-  // dateStr format "YYYY-MM-DD". 00:00 WIB = 17:00 UTC hari sebelumnya.
-  const startLocal = new Date(dateStr + 'T00:00:00Z'); // bailout parse
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const startUtc = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - 7 * 3600000); // 00:00 WIB
-  const endUtc = new Date(startUtc.getTime() + 24 * 3600000 - 1); // sampai 23:59:59 WIB
-  return { startUtc, endUtc };
+  return businessRangeBoundsUtc(dateStr, dateStr);
 }
 
 export async function getDailyBookings(outletId, dateStr) {
@@ -141,20 +137,12 @@ async function getAllDailyBookings(dateStr) {
   return (data || []).map(mapBooking);
 }
 
-// Format tanggal dari komponen LOKAL (WIB) — bukan toISOString (UTC),
-// agar rentang "hari ini" tidak tergeser 1 hari mundur.
-function fmtLocalDate(d) {
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${m}-${day}`;
-}
-
 // Ambil semua booking dalam rentang tanggal (semua outlet) — di-loop per hari
-// supaya agregat per minggu/bulan konsisten dengan batas WIB per hari.
+// supaya agregat per minggu/bulan konsisten dengan batas hari bisnis Lombok.
 export async function getAllBookingsRange(startDate, endDate) {
   // SATU query untuk seluruh rentang, bukan satu query per tanggal.
   //
-  // Batas query 00:00 WIB hari pertama sampai 23:59:59 WIB hari terakhir,
+  // Batas query 00:00 WITA hari pertama sampai 23:59:59 WITA hari terakhir,
   // jadi baris yang dikembalikan persis sama dengan gabungan query per tanggal
   // yang lama. Konsumen fungsi ini hanya mengagregasi/filter, tidak bergantung
   // urutan baris, jadi menggabungkan sekaligus tidak mengubah hasil.
@@ -175,10 +163,7 @@ export async function getAllBookingsRange(startDate, endDate) {
 // Booking satu outlet dalam rentang tanggal (untuk mode "Outlet ini saja").
 export async function getDailyBookingsRange(outletId, startDate, endDate) {
   const all = [];
-  const start = new Date(startDate + 'T00:00:00');
-  const end = new Date(endDate + 'T00:00:00');
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dateStr = fmtLocalDate(d);
+  for (let dateStr = startDate; dateStr <= endDate; dateStr = shiftBusinessDate(dateStr, 1)) {
     try {
       const rows = await getDailyBookings(outletId, dateStr);
       all.push(...rows);
@@ -202,11 +187,8 @@ export async function getDailyBookingsRange(outletId, startDate, endDate) {
  * `berjalan` masih aktif, jadi wajar belum bayar.
  */
 export async function getUnpaidRange(startDate, endDate, outletId) {
-  const start = new Date(`${startDate}T00:00:00`);
-  const end = new Date(`${endDate}T00:00:00`);
   const all = [];
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dateStr = fmtLocalDate(d);
+  for (let dateStr = startDate; dateStr <= endDate; dateStr = shiftBusinessDate(dateStr, 1)) {
     const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
     let q = supabase
       .from('bookings')
@@ -274,11 +256,11 @@ export function summarizeDailyBookings(bookings) {
     t.commissionTotal += b.commissionAmount || 0;
   });
 
-  // Oncall: omzet tersendiri; komisi oncall & byTherapist tetap ikut
-  // dihitung agar gaji staff lengkap.
+  // Oncall ditampilkan terpisah sebagai omzet bersih setelah komisi hotel;
+  // komisi terapis & byTherapist tetap ikut dihitung agar gaji staff lengkap.
   oncallRows.forEach((b) => {
     summary.oncallCount += 1;
-    summary.oncallRevenue += b.treatmentPrice || 0;
+    summary.oncallRevenue += (b.treatmentPrice || 0) - (b.hotelCommission || 0);
     summary.oncallCommission += b.commissionAmount || 0;
     summary.totalHotelCommission += b.hotelCommission || 0;
 
@@ -423,8 +405,6 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
   ];
   const byKey = Object.fromEntries(sheets.map((s) => [s.key, s]));
 
-  const start = new Date(startDate + 'T00:00:00');
-  const end = new Date(endDate + 'T00:00:00');
   // Outlet yang tidak terdaftar di OUTLETS. Dipisah ke sheet tersendiri di
   // bawah, jadi harus lewat SELURUH rentang (bukan per hari).
   const others = [];
@@ -433,11 +413,11 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
   //
   // Sebelumnya laporan ini looping per hari (satu query per tanggal), jadi
   // 13 hari = 13 request dan halaman terasa berat. Pengelompokan per hari
-  // sekarang dilakukan di memori memakai tanggal WIB dari created_at, dengan
-  // rentang query dibatasi 00:00 WIB hari pertama sampai 23:59:59 WIB hari
+  // sekarang dilakukan di memori memakai tanggal Lombok dari created_at, dengan
+  // rentang query dibatasi 00:00 WITA hari pertama sampai 23:59:59 WITA hari
   // terakhir. Hasilnya sama persis dengan batas per tanggal yang lama.
   //
-  // Kolom wib_date sengaja TIDAK dipakai: di database 61% baris meleset
+  // Kolom wib_date sengaja TIDAK dipakai: di database banyak baris meleset
   // +1 hari, jadi kalau ikut dipakai sebaran per harinya jadi salah.
   const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
   let rows = [];
@@ -455,12 +435,11 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
     return { sheets, grand: { treatmentCount: 0, charge: 0, commission: 0, hotelCommission: 0, net: 0 } };
   }
 
-  // Kelompokkan per hari WIB. Semua tanggal dalam rentang selalu punya blok,
+  // Kelompokkan per hari Lombok. Semua tanggal dalam rentang selalu punya blok,
   // walau kosong, supaya urutan hari di file tidak bolong-kosong.
   const perTanggal = {};
   const tanggalUrut = [];
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const k = fmtLocalDate(d);
+  for (let k = startDate; k <= endDate; k = shiftBusinessDate(k, 1)) {
     perTanggal[k] = [];
     tanggalUrut.push(k);
   }
@@ -688,17 +667,13 @@ export const OIL_BOTTLE_ML = { Kecil: 10, Besar: 30, [SIZE_NONE]: 1 };
 // Ambil semua booking non-batal dalam rentang tanggal (semua outlet),
 // cukup untuk laporan produksi: nama treatment + pemakaian minyak per hari.
 export async function getProductionBookings(startDate, endDate) {
-  const [y0, m0, d0] = startDate.split('-').map(Number);
-  const [y1, m1, d1] = endDate.split('-').map(Number);
-  // 00:00 WIB = 17:00 UTC tanggal yang sama (WIB = UTC+7).
-  const startUtc = new Date(Date.UTC(y0, m0 - 1, d0, 17, 0, 0)).toISOString();
-  const endUtc = new Date(Date.UTC(y1, m1 - 1, d1 + 1, 16, 59, 59)).toISOString();
+  const { startUtc, endUtc } = businessRangeBoundsUtc(startDate, endDate);
 
   const { data, error } = await supabase
     .from('bookings')
     .select('outlet_id, treatment_name, oil_type, oil_size, uses_oil, status, created_at')
-    .gte('created_at', startUtc)
-    .lte('created_at', endUtc);
+    .gte('created_at', startUtc.toISOString())
+    .lte('created_at', endUtc.toISOString());
   if (error) throw error;
 
   return (data || [])
@@ -712,20 +687,14 @@ export async function getProductionBookings(startDate, endDate) {
     }));
 }
 
-// Tanggal LOKAL WIB dari timestamp DB, tak bergantung zona waktu perangkat.
+// Tanggal lokal Lombok dari timestamp DB, tak bergantung zona waktu perangkat.
 function wibDateStr(iso) {
-  const wib = new Date(new Date(iso).getTime() + 7 * 3600000);
-  const m = String(wib.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(wib.getUTCDate()).padStart(2, '0');
-  return `${wib.getUTCFullYear()}-${m}-${d}`;
+  return businessDateFromTimestamp(iso);
 }
 
-// Batas UTC untuk rentang tanggal WIB inklusif.
+// Batas UTC untuk rentang tanggal bisnis Lombok inklusif.
 function wibRangeBounds(startDate, endDate) {
-  return {
-    startUtc: wibDayBoundsUtc(startDate).startUtc,
-    endUtc: wibDayBoundsUtc(endDate).endUtc
-  };
+  return businessRangeBoundsUtc(startDate, endDate);
 }
 
 // Agregasi laporan produksi: jumlah treatment & pemakaian minyak (ml)
@@ -969,13 +938,13 @@ export async function getPayslip(periode, outletId) {
   };
 }
 
-/** Label hari ini dalam WIB (UTC+7) sebagai YYYY-MM-DD. */
+/** Label hari ini menurut waktu Lombok sebagai YYYY-MM-DD. */
 function fmtDate(d = new Date()) {
-  return new Date(d.getTime() + 7 * 3600000).toISOString().slice(0, 10);
+  return businessDateFromTimestamp(d);
 }
 
 /**
- * Revenue sementara per outlet untuk hari ini (WIB).
+ * Revenue sementara per outlet untuk hari ini (waktu Lombok).
  *
  * Dipakai untuk rekap yang dikirim ke grup WhatsApp pada jam 15:00, 18:00,
  * dan 23:00. Sengaja menampilkan omzet berjalan supaya cocok dengan rekap

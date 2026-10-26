@@ -2,17 +2,12 @@ import { useEffect, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import { getDailyBookings } from '../lib/reportService';
 import { ReceiptLines } from '../components/Receipt';
+import { businessDate } from '../lib/businessDate';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
-function todayId() {
-  // Tanggal LOKAL WIB (UTC+7) — konsisten dengan reportService
-  const now = new Date(Date.now() + 7 * 3600000);
-  return now.toISOString().slice(0, 10);
-}
-
 export default function StrukPage({ outletId, active }) {
-  const [date, setDate] = useState(todayId());
+  const [date, setDate] = useState(businessDate());
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [printingBooking, setPrintingBooking] = useState(null);

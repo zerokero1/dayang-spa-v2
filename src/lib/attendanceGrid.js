@@ -1,4 +1,5 @@
 import { ATTENDANCE_TYPES } from './constants';
+import { businessDate, shiftBusinessDate } from './businessDate';
 
 /**
  * Bagian "purnama" dari grid absensi: token status, daftar hari, dan
@@ -50,11 +51,11 @@ export const DEFAULT_RECAP = [
 ];
 
 export function todayWib() {
-  return new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+  return businessDate();
 }
 
 export function thisMonthWib() {
-  return new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 7);
+  return businessDate().slice(0, 7);
 }
 
 /** "2026-10" -> [{ date, day, dow, isToday }, ...] sepanjang bulan itu. */
@@ -81,18 +82,14 @@ export function daysOfRange(start, end) {
   const from = start <= end ? start : end;
   const to = start <= end ? end : start;
   const out = [];
-  const cur = new Date(`${from}T00:00:00Z`);
-  const last = new Date(`${to}T00:00:00Z`);
   // Pengaman: rentang 5 tahun sudah jauh lebih dari yang masih terbaca di layar.
-  for (let i = 0; i < 1900 && cur <= last; i++) {
-    const date = cur.toISOString().slice(0, 10);
+  for (let i = 0, date = from; i < 1900 && date <= to; i++, date = shiftBusinessDate(date, 1)) {
     out.push({
       date,
-      day: cur.getUTCDate(),
-      dow: cur.getUTCDay(),
+      day: new Date(`${date}T00:00:00Z`).getUTCDate(),
+      dow: new Date(`${date}T00:00:00Z`).getUTCDay(),
       isToday: date === todayWib()
     });
-    cur.setUTCDate(cur.getUTCDate() + 1);
   }
   return out;
 }

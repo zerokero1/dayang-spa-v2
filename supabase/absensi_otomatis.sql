@@ -137,6 +137,8 @@ $$;
 create or replace function catat_perubahan_absensi()
 returns trigger
 language plpgsql
+security definer
+set search_path = pg_catalog, pg_temp
 as $$
 declare
   v_otomatis boolean;
@@ -146,7 +148,7 @@ begin
     return null;                     -- perubahan biasa, tidak perlu dicatat
   end if;
 
-  insert into attendance_auto_log
+  insert into public.attendance_auto_log
     (employee_id, employee_name, date, outlet_id, tipe_sebelum, tipe_sesudah,
      source_sebelum, action, oleh, treatment_saat_ini)
   values (

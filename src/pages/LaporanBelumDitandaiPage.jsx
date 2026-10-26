@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import { getUnpaidRange } from '../lib/reportService';
 import { exportExcelReport } from '../lib/excelExport';
+import { businessDate, businessDateDaysAgo, businessDateFromTimestamp } from '../lib/businessDate';
 
 const ALL_OUTLETS = '__all__';
 
-const todayId = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
-const daysAgo = (n) => new Date(Date.now() + 7 * 3600000 - n * 86400000).toISOString().slice(0, 10);
+const todayId = businessDate;
+const daysAgo = businessDateDaysAgo;
 
 const rp = (n) => 'Rp' + (Number(n) || 0).toLocaleString('id-ID');
 
@@ -24,8 +25,10 @@ function ageDays(createdAt) {
 }
 
 function wibStamp(iso) {
-  const d = new Date(new Date(iso).getTime() + 7 * 3600000).toISOString();
-  return `${d.slice(0, 10)} ${d.slice(11, 16)}`;
+  const time = new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).format(new Date(iso));
+  return `${businessDateFromTimestamp(iso)} ${time}`;
 }
 
 const navBtn = { width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' };

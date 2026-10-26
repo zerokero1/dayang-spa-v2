@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { OUTLETS, SHIFTS } from './constants';
 import { shiftEndMinutes } from './shiftService';
+import { businessDate, businessRangeBoundsUtc, shiftBusinessDate } from './businessDate';
 
 // Jam selesai shift normal (menit sejak 00:00) — patokan overtime.
 // Diturunkan dari SHIFT_DEFS (shiftService.js) supaya definisi shift hanya
@@ -64,12 +65,9 @@ function toMinutes(ms) {
   return Math.max(0, Math.floor(ms / 60000));
 }
 
-// Batas UTC untuk satu hari LOKAL (WIB = UTC+7)
+// Batas UTC untuk satu hari lokal Lombok (WITA = UTC+8)
 function wibDayBoundsUtc(dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const startUtc = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - 7 * 3600000);
-  const endUtc = new Date(startUtc.getTime() + 24 * 3600000 - 1);
-  return { startUtc, endUtc };
+  return businessRangeBoundsUtc(dateStr, dateStr);
 }
 
 export { wibDayBoundsUtc, fmtLocalDate };
@@ -90,26 +88,25 @@ export function overtimeMinutesFor(shift, dateStr, maxEndAt, nowMs = null) {
   return toMinutes(basis - wibDayShiftEndMs(dateStr, shiftEndMin));
 }
 
-// Jam selesai shift pada tanggal tertentu (WIB) dalam epoch ms.
+// Jam selesai shift pada tanggal tertentu (waktu Lombok) dalam epoch ms.
 export function wibDayShiftEndMs(dateStr, shiftEndMin) {
   const [y, m, d] = dateStr.split('-').map(Number);
   const endLocal = new Date(Date.UTC(y, m - 1, d, Math.floor(shiftEndMin / 60), shiftEndMin % 60, 0));
-  return endLocal.getTime() - 7 * 3600000;
+  return endLocal.getTime() - 8 * 3600000;
 }
 
-// Jam selesai shift (WIB) hari ini dalam epoch ms — untuk status "sedang lembur".
+// Jam selesai shift hari ini di Lombok dalam epoch ms — untuk status lembur.
 export function shiftEndMsForDate(shift, dateStr) {
   const shiftEndMin = shift ? SHIFT_END_MINUTES[shift] : null;
   if (shiftEndMin == null) return null;
   return wibDayShiftEndMs(dateStr, shiftEndMin);
 }
 
-// Format tanggal dari komponen LOKAL (WIB) — bukan toISOString (UTC),
-// agar rentang "hari ini" tidak tergeser 1 hari mundur.
+// Format tanggal kalender secara deterministik, tanpa timezone perangkat.
 function fmtLocalDate(d) {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${m}-${day}`;
+  return businessDate(d);
 }
 
 /**
@@ -132,8 +129,7 @@ export async function getOvertimeReport(startDate, endDate) {
 
   // Ambil semua booking dalam rentang (semua outlet) — sekali query per hari.
   const allBookings = [];
-  for (let d = new Date(startDate + 'T00:00:00'); d <= new Date(endDate + 'T00:00:00'); d.setDate(d.getDate() + 1)) {
-    const dateStr = fmtLocalDate(d);
+  for (let dateStr = startDate; dateStr <= endDate; dateStr = shiftBusinessDate(dateStr, 1)) {
     try {
       const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
       const { data, error } = await supabase
@@ -215,7 +211,7 @@ export async function getOvertimeReport(startDate, endDate) {
   return result;
 }
 
-// Jam selesai shift pada tanggal tertentu (WIB) dalam epoch ms.
+// Jam selesai shift pada tanggal tertentu di Lombok dalam epoch ms.
 // (didefinisikan di atas sebagai helper yang di-export)
 
 /**

@@ -5,17 +5,12 @@ import {
   getDailyRevenueCommissionReport
 } from '../lib/reportService';
 import { exportExcelReport, exportDailyRevenueCommission } from '../lib/excelExport';
-
-function todayId() {
-  // Tanggal LOKAL WIB (UTC+7) — konsisten dengan reportService
-  const now = new Date(Date.now() + 7 * 3600000);
-  return now.toISOString().slice(0, 10);
-}
+import { businessDate } from '../lib/businessDate';
 
 export default function LaporanPage({ outletId, profile }) {
   const isKasir = profile?.role === 'kasir';
-  const [startDate, setStartDate] = useState(todayId());
-  const [endDate, setEndDate] = useState(todayId());
+  const [startDate, setStartDate] = useState(businessDate());
+  const [endDate, setEndDate] = useState(businessDate());
   const [mode, setMode] = useState('outlet'); // 'outlet' | 'gabungan' | 'komisi'
   const [loading, setLoading] = useState(false);
   const [outletSummary, setOutletSummary] = useState(null);
@@ -81,10 +76,14 @@ export default function LaporanPage({ outletId, profile }) {
       b.customerName || '-'
     ]);
     rows.push(['', 'TOTAL', outletSummary.totalRevenue, '', outletSummary.totalCommission, outletSummary.totalHotelCommission, '', '', '']);
-    const totalRowIndex = rows.length - 1;
     if (outletSummary.oncallRevenue) {
-      rows.push(['', 'OMZET ONCALL (tersendiri)', outletSummary.oncallRevenue, '', outletSummary.oncallCommission, '', '', '', '']);
+      rows.push([
+        '', 'ONCALL NET (setelah komisi hotel)', outletSummary.oncallRevenue,
+        '', outletSummary.oncallCommission, outletSummary.totalHotelCommission, '', '', ''
+      ]);
     }
+    rows.push(['', 'TOTAL REVENUE NET', outletSummary.totalRevenue + outletSummary.oncallRevenue, '', '', '', '', '', '']);
+    const totalRowIndex = rows.length - 1;
     await exportExcelReport({
       filename: `Laporan-Keuangan-${outletId}-${startDate}_${endDate}`,
       title: 'Laporan Keuangan — Dayang Spa',
@@ -96,17 +95,22 @@ export default function LaporanPage({ outletId, profile }) {
   }
 
   async function handleDownloadCombined() {
-    const headers = ['Outlet', 'Jumlah Treatment', 'Total Omzet', 'Total Komisi', 'Komisi Hotel', 'Omzet Oncall'];
+    const headers = ['Outlet', 'Jumlah Treatment', 'Revenue Reguler', 'Total Komisi', 'Komisi Hotel', 'Oncall Net', 'Total Revenue Net'];
     const rows = Object.values(combined.perOutlet).map((o) => [
-      o.outletName, o.totalTreatment, o.totalRevenue, o.totalCommission, o.totalHotelCommission, o.oncallRevenue
+      o.outletName, o.totalTreatment, o.totalRevenue, o.totalCommission, o.totalHotelCommission,
+      o.oncallRevenue, o.totalRevenue + o.oncallRevenue
     ]);
-    rows.push(['GRAND TOTAL', combined.grandTotalTreatment, combined.grandTotalRevenue, combined.grandTotalCommission, combined.grandTotalHotelCommission, combined.grandOncallRevenue]);
+    rows.push([
+      'GRAND TOTAL', combined.grandTotalTreatment, combined.grandTotalRevenue,
+      combined.grandTotalCommission, combined.grandTotalHotelCommission,
+      combined.grandOncallRevenue, combined.grandTotalRevenue + combined.grandOncallRevenue
+    ]);
     await exportExcelReport({
       filename: `Laporan-Keuangan-Gabungan-${startDate}_${endDate}`,
       title: 'Laporan Keuangan Gabungan — Dayang Spa',
       subtitle: `Semua Outlet · ${rangeLabel}`,
       headers, rows,
-      currencyColumns: [2, 3, 4, 5],
+      currencyColumns: [2, 3, 4, 5, 6],
       totalRowIndex: rows.length - 1
     });
   }
@@ -233,10 +237,11 @@ export default function LaporanPage({ outletId, profile }) {
           {outletSummary.totalBatal > 0 && (
             <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Dibatalkan: {outletSummary.totalBatal}</p>
           )}
-          <p>Omzet outlet (tanpa oncall): {rp(outletSummary.totalRevenue)}</p>
+          <p>Revenue reguler: {rp(outletSummary.totalRevenue)}</p>
           {outletSummary.oncallCount > 0 && (
-            <p>Omzet oncall (tersendiri): {rp(outletSummary.oncallRevenue)} ({outletSummary.oncallCount} transaksi)</p>
+            <p>Omzet oncall (setelah komisi hotel): {rp(outletSummary.oncallRevenue)} ({outletSummary.oncallCount} transaksi)</p>
           )}
+          <p style={{ fontWeight: 700 }}>Total revenue (komisi hotel sudah dikurangi): {rp(outletSummary.totalRevenue + outletSummary.oncallRevenue)}</p>
           <p>Total komisi: {rp(outletSummary.totalCommission)}</p>
           {outletSummary.totalHotelCommission > 0 && (
             <p>Total komisi hotel (oncall): {rp(outletSummary.totalHotelCommission)}</p>
@@ -266,10 +271,11 @@ export default function LaporanPage({ outletId, profile }) {
             </button>
           </div>
           <p>Total treatment: {combined.grandTotalTreatment}</p>
-          <p>Omzet outlet (tanpa oncall): {rp(combined.grandTotalRevenue)}</p>
+          <p>Revenue reguler: {rp(combined.grandTotalRevenue)}</p>
           {combined.grandOncallCount > 0 && (
-            <p>Omzet oncall (tersendiri): {rp(combined.grandOncallRevenue)} ({combined.grandOncallCount} transaksi)</p>
+            <p>Omzet oncall (setelah komisi hotel): {rp(combined.grandOncallRevenue)} ({combined.grandOncallCount} transaksi)</p>
           )}
+          <p style={{ fontWeight: 700 }}>Total revenue (komisi hotel sudah dikurangi): {rp(combined.grandTotalRevenue + combined.grandOncallRevenue)}</p>
           <p>Belum dibayar: {rp(combined.grandUnpaidRevenue)} ({combined.grandUnpaidCount} transaksi)</p>
           <p style={{ fontWeight: 600, color: 'var(--primary-dark)' }}>
             Omzet lunas saja (= Laporan Keseluruhan):{' '}

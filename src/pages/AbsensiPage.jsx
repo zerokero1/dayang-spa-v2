@@ -4,6 +4,7 @@ import { getAttendanceRange, recordAttendance, saveOvertime } from '../lib/atten
 import { listenAllTherapists } from '../lib/therapistService';
 import { clockToMinutes, minutesToClock, minutesToDuration, shiftStartMinutes } from '../lib/shiftService';
 import AbsensiBulanan from './AbsensiBulanan';
+import { businessDate } from '../lib/businessDate';
 
 // Status kehadiran yang dipilih kasir. LEMBUR sengaja TIDAK ada di sini:
 // lembur bukan kondisi kerja, melainkan keterangan tambahan hari yang sama,
@@ -36,7 +37,7 @@ const CARA_INPUT_LEMBUR = (
 );
 
 function todayWib() {
-  return new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+  return businessDate();
 }
 
 function outletName(id) {
@@ -45,7 +46,7 @@ function outletName(id) {
 
 /** "12:05" -> 725, dipakai untuk tombol cepat "sekarang". */
 function nowMinutes() {
-  const now = new Date(Date.now() + 7 * 3600000);
+  const now = new Date(Date.now() + 8 * 3600000);
   return now.getUTCHours() * 60 + now.getUTCMinutes();
 }
 
