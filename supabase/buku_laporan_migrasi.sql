@@ -93,6 +93,7 @@ create or replace function log_oil_stock_change() returns trigger
 language plpgsql as $fn$
 declare
   v_delta int;
+  v_note text;
 begin
   -- Pada INSERT, OLD tidak ada; SELURUH stok dianggap pertambahan.
   if tg_op = 'INSERT' then
@@ -104,14 +105,19 @@ begin
   -- Abaikan perubahan yang tidak mengubah stok (mis. ubah label size).
   if coalesce(v_delta, 0) = 0 then return null; end if;
 
+  v_note := nullif(current_setting('dayang.oil_stock_note', true), '');
+  if v_note is null then
+    v_note := case when tg_op = 'INSERT' then 'Penambahan stok manual'
+                   else 'Penyesuaian stok manual' end;
+  end if;
+
   insert into oil_inventory_logs
     (outlet_id, oil_type, size, type, qty, stock_after, note)
   values
     (new.outlet_id, new.oil_type, new.size,
      case when v_delta > 0 then 'in' else 'out' end,
      abs(v_delta), new.stock,
-     case when tg_op = 'INSERT' then 'Penambahan stok'
-          else 'Penyesuaian otomatis' end);
+     v_note);
   return null;
 end;
 $fn$;

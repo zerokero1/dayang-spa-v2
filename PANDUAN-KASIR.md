@@ -128,10 +128,10 @@ Sama seperti Kasir, bedanya:
 - Menu **Stok** menggabungkan minyak dan produk treatment dalam satu halaman dengan dua tab.
 - **Ringkasan di atas**: jumlah jenis minyak, jumlah jenis produk, dan berapa yang **perlu diisi**.
 - **Bagian "Perlu diisi"**: gabungan dari minyak dan produk yang menipis/habis — tinggal tekan **+1** atau **Isi barang** langsung dari situ.
-- **Tab Minyak**: klik **-1 / +1** atau **ketik angka** untuk set stok. Otomatis tersimpan, tidak ada tombol Simpan.
-- **Tab Produk & Laundry**: pilih barang → isi **jumlah** → opsional **catatan** → **Barang masuk** / **Barang keluar**. Ada juga tambah item baru & hapus item.
+- **Tab Minyak**: saldo diisi manual saat closing dengan mengetik hasil hitungan fisik; **-1 / +1** tetap tersedia untuk penyesuaian manual. Di bawah daftar stok, pilih tanggal untuk melihat jumlah minyak/ukuran yang terpakai dari booking. Ringkasan ini hanya membaca transaksi dan tidak memotong stok lagi.
+- **Tab Produk & Laundry**: produk treatment tetap dicatat dengan **Barang masuk** / **Barang keluar**. Untuk item **Laundry**, pilih barang saat tutup shift, hitung stok fisik, masukkan angkanya, lalu tekan **Simpan stok closing**. Selisih stok dan catatan tersimpan di riwayat inventory.
 - Treatment Massage memakai minyak, Treatment Foot Massage memakai Foot Cream.
-- Stok **otomatis berkurang** saat transaksi disimpan. Tapi **tidak berkurang** untuk oncall, check-in reservasi, dan pembatalan dengan potongan harga — isi manual di halaman ini.
+- Stok minyak dan Laundry sama-sama **manual saat closing**. Pemakaian minyak per tanggal tetap dihitung dari transaksi booking, tetapi booking, pembatalan, dan koreksi tidak mengubah saldo stok. Produk treatment non-minyak tetap otomatis berkurang saat transaksi disimpan. Oncall, check-in reservasi, dan pembatalan dengan potongan harga tidak mengubah stok otomatis.
 - Kalau ada yang bertanda **⚠ akan habis** di Order Stock, isi jumlahnya lalu tekan **📦 Kirim Order Stock**.
 - Detail lengkap: **[SKEMA-STOK-MINYAK.md](SKEMA-STOK-MINYAK.md)**
 

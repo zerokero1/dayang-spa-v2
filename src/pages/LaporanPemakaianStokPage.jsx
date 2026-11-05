@@ -96,6 +96,7 @@ export default function LaporanPemakaianStokPage({ profile, outletId: outletIdPr
     const parts = [];
     if (oil) parts.push(`Minyak tercatat mulai ${tgl(oil)}`);
     else parts.push('Minyak belum ada catatan pergerakan');
+    parts.push('Setelah perubahan diterapkan saldo minyak dihitung manual; In/Out pada periode lama bisa memuat gerakan otomatis historis. Pemakaian booking ditampilkan terpisah di halaman Stok.');
     if (item) parts.push(`barang tercatat mulai ${tgl(item)}`);
     else parts.push('barang belum ada catatan pergerakan');
     return `${parts.join(' · ')}. Hari sebelum pencatatan pertama dikosongkan (–), bukan 0.`;
@@ -266,8 +267,7 @@ export default function LaporanPemakaianStokPage({ profile, outletId: outletIdPr
           </button>
         </div>
         <p style={hint}>
-          1 treatment full body = 1 Hole Sheet + 1 Single Sheet + 1 Face Cradle,
-          dihitung otomatis dari booking yang tidak dibatalkan pada tanggal {labelHari(startDate, true)}.
+          Estimasi produk treatment dihitung dari booking yang tidak dibatalkan pada tanggal {labelHari(startDate, true)}. Laundry tidak dihitung di sini karena dicatat dari hitungan fisik saat closing.
         </p>
 
         {konsum && konsum.ok && showKonsum && (

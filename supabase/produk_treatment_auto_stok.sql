@@ -1,13 +1,14 @@
 -- =====================================================================
--- Produk Treatment + Pemotongan Stok Otomatis
+-- Produk Treatment + Pemotongan Stok Otomatis (kecuali Laundry manual closing)
 -- Tanggal : 2026-10-04
 -- Tujuan :
 --   1. Menambahkan kolom `category` pada tabel inventory
 --      (barang lama = Laundry, produk baru = Produk)
 --   2. Seeds 6 produk treatment ke seluruh outlet dengan stok awal 0
 --   3. Memetakan produk ke treatment (1 booking = 1 produk)
---   4. Memotong stok produk otomatis saat booking dibuat
---   5. Mengembalikan stok produk saat booking dibatalkan/dihapus
+--   4. Memotong stok produk treatment otomatis saat booking dibuat
+--   5. Mengembalikan stok produk treatment saat booking dibatalkan/dihapus
+--      (Laundry dan saldo minyak dikendalikan manual oleh migration closing)
 -- Aturan : stok kurang TIDAK memblokir, stok dijepit di 0
 -- =====================================================================
 
@@ -43,6 +44,7 @@ begin
       join public.inventory i
         on i.outlet_id = p_outlet_id
        and lower(i.name) = lower(c.item_name)
+      and lower(coalesce(i.category, 'Produk')) <> 'laundry'
      where c.treatment_id = p_treatment_id
   loop
     -- clamp di 0: transaksi tetap jalan walau stok kurang
@@ -82,6 +84,7 @@ begin
       join public.inventory i
         on i.outlet_id = p_outlet_id
        and lower(i.name) = lower(c.item_name)
+      and lower(coalesce(i.category, 'Produk')) <> 'laundry'
      where c.treatment_id = p_treatment_id
   loop
     update public.inventory

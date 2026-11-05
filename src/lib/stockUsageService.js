@@ -318,7 +318,7 @@ export async function getConsumableUsage(outletId, startDate, endDate) {
 
   const [rulesRes, invRes, bookingRes] = await Promise.all([
     supabase.from('treatment_consumables').select('treatment_id, item_name, qty'),
-    supabase.from('inventory').select('id, name, unit, stock').eq('outlet_id', outletId),
+    supabase.from('inventory').select('id, name, unit, stock, category').eq('outlet_id', outletId),
     supabase
       .from('bookings')
       .select('treatment_id, treatment_name, created_at')
@@ -328,9 +328,19 @@ export async function getConsumableUsage(outletId, startDate, endDate) {
       .lte('created_at', toIso)
   ]);
 
-  const rules = rulesRes.data || [];
-  if (rules.length === 0) {
+  const allRules = rulesRes.data || [];
+  if (allRules.length === 0) {
     return { ok: false, reason: 'Aturan pemakaian treatment belum diatur.', itemNames: [], items: [], byTreatment: [], days: [], totalItem: 0 };
+  }
+
+  const invByName = {};
+  (invRes.data || []).forEach((r) => { invByName[String(r.name).toLowerCase()] = r; });
+  const rules = allRules.filter((r) => {
+    const item = invByName[String(r.item_name).toLowerCase()];
+    return String(item?.category || '').trim().toLowerCase() !== 'laundry';
+  });
+  if (rules.length === 0) {
+    return { ok: false, reason: 'Tidak ada estimasi pemakaian produk treatment di outlet ini.', itemNames: [], items: [], byTreatment: [], days: [], totalItem: 0 };
   }
 
   // Aturan per treatment.
@@ -343,8 +353,6 @@ export async function getConsumableUsage(outletId, startDate, endDate) {
   });
 
   // Nama item yang dipakai aturan + info stok di outlet ini.
-  const invByName = {};
-  (invRes.data || []).forEach((r) => { invByName[String(r.name).toLowerCase()] = r; });
   const itemNames = [...new Set(rules.map((r) => r.item_name))].sort();
 
   // Jumlah booking per treatment per hari.

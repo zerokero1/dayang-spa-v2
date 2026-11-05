@@ -193,11 +193,10 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
     itemUsage[d][r.outlet_id][r.item_id] = (itemUsage[d][r.outlet_id][r.item_id] || 0) + (r.qty || 0);
   });
 
-  // --- Pemakaian barang konsumable dari ATURAN treatment
+  // --- Estimasi pemakaian produk treatment (Laundry dicatat saat closing)
   //
-  // treatment_consumables bilang "1 full body massage = 1 hole sheet".
-  // Jadi pemakaiannya bisa dihitung sendiri dari booking, walau tidak ada
-  // satu pun pencatatan stok manual. PENTING: ini ESTIMASI sesuai aturan,
+  // treatment_consumables menetapkan pemakaian produk per booking. Angka ini
+  // ESTIMASI sesuai aturan,
   // bukan hasil hitung fisika di gudang. Kalau treatment Consumable punya
   // Treatment yang nyata memakai lebih sedikit, laporan ini akan
   // over-count — makanya kolomnya dilabeli "Estimasi", tidak "Tercatat".
@@ -228,7 +227,7 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
         const [nm, size] = k.split('|');
         usageRows.push({
           tanggal: d, outlet: outletName(oid), kategori: 'Minyak',
-          nama: nm, ukuran: size, satuan: 'botol', dipakai: qty, sumber: 'Terhitung otomatis'
+          nama: nm, ukuran: size, satuan: 'botol', dipakai: qty, sumber: 'Dari transaksi booking'
         });
       });
       const items = itemUsage[d]?.[oid] || {};
@@ -263,8 +262,11 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
       (itemLogRes.data || []).length === 0
         ? 'Barang non-minyak belum pernah mencatat movements masuk/keluar, jadi kolom In/Out kosong untuk periode ini.'
         : null,
+      (oilLogRes.data || []).length > 0
+        ? 'Setelah perubahan diterapkan, pergerakan saldo minyak hanya mencatat penyesuaian manual; log historis otomatis tetap ada. Pemakaian booking dihitung terpisah dan tidak memotong saldo.'
+        : null,
       consumableEstimated
-        ? 'Pemakaian nonin-minyak di tabel "Pemakaian Harian" dihitung dari aturan treatment (treatment_consumables x booking), bukan dari pencatatan stok fisik. Kalau ada treatment yang memakai lebih sedikit dari aturan, angka ini terlalu besar.'
+        ? 'Estimasi produk treatment di tabel "Pemakaian Harian" dihitung dari aturan treatment (treatment_consumables x booking), bukan dari pencatatan stok fisik. Laundry dan minyak dihitung terpisah.'
         : null
     ].filter(Boolean)
   };

@@ -27,6 +27,13 @@ export async function stockOut(outletId, itemId, qty, note) {
   if (error) throw error;
 }
 
+export async function setLaundryClosingStock(outletId, itemId, stock, note) {
+  const { error } = await supabase.rpc('set_laundry_closing_stock', {
+    p_outlet_id: outletId, p_item_id: itemId, p_stock: stock, p_note: note || ''
+  });
+  if (error) throw error;
+}
+
 // Hapus item beserta log inventory-nya (permanen). Pastikan stock sudah 0 bila ingin rapi.
 export async function deleteInventoryItem(outletId, itemId) {
   const { error } = await supabase.rpc('delete_inventory_item', {

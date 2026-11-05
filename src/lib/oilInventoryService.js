@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { businessRangeBoundsUtc } from './businessDate';
 
 function mapRow(row) {
   return {
@@ -32,9 +33,13 @@ export function listenOilInventory(outletId, callback) {
 }
 
 export async function setOilStock(outletId, oilType, size, newStock) {
-  const { error } = await supabase
-    .from('oil_inventory')
-    .upsert({ outlet_id: outletId, oil_type: oilType, size, stock: newStock, unit: 'botol' });
+  const { error } = await supabase.rpc('set_oil_closing_stock', {
+    p_outlet_id: outletId,
+    p_oil_type: oilType,
+    p_size: size,
+    p_stock: newStock,
+    p_note: 'Hitungan fisik saat closing'
+  });
   if (error) throw error;
 }
 
@@ -43,4 +48,29 @@ export async function adjustOilStock(outletId, oilType, size, delta) {
     p_outlet_id: outletId, p_oil_type: oilType, p_size: size, p_delta: delta
   });
   if (error) throw error;
+}
+
+export async function getOilConsumptionByDate(outletId, date) {
+  const { startUtc, endUtc } = businessRangeBoundsUtc(date, date);
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('oil_type, oil_size')
+    .eq('outlet_id', outletId)
+    .eq('uses_oil', true)
+    .neq('status', 'batal')
+    .gte('created_at', startUtc.toISOString())
+    .lte('created_at', endUtc.toISOString());
+  if (error) throw error;
+
+  const usage = new Map();
+  (data || []).forEach(({ oil_type: oilType, oil_size: size }) => {
+    if (!oilType || !size) return;
+    const key = `${oilType}|${size}`;
+    const current = usage.get(key) || { oilType, size, qty: 0 };
+    current.qty += 1;
+    usage.set(key, current);
+  });
+  return [...usage.values()].sort(
+    (a, b) => a.oilType.localeCompare(b.oilType) || a.size.localeCompare(b.size)
+  );
 }

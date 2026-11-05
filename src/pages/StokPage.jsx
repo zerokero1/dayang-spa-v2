@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { listenOilInventory, setOilStock, adjustOilStock } from '../lib/oilInventoryService';
-import { listenInventory, addInventoryItem, stockIn, stockOut, deleteInventoryItem } from '../lib/inventoryService';
+import { listenOilInventory, setOilStock, adjustOilStock, getOilConsumptionByDate } from '../lib/oilInventoryService';
+import { listenInventory, addInventoryItem, stockIn, stockOut, setLaundryClosingStock, deleteInventoryItem } from '../lib/inventoryService';
 import { INVENTORY_CATEGORIES, DEFAULT_INVENTORY_CATEGORY, isSingleSizeProduct } from '../lib/constants';
 import { LOW_OIL, LOW_ITEM, namaMinyak, kelompokkanMinyak, hitungPerluAttention, totalStok } from '../lib/stokRingkas';
+import { businessDate } from '../lib/businessDate';
 
 /**
  * Halaman Stok - satu tempat untuk minyak DAN produk treatment.
@@ -33,6 +34,11 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
   // oil_inventory
   const [oils, setOils] = useState([]);
   const [busyId, setBusyId] = useState(null);
+  const [oilCountDrafts, setOilCountDrafts] = useState({});
+  const [oilUsageDate, setOilUsageDate] = useState(() => businessDate());
+  const [oilUsage, setOilUsage] = useState([]);
+  const [oilUsageBusy, setOilUsageBusy] = useState(false);
+  const [oilUsageError, setOilUsageError] = useState('');
 
   // inventory (produk dan laundry)
   const [items, setItems] = useState([]);
@@ -56,6 +62,23 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
     return listenInventory(outletId, setItems);
   }, [active, outletId]);
 
+  useEffect(() => {
+    if (!active || !outletId || !oilUsageDate) return;
+    let alive = true;
+    setOilUsageBusy(true);
+    setOilUsageError('');
+    getOilConsumptionByDate(outletId, oilUsageDate)
+      .then((rows) => { if (alive) setOilUsage(rows); })
+      .catch((e) => {
+        if (alive) {
+          setOilUsage([]);
+          setOilUsageError('Gagal memuat pemakaian minyak: ' + e.message);
+        }
+      })
+      .finally(() => { if (alive) setOilUsageBusy(false); });
+    return () => { alive = false; };
+  }, [active, outletId, oilUsageDate]);
+
   // Halaman bisa dibuka lewat tautan lama (menu Stok Minyak / Inventory),
   // jadi tab harus ikut menyesuaikan kalau prop-nya berubah.
   useEffect(() => {
@@ -69,6 +92,10 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
     setMessage('');
     try {
       await adjustOilStock(outletId, oil.oilType, oil.size, delta);
+      setOilCountDrafts((drafts) => ({
+        ...drafts,
+        [oil.id]: String(Math.max((Number(oil.stock) || 0) + delta, 0))
+      }));
     } catch (e) {
       setMessage('Gagal: ' + e.message);
     } finally {
@@ -77,20 +104,17 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
   }
 
   async function handleSetOil(oil, value) {
-    // Penting: jangan menulis apa pun kalau kotaknya dikosongkan. Number('')
-    // bernilai 0, jadi tanpa penjaga ini kasir yang mengetik ulang angka akan
-    // membuat stok langsung tersimpan 0.
     if (value === '' || value === null || value === undefined) return;
     const num = Number(value);
     if (!Number.isFinite(num) || num < 0) return;
     // Pecahan tidak masuk akal untuk stok botol / tube.
     if (!Number.isInteger(num)) return;
-    if (num === oil.stock) return;
     setBusyId(oil.id);
     setMessage('');
     try {
       await setOilStock(outletId, oil.oilType, oil.size, num);
       setMessage(`${namaMinyak(oil)} diset ke ${num}`);
+      setOilCountDrafts((drafts) => ({ ...drafts, [oil.id]: String(num) }));
     } catch (e) {
       setMessage('Gagal: ' + e.message);
     } finally {
@@ -149,6 +173,27 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
       await stockOut(outletId, selItem.id, Number(qty), note);
       setMessage(`${selItem.name}: barang keluar ${qty}`);
       setQty(''); setNote('');
+    } catch (e) {
+      setMessage('Gagal: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleClosingCount() {
+    if (!selItem || qty === '') return;
+    const stock = Number(qty);
+    if (!Number.isInteger(stock) || stock < 0) {
+      setMessage('Jumlah stok closing harus berupa bilangan bulat minimal 0');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    try {
+      await setLaundryClosingStock(outletId, selItem.id, stock, note);
+      setMessage(`${selItem.name}: stok closing ${stock} ${selItem.unit} dicatat`);
+      setQty('');
+      setNote('');
     } catch (e) {
       setMessage('Gagal: ' + e.message);
     } finally {
@@ -323,8 +368,8 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
                             inputMode="numeric"
                             min="0"
                             step="1"
-                            value={oil.stock == null ? 0 : oil.stock}
-                            onChange={(e) => handleSetOil(oil, e.target.value)}
+                            value={oilCountDrafts[oil.id] ?? (oil.stock == null ? 0 : oil.stock)}
+                            onChange={(e) => setOilCountDrafts((drafts) => ({ ...drafts, [oil.id]: e.target.value }))}
                             aria-label={`Jumlah ${namaLengkap}`}
                           />
                           <span className="stok-jumlah-satuan">{oil.unit || 'botol'}</span>
@@ -354,6 +399,13 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
                             {n}
                           </button>
                         ))}
+                        <button
+                          className="stok-cepat-tombol"
+                          disabled={busyId === oil.id}
+                          onClick={() => handleSetOil(oil, oilCountDrafts[oil.id] ?? String(oil.stock || 0))}
+                        >
+                          Simpan closing
+                        </button>
                       </div>
                     </div>
                   );
@@ -362,9 +414,39 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
             </div>
           ))}
           <p className="muted" style={{ fontSize: 12 }}>
-            Stok minyak berkurang otomatis saat transaksi disimpan. Yang harus diisi
-            manual: oncall, check-in reservasi, dan pembatalan dengan potongan harga.
+            Saldo stok minyak diisi manual berdasarkan hitungan fisik saat closing.
+            Gunakan tombol tambah/kurang untuk penyesuaian manual; pemakaian dari
+            booking ditampilkan terpisah di bawah.
           </p>
+          <section>
+            <h3>Pemakaian minyak dari transaksi</h3>
+            <label>
+              Tanggal
+              <input
+                type="date"
+                value={oilUsageDate}
+                onChange={(e) => setOilUsageDate(e.target.value)}
+              />
+            </label>
+            <p className="muted" style={{ fontSize: 12 }}>
+              Ringkasan booking yang memakai minyak. Transaksi tidak mengubah saldo; tampilan ini hanya membaca data dan tidak menambah pergerakan stok.
+            </p>
+            {oilUsageBusy ? (
+              <p className="muted">Memuat pemakaian...</p>
+            ) : oilUsageError ? (
+              <p className="message">{oilUsageError}</p>
+            ) : oilUsage.length === 0 ? (
+              <p className="muted">Tidak ada transaksi memakai minyak pada tanggal ini.</p>
+            ) : (
+              <div className="grid-2">
+                {oilUsage.map((row) => (
+                  <div key={`${row.oilType}|${row.size}`}>
+                    {row.oilType} ({row.size}): <strong>{row.qty} botol</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </section>
       )}
 
@@ -400,17 +482,37 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
 
           {selItem && (
             <section className="stok-aksi">
-              <p>Jumlah untuk {selItem.name}</p>
-              <input type="number" placeholder="Jumlah" value={qty} onChange={(e) => setQty(e.target.value)} />
+              <p>
+                {(selItem.category || DEFAULT_INVENTORY_CATEGORY) === 'Laundry'
+                  ? `Hitungan fisik saat closing untuk ${selItem.name}`
+                  : `Jumlah untuk ${selItem.name}`}
+              </p>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                placeholder={(selItem.category || DEFAULT_INVENTORY_CATEGORY) === 'Laundry' ? 'Jumlah hasil hitung fisik' : 'Jumlah'}
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+              />
               <input placeholder="Catatan (opsional)" value={note} onChange={(e) => setNote(e.target.value)} />
-              <div className="stok-aksi-grup">
-                <button className="btn btn-primary" onClick={handleIn} disabled={busy || !qty}>
-                  Barang masuk
-                </button>
-                <button className="btn btn-outline" onClick={handleOut} disabled={busy || !qty}>
-                  Barang keluar
-                </button>
-              </div>
+              {(selItem.category || DEFAULT_INVENTORY_CATEGORY) === 'Laundry' ? (
+                <>
+                  <p className="muted">Masukkan jumlah laundry yang benar-benar dihitung saat tutup shift. Stok akan disesuaikan dan selisihnya dicatat.</p>
+                  <button className="btn btn-primary" onClick={handleClosingCount} disabled={busy || qty === ''}>
+                    Simpan stok closing
+                  </button>
+                </>
+              ) : (
+                <div className="stok-aksi-grup">
+                  <button className="btn btn-primary" onClick={handleIn} disabled={busy || !qty}>
+                    Barang masuk
+                  </button>
+                  <button className="btn btn-outline" onClick={handleOut} disabled={busy || !qty}>
+                    Barang keluar
+                  </button>
+                </div>
+              )}
               <button className="btn btn-danger-outline btn-sm stok-hapus" onClick={handleDelete} disabled={busy}>
                 Hapus item ini
               </button>
