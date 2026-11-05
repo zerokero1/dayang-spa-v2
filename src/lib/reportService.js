@@ -697,6 +697,101 @@ function wibRangeBounds(startDate, endDate) {
   return businessRangeBoundsUtc(startDate, endDate);
 }
 
+const ONCALL_REPORT_COLUMNS =
+  'id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, ' +
+  'commission_percent, commission_amount, status, paid, payment_method, customer_name, ' +
+  'booking_source, hotel_commission, created_at';
+
+const ONCALL_REPORT_PAGE_SIZE = 1000;
+
+/**
+ * Rekap transaksi oncall per tanggal bisnis Lombok dan outlet, beserta rincian
+ * transaksi. Baris batal penuh tidak dihitung; pembatalan sebagian tetap
+ * mengikuti perilaku laporan yang sudah ada.
+ */
+export async function getOncallReport(startDate, endDate) {
+  const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
+  const rows = [];
+
+  for (let from = 0; ; from += ONCALL_REPORT_PAGE_SIZE) {
+    const to = from + ONCALL_REPORT_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(ONCALL_REPORT_COLUMNS)
+      .eq('booking_source', 'oncall')
+      .gte('created_at', startUtc.toISOString())
+      .lte('created_at', endUtc.toISOString())
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to);
+    if (error) throw error;
+
+    rows.push(...(data || []));
+    if (!data || data.length < ONCALL_REPORT_PAGE_SIZE) break;
+  }
+
+  const transactions = rows
+    .map(mapBooking)
+    .filter((booking) => booking.status !== 'batal')
+    .map((booking) => ({
+      ...booking,
+      charge: booking.treatmentPrice,
+      therapistCommission: booking.commissionAmount,
+      netSpaIncome: booking.treatmentPrice - booking.commissionAmount - booking.hotelCommission
+    }));
+
+  const summaryByKey = new Map();
+  transactions.forEach((booking) => {
+    const key = `${booking.wibDate}|${booking.outletId || ''}`;
+    if (!summaryByKey.has(key)) {
+      summaryByKey.set(key, {
+        date: booking.wibDate,
+        outletId: booking.outletId || '',
+        transactionCount: 0,
+        grossCharge: 0,
+        hotelCommission: 0,
+        therapistCommission: 0,
+        netSpaIncome: 0
+      });
+    }
+
+    const summary = summaryByKey.get(key);
+    summary.transactionCount += 1;
+    summary.grossCharge += booking.charge;
+    summary.hotelCommission += booking.hotelCommission;
+    summary.therapistCommission += booking.therapistCommission;
+    summary.netSpaIncome += booking.netSpaIncome;
+  });
+
+  const summaries = [...summaryByKey.values()].sort((a, b) =>
+    a.date.localeCompare(b.date) ||
+    OUTLETS.findIndex((outlet) => outlet.id === a.outletId) -
+      OUTLETS.findIndex((outlet) => outlet.id === b.outletId) ||
+    a.outletId.localeCompare(b.outletId)
+  );
+  transactions.sort((a, b) =>
+    a.wibDate.localeCompare(b.wibDate) ||
+    (a.outletId || '').localeCompare(b.outletId || '') ||
+    a.createdAt.localeCompare(b.createdAt)
+  );
+
+  const totals = summaries.reduce((total, summary) => ({
+    transactionCount: total.transactionCount + summary.transactionCount,
+    grossCharge: total.grossCharge + summary.grossCharge,
+    hotelCommission: total.hotelCommission + summary.hotelCommission,
+    therapistCommission: total.therapistCommission + summary.therapistCommission,
+    netSpaIncome: total.netSpaIncome + summary.netSpaIncome
+  }), {
+    transactionCount: 0,
+    grossCharge: 0,
+    hotelCommission: 0,
+    therapistCommission: 0,
+    netSpaIncome: 0
+  });
+
+  return { summaries, transactions, totals };
+}
+
 // Agregasi laporan produksi: jumlah treatment & pemakaian minyak (ml)
 // per jenis, per tanggal, per outlet — sekaligus total gabungan.
 export function buildProductionReport(rows, outletIds) {

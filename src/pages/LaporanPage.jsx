@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import {
   getDailyBookingsRange, summarizeDailyBookings, getCombinedDailyReport, getCommissionStaffReport,
-  getDailyRevenueCommissionReport
+  getDailyRevenueCommissionReport, getOncallReport
 } from '../lib/reportService';
-import { exportExcelReport, exportDailyRevenueCommission } from '../lib/excelExport';
+import { exportExcelReport, exportDailyRevenueCommission, exportExcelWorkbook } from '../lib/excelExport';
 import { businessDate } from '../lib/businessDate';
 
 export default function LaporanPage({ outletId, profile }) {
@@ -17,6 +17,8 @@ export default function LaporanPage({ outletId, profile }) {
   const [rawBookings, setRawBookings] = useState([]);
   const [combined, setCombined] = useState(null);
   const [staffCommissions, setStaffCommissions] = useState(null);
+  const [oncallReport, setOncallReport] = useState(null);
+  const [oncallError, setOncallError] = useState('');
 
   const rangeLabel = startDate === endDate ? startDate : `${startDate} s/d ${endDate}`;
 
@@ -51,10 +53,27 @@ export default function LaporanPage({ outletId, profile }) {
     }
   }
 
+  async function loadOncallReport() {
+    setLoading(true);
+    setOncallError('');
+    try {
+      if (!startDate || !endDate || startDate > endDate) {
+        throw new Error('Rentang tanggal tidak valid.');
+      }
+      setOncallReport(await getOncallReport(startDate, endDate));
+    } catch (e) {
+      setOncallReport(null);
+      setOncallError('Gagal memuat laporan Oncall: ' + (e.message || e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleLoad() {
     if (mode === 'outlet') loadOutletReport();
     else if (mode === 'gabungan') loadCombinedReport();
-    else loadCommissionReport();
+    else if (mode === 'komisi') loadCommissionReport();
+    else loadOncallReport();
   }
 
   // Muat otomatis saat halaman dibuka + refresh berkala supaya selalu real-time.
@@ -174,6 +193,67 @@ export default function LaporanPage({ outletId, profile }) {
     }
   }
 
+  async function handleDownloadOncall() {
+    if (!oncallReport) return;
+    const outletName = (id) => {
+      const outlet = OUTLETS.find((item) => item.id === id);
+      return outlet ? `${outlet.name} (${outlet.id})` : id || '-';
+    };
+    const summaryRows = oncallReport.summaries.map((row) => [
+      row.date, outletName(row.outletId), row.transactionCount,
+      row.grossCharge, row.hotelCommission, row.therapistCommission, row.netSpaIncome
+    ]);
+    summaryRows.push([
+      'TOTAL', '', oncallReport.totals.transactionCount, oncallReport.totals.grossCharge,
+      oncallReport.totals.hotelCommission, oncallReport.totals.therapistCommission,
+      oncallReport.totals.netSpaIncome
+    ]);
+
+    const detailRows = oncallReport.transactions.map((booking) => [
+      booking.wibDate, outletName(booking.outletId), booking.therapistName || '-',
+      booking.treatmentName || '-', booking.customerName || '-',
+      booking.charge, booking.hotelCommission, booking.therapistCommission,
+      booking.netSpaIncome, booking.paymentMethod === 'cardless' ? 'Cardless' : 'Cash',
+      booking.paid ? 'Lunas' : 'Belum lunas'
+    ]);
+    detailRows.push([
+      'TOTAL', '', '', '', '', oncallReport.totals.grossCharge,
+      oncallReport.totals.hotelCommission, oncallReport.totals.therapistCommission,
+      oncallReport.totals.netSpaIncome, '', ''
+    ]);
+
+    await exportExcelWorkbook({
+      filename: `Laporan-Oncall-${startDate}_${endDate}`,
+      sheets: [
+        {
+          sheetName: 'Rekap Harian Outlet',
+          title: 'Rekap Oncall per Tanggal dan Outlet',
+          subtitle: `Semua Outlet · ${rangeLabel}`,
+          headers: [
+            'Tanggal', 'Outlet', 'Transaksi', 'Gross Charge',
+            'Komisi Hotel', 'Komisi Terapis', 'Net Income Spa'
+          ],
+          rows: summaryRows,
+          currencyColumns: [3, 4, 5, 6],
+          totalRowIndex: summaryRows.length - 1
+        },
+        {
+          sheetName: 'Rincian Transaksi',
+          title: 'Rincian Transaksi Oncall',
+          subtitle: `Semua Outlet · ${rangeLabel}`,
+          headers: [
+            'Tanggal', 'Outlet', 'Terapis', 'Treatment', 'Pelanggan',
+            'Gross Charge', 'Komisi Hotel', 'Komisi Terapis',
+            'Net Income Spa', 'Metode Bayar', 'Status Bayar'
+          ],
+          rows: detailRows,
+          currencyColumns: [5, 6, 7, 8],
+          totalRowIndex: detailRows.length - 1
+        }
+      ]
+    });
+  }
+
   const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
   return (
@@ -210,6 +290,9 @@ export default function LaporanPage({ outletId, profile }) {
               </button>
               <button className={mode === 'komisi' ? 'active' : ''} onClick={() => setMode('komisi')}>
                 Komisi Staff
+              </button>
+              <button className={mode === 'oncall' ? 'active' : ''} onClick={() => setMode('oncall')}>
+                Laporan Oncall
               </button>
             </>
           )}
@@ -365,6 +448,113 @@ export default function LaporanPage({ outletId, profile }) {
                   </tfoot>
                 </table>
               </div>
+            </>
+          )}
+        </section>
+      )}
+
+      {mode === 'oncall' && (
+        <section style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <h3 style={{ margin: 0 }}>Laporan Oncall</h3>
+            {oncallReport && (
+              <button className="btn btn-outline btn-sm" onClick={handleDownloadOncall}>
+                ⬇ Download Excel
+              </button>
+            )}
+          </div>
+          <p className="muted" style={{ fontSize: 12 }}>
+            Gross Charge adalah harga transaksi. Net Income Spa dihitung dari Gross Charge
+            dikurangi Komisi Hotel dan Komisi Terapis. Transaksi batal penuh tidak dihitung;
+            status pembayaran ditampilkan pada rincian.
+          </p>
+          {oncallError && <p style={{ color: '#b91c1c', fontSize: 12 }}>{oncallError}</p>}
+          {oncallReport && (
+            <>
+              <div className="summary-chips" style={{ margin: '12px 0' }}>
+                <span className="chip">{oncallReport.totals.transactionCount} transaksi</span>
+                <span className="chip">Gross Charge {rp(oncallReport.totals.grossCharge)}</span>
+                <span className="chip">Komisi Hotel {rp(oncallReport.totals.hotelCommission)}</span>
+                <span className="chip chip-purple">Komisi Terapis {rp(oncallReport.totals.therapistCommission)}</span>
+                <span className="chip">Net Income Spa {rp(oncallReport.totals.netSpaIncome)}</span>
+              </div>
+
+              <h4>Rekap per tanggal dan outlet</h4>
+              {oncallReport.summaries.length === 0 ? (
+                <p>Tidak ada transaksi Oncall untuk rentang tanggal ini.</p>
+              ) : (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Tanggal</th><th>Outlet</th><th>Trx</th><th>Gross Charge</th>
+                        <th>Komisi Hotel</th><th>Komisi Terapis</th><th>Net Income Spa</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {oncallReport.summaries.map((row) => {
+                        const outlet = OUTLETS.find((item) => item.id === row.outletId);
+                        return (
+                          <tr key={`${row.date}-${row.outletId}`}>
+                            <td>{row.date}</td>
+                            <td>{outlet ? `${outlet.name} (${outlet.id})` : row.outletId || '-'}</td>
+                            <td style={{ textAlign: 'center' }}>{row.transactionCount}</td>
+                            <td style={{ textAlign: 'right' }}>{rp(row.grossCharge)}</td>
+                            <td style={{ textAlign: 'right' }}>{rp(row.hotelCommission)}</td>
+                            <td style={{ textAlign: 'right' }}>{rp(row.therapistCommission)}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 600 }}>{rp(row.netSpaIncome)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan="2"><strong>TOTAL</strong></td>
+                        <td style={{ textAlign: 'center' }}><strong>{oncallReport.totals.transactionCount}</strong></td>
+                        <td style={{ textAlign: 'right' }}><strong>{rp(oncallReport.totals.grossCharge)}</strong></td>
+                        <td style={{ textAlign: 'right' }}><strong>{rp(oncallReport.totals.hotelCommission)}</strong></td>
+                        <td style={{ textAlign: 'right' }}><strong>{rp(oncallReport.totals.therapistCommission)}</strong></td>
+                        <td style={{ textAlign: 'right' }}><strong>{rp(oncallReport.totals.netSpaIncome)}</strong></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+
+              <h4>Rincian transaksi ({oncallReport.transactions.length})</h4>
+              {oncallReport.transactions.length > 0 && (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Tanggal</th><th>Outlet</th><th>Terapis</th><th>Treatment</th>
+                        <th>Pelanggan</th><th>Gross Charge</th><th>Komisi Hotel</th>
+                        <th>Komisi Terapis</th><th>Net Income Spa</th><th>Metode</th><th>Bayar</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {oncallReport.transactions.map((booking) => {
+                        const outlet = OUTLETS.find((item) => item.id === booking.outletId);
+                        return (
+                          <tr key={booking.id}>
+                            <td>{booking.wibDate}</td>
+                            <td>{outlet ? `${outlet.name} (${outlet.id})` : booking.outletId || '-'}</td>
+                            <td>{booking.therapistName || '-'}</td>
+                            <td>{booking.treatmentName || '-'}</td>
+                            <td>{booking.customerName || '-'}</td>
+                            <td style={{ textAlign: 'right' }}>{rp(booking.charge)}</td>
+                            <td style={{ textAlign: 'right' }}>{rp(booking.hotelCommission)}</td>
+                            <td style={{ textAlign: 'right' }}>{rp(booking.therapistCommission)}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 600 }}>{rp(booking.netSpaIncome)}</td>
+                            <td>{booking.paymentMethod === 'cardless' ? 'Cardless' : 'Cash'}</td>
+                            <td>{booking.paid ? 'Lunas' : 'Belum lunas'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </>
           )}
         </section>
