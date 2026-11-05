@@ -1,5 +1,6 @@
 -- Apply after buku_laporan_migrasi.sql and produk_treatment_auto_stok.sql,
--- using the Supabase SQL editor as a database owner.
+-- using psql against the PostgreSQL database used by the application.
+-- For a self-hosted Docker database, run psql inside the PostgreSQL container.
 -- Oil and Laundry balances are counted physically at closing; bookings remain
 -- visible as oil usage but do not move either balance.
 -- Safe to apply more than once; existing stock and historical logs are untouched.
