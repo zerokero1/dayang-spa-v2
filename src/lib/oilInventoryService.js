@@ -43,9 +43,13 @@ export async function setOilStock(outletId, oilType, size, newStock) {
   if (error) throw error;
 }
 
-export async function adjustOilStock(outletId, oilType, size, delta) {
+export async function adjustOilStock(outletId, oilType, size, delta, note = '') {
   const { error } = await supabase.rpc('adjust_oil_stock', {
-    p_outlet_id: outletId, p_oil_type: oilType, p_size: size, p_delta: delta
+    p_outlet_id: outletId,
+    p_oil_type: oilType,
+    p_size: size,
+    p_delta: delta,
+    p_note: note
   });
   if (error) throw error;
 }

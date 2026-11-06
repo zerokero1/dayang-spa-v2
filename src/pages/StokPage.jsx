@@ -35,6 +35,9 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
   const [oils, setOils] = useState([]);
   const [busyId, setBusyId] = useState(null);
   const [oilCountDrafts, setOilCountDrafts] = useState({});
+  const [oilInQty, setOilInQty] = useState({});
+  const [oilOutQty, setOilOutQty] = useState({});
+  const [oilOutReason, setOilOutReason] = useState({});
   const [oilUsageDate, setOilUsageDate] = useState(() => businessDate());
   const [oilUsage, setOilUsage] = useState([]);
   const [oilUsageBusy, setOilUsageBusy] = useState(false);
@@ -87,17 +90,65 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
 
   /* ---------------- minyak ---------------- */
 
-  async function handleAdjustOil(oil, delta) {
+  function getOilMovementError(e) {
+    const needsMigration = e?.code === 'PGRST202'
+      || /could not find the function.*adjust_oil_stock/i.test(e?.message || '');
+    return needsMigration
+      ? 'Fitur ini perlu pembaruan database. Jalankan supabase/input_keluar_minyak_dengan_alasan.sql terlebih dahulu.'
+      : e.message;
+  }
+
+  async function handleOilStockIn(oil) {
+    const amount = Number(oilInQty[oil.id] || '');
+    if (!Number.isInteger(amount) || amount <= 0) {
+      setMessage('Masukkan jumlah minyak masuk berupa bilangan bulat lebih dari 0.');
+      return;
+    }
+
     setBusyId(oil.id);
     setMessage('');
     try {
-      await adjustOilStock(outletId, oil.oilType, oil.size, delta);
+      await adjustOilStock(outletId, oil.oilType, oil.size, amount, 'Penerimaan stok minyak manual');
+      setMessage(`${namaMinyak(oil)}: barang masuk ${amount} ${oil.unit || 'botol'} berhasil dicatat.`);
       setOilCountDrafts((drafts) => ({
-        ...drafts,
-        [oil.id]: String(Math.max((Number(oil.stock) || 0) + delta, 0))
+        ...drafts, [oil.id]: String((Number(oil.stock) || 0) + amount)
       }));
+      setOilInQty((current) => ({ ...current, [oil.id]: '' }));
     } catch (e) {
-      setMessage('Gagal: ' + e.message);
+      setMessage('Gagal mencatat minyak masuk: ' + getOilMovementError(e));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleOilStockOut(oil) {
+    const amount = Number(oilOutQty[oil.id] || '');
+    const reason = (oilOutReason[oil.id] || '').trim();
+    if (!Number.isInteger(amount) || amount <= 0) {
+      setMessage('Masukkan jumlah minyak keluar berupa bilangan bulat lebih dari 0.');
+      return;
+    }
+    if (!reason) {
+      setMessage('Alasan minyak keluar wajib diisi.');
+      return;
+    }
+    if (amount > (Number(oil.stock) || 0)) {
+      setMessage(`Stok ${namaMinyak(oil)} tidak cukup. Stok tersedia ${oil.stock || 0} ${oil.unit || 'botol'}.`);
+      return;
+    }
+
+    setBusyId(oil.id);
+    setMessage('');
+    try {
+      await adjustOilStock(outletId, oil.oilType, oil.size, -amount, reason);
+      setMessage(`${namaMinyak(oil)}: barang keluar ${amount} ${oil.unit || 'botol'} berhasil dicatat.`);
+      setOilCountDrafts((drafts) => ({
+        ...drafts, [oil.id]: String(Math.max((Number(oil.stock) || 0) - amount, 0))
+      }));
+      setOilOutQty((current) => ({ ...current, [oil.id]: '' }));
+      setOilOutReason((current) => ({ ...current, [oil.id]: '' }));
+    } catch (e) {
+      setMessage('Gagal mencatat minyak keluar: ' + getOilMovementError(e));
     } finally {
       setBusyId(null);
     }
@@ -228,10 +279,9 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
   const totalMinyak = totalStok(oils);
   const totalProduk = totalStok(items);
 
-  function tambahSatu(p) {
+  function tindakLanjutPerluIsi(p) {
     if (p.dariMinyak) {
-      const o = oils.find((x) => x.id === p.key);
-      if (o) handleAdjustOil(o, 1);
+      setTab('minyak');
       return;
     }
     const it = items.find((x) => x.id === p.key);
@@ -293,11 +343,11 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
                       <button
                         className="stok-tombol tambah"
                         disabled={busy || busyId === p.key}
-                        onClick={() => tambahSatu(p)}
+                        onClick={() => tindakLanjutPerluIsi(p)}
                       >
                         <span className="stok-tombol-ikon">+</span>
                         <span className="stok-tombol-teks">
-                          {p.dariMinyak ? 'Tambah 1' : 'Isi barang'}
+                          {p.dariMinyak ? 'Buka minyak' : 'Isi barang'}
                         </span>
                       </button>
                     </div>
@@ -352,16 +402,6 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
                       </div>
 
                       <div className="stok-kartu-isian">
-                        <button
-                          className="stok-tombol kurangi"
-                          disabled={busyId === oil.id || (oil.stock || 0) <= 0}
-                          onClick={() => handleAdjustOil(oil, -1)}
-                          title={`Kurangi ${namaLengkap} 1 botol`}
-                        >
-                          <span className="stok-tombol-ikon">−</span>
-                          <span className="stok-tombol-teks">Kurang</span>
-                        </button>
-
                         <label className="stok-jumlah">
                           <input
                             type="number"
@@ -370,35 +410,10 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
                             step="1"
                             value={oilCountDrafts[oil.id] ?? (oil.stock == null ? 0 : oil.stock)}
                             onChange={(e) => setOilCountDrafts((drafts) => ({ ...drafts, [oil.id]: e.target.value }))}
-                            aria-label={`Jumlah ${namaLengkap}`}
+                            aria-label={`Hitungan stok closing ${namaLengkap}`}
                           />
-                          <span className="stok-jumlah-satuan">{oil.unit || 'botol'}</span>
+                          <span className="stok-jumlah-satuan">closing</span>
                         </label>
-
-                        <button
-                          className="stok-tombol tambah"
-                          disabled={busyId === oil.id}
-                          onClick={() => handleAdjustOil(oil, 1)}
-                          title={`Tambah ${namaLengkap} 1 botol`}
-                        >
-                          <span className="stok-tombol-ikon">+</span>
-                          <span className="stok-tombol-teks">Tambah</span>
-                        </button>
-                      </div>
-
-                      <div className="stok-cepat">
-                        <span className="stok-cepat-label">Cepat:</span>
-                        {[6, 12, 24].map((n) => (
-                          <button
-                            key={n}
-                            className="stok-cepat-tombol"
-                            disabled={busyId === oil.id}
-                            onClick={() => handleSetOil(oil, n)}
-                            title={`Isi langsung jadi ${n} botol`}
-                          >
-                            {n}
-                          </button>
-                        ))}
                         <button
                           className="stok-cepat-tombol"
                           disabled={busyId === oil.id}
@@ -406,6 +421,62 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
                         >
                           Simpan closing
                         </button>
+                        <label className="stok-jumlah">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min="1"
+                            step="1"
+                            value={oilInQty[oil.id] || ''}
+                            onChange={(e) => setOilInQty((current) => ({ ...current, [oil.id]: e.target.value }))}
+                            aria-label={`Jumlah ${namaLengkap} yang masuk`}
+                            placeholder="0"
+                          />
+                          <span className="stok-jumlah-satuan">masuk</span>
+                        </label>
+                        <button
+                          className="stok-tombol tambah"
+                          disabled={busyId === oil.id || !oilInQty[oil.id]}
+                          onClick={() => handleOilStockIn(oil)}
+                          title={`Catat jumlah ${namaLengkap} yang diterima`}
+                        >
+                          <span className="stok-tombol-ikon">+</span>
+                          <span className="stok-tombol-teks">Barang masuk</span>
+                        </button>
+                        <label className="stok-jumlah">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min="1"
+                            max={oil.stock}
+                            step="1"
+                            value={oilOutQty[oil.id] || ''}
+                            onChange={(e) => setOilOutQty((current) => ({ ...current, [oil.id]: e.target.value }))}
+                            aria-label={`Jumlah ${namaLengkap} yang keluar`}
+                            placeholder="0"
+                          />
+                          <span className="stok-jumlah-satuan">keluar</span>
+                        </label>
+                        <button
+                          className="stok-tombol kurangi"
+                          disabled={busyId === oil.id || !oilOutQty[oil.id] || !(oilOutReason[oil.id] || '').trim()}
+                          onClick={() => handleOilStockOut(oil)}
+                          title={`Catat jumlah ${namaLengkap} yang keluar beserta alasannya`}
+                        >
+                          <span className="stok-tombol-ikon">−</span>
+                          <span className="stok-tombol-teks">Barang keluar</span>
+                        </button>
+                        <label className="stok-alasan-keluar">
+                          <span>Alasan keluar (wajib)</span>
+                          <input
+                            type="text"
+                            maxLength={240}
+                            value={oilOutReason[oil.id] || ''}
+                            onChange={(e) => setOilOutReason((current) => ({ ...current, [oil.id]: e.target.value }))}
+                            aria-label={`Alasan ${namaLengkap} keluar`}
+                            placeholder="Contoh: botol pecah / dipakai di luar transaksi"
+                          />
+                        </label>
                       </div>
                     </div>
                   );
@@ -415,7 +486,7 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
           ))}
           <p className="muted" style={{ fontSize: 12 }}>
             Saldo stok minyak diisi manual berdasarkan hitungan fisik saat closing.
-            Gunakan tombol tambah/kurang untuk penyesuaian manual; pemakaian dari
+            Gunakan input barang masuk/keluar untuk penyesuaian manual; pemakaian dari
             booking ditampilkan terpisah di bawah.
           </p>
           <section>
