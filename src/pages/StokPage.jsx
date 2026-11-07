@@ -48,6 +48,8 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
   const [selItem, setSelItem] = useState(null);
   const [qty, setQty] = useState('');
   const [note, setNote] = useState('');
+  const [closingQty, setClosingQty] = useState('');
+  const [closingNote, setClosingNote] = useState('');
   const [newName, setNewName] = useState('');
   const [newUnit, setNewUnit] = useState('');
   const [newCategory, setNewCategory] = useState(DEFAULT_INVENTORY_CATEGORY);
@@ -179,6 +181,8 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
     setSelItem(it);
     setQty('');
     setNote('');
+    setClosingQty('');
+    setClosingNote('');
     setMessage('');
   }
 
@@ -202,12 +206,16 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
   }
 
   async function handleIn() {
-    if (!selItem || !qty) return;
+    const amount = Number(qty);
+    if (!selItem || !Number.isInteger(amount) || amount <= 0) {
+      setMessage('Jumlah barang masuk harus berupa bilangan bulat lebih dari 0.');
+      return;
+    }
     setBusy(true);
     setMessage('');
     try {
-      await stockIn(outletId, selItem.id, Number(qty), note);
-      setMessage(`${selItem.name}: barang masuk ${qty}`);
+      await stockIn(outletId, selItem.id, amount, note.trim() || 'Penerimaan stok manual');
+      setMessage(`${selItem.name}: barang masuk ${amount}`);
       setQty(''); setNote('');
     } catch (e) {
       setMessage('Gagal: ' + e.message);
@@ -217,12 +225,20 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
   }
 
   async function handleOut() {
-    if (!selItem || !qty) return;
+    const amount = Number(qty);
+    if (!selItem || !Number.isInteger(amount) || amount <= 0) {
+      setMessage('Jumlah barang keluar harus berupa bilangan bulat lebih dari 0.');
+      return;
+    }
+    if (amount > (Number(selItem.stock) || 0)) {
+      setMessage(`Stok ${selItem.name} tidak cukup. Stok tersedia ${selItem.stock || 0} ${selItem.unit}.`);
+      return;
+    }
     setBusy(true);
     setMessage('');
     try {
-      await stockOut(outletId, selItem.id, Number(qty), note);
-      setMessage(`${selItem.name}: barang keluar ${qty}`);
+      await stockOut(outletId, selItem.id, amount, note.trim() || 'Pengeluaran stok manual');
+      setMessage(`${selItem.name}: barang keluar ${amount}`);
       setQty(''); setNote('');
     } catch (e) {
       setMessage('Gagal: ' + e.message);
@@ -232,8 +248,8 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
   }
 
   async function handleClosingCount() {
-    if (!selItem || qty === '') return;
-    const stock = Number(qty);
+    if (!selItem || closingQty === '') return;
+    const stock = Number(closingQty);
     if (!Number.isInteger(stock) || stock < 0) {
       setMessage('Jumlah stok closing harus berupa bilangan bulat minimal 0');
       return;
@@ -241,10 +257,10 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
     setBusy(true);
     setMessage('');
     try {
-      await setLaundryClosingStock(outletId, selItem.id, stock, note);
+      await setLaundryClosingStock(outletId, selItem.id, stock, closingNote);
       setMessage(`${selItem.name}: stok closing ${stock} ${selItem.unit} dicatat`);
-      setQty('');
-      setNote('');
+      setClosingQty('');
+      setClosingNote('');
     } catch (e) {
       setMessage('Gagal: ' + e.message);
     } finally {
@@ -553,36 +569,45 @@ export default function StokPage({ outletId, active, initialTab = 'minyak' }) {
 
           {selItem && (
             <section className="stok-aksi">
-              <p>
-                {(selItem.category || DEFAULT_INVENTORY_CATEGORY) === 'Laundry'
-                  ? `Hitungan fisik saat closing untuk ${selItem.name}`
-                  : `Jumlah untuk ${selItem.name}`}
-              </p>
+              <p>Barang masuk/keluar manual untuk {selItem.name} (stok saat ini: {selItem.stock} {selItem.unit})</p>
               <input
                 type="number"
-                min="0"
+                min="1"
                 step="1"
-                placeholder={(selItem.category || DEFAULT_INVENTORY_CATEGORY) === 'Laundry' ? 'Jumlah hasil hitung fisik' : 'Jumlah'}
+                placeholder="Jumlah masuk atau keluar"
                 value={qty}
                 onChange={(e) => setQty(e.target.value)}
               />
               <input placeholder="Catatan (opsional)" value={note} onChange={(e) => setNote(e.target.value)} />
-              {(selItem.category || DEFAULT_INVENTORY_CATEGORY) === 'Laundry' ? (
+              <div className="stok-aksi-grup">
+                <button className="btn btn-primary" onClick={handleIn} disabled={busy || !qty}>
+                  Barang masuk
+                </button>
+                <button className="btn btn-outline" onClick={handleOut} disabled={busy || !qty}>
+                  Barang keluar
+                </button>
+              </div>
+              {(selItem.category || DEFAULT_INVENTORY_CATEGORY) === 'Laundry' && (
                 <>
+                  <p>Hitungan fisik saat closing untuk {selItem.name}</p>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="Jumlah hasil hitung fisik"
+                    value={closingQty}
+                    onChange={(e) => setClosingQty(e.target.value)}
+                  />
+                  <input
+                    placeholder="Catatan closing (opsional)"
+                    value={closingNote}
+                    onChange={(e) => setClosingNote(e.target.value)}
+                  />
                   <p className="muted">Masukkan jumlah laundry yang benar-benar dihitung saat tutup shift. Stok akan disesuaikan dan selisihnya dicatat.</p>
-                  <button className="btn btn-primary" onClick={handleClosingCount} disabled={busy || qty === ''}>
+                  <button className="btn btn-primary" onClick={handleClosingCount} disabled={busy || closingQty === ''}>
                     Simpan stok closing
                   </button>
                 </>
-              ) : (
-                <div className="stok-aksi-grup">
-                  <button className="btn btn-primary" onClick={handleIn} disabled={busy || !qty}>
-                    Barang masuk
-                  </button>
-                  <button className="btn btn-outline" onClick={handleOut} disabled={busy || !qty}>
-                    Barang keluar
-                  </button>
-                </div>
               )}
               <button className="btn btn-danger-outline btn-sm stok-hapus" onClick={handleDelete} disabled={busy}>
                 Hapus item ini
