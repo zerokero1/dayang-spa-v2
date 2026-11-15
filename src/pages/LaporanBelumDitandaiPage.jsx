@@ -24,7 +24,7 @@ function ageDays(createdAt) {
   return Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
 }
 
-function wibStamp(iso) {
+function witaStamp(iso) {
   const time = new Intl.DateTimeFormat('id-ID', {
     timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
   }).format(new Date(iso));
@@ -101,8 +101,8 @@ export default function LaporanBelumDitandaiPage({ active, profile }) {
       'Komisi', 'Status', 'Umur (hari)', 'Pelanggan', 'Catatan'
     ];
     const body = shown.slice().sort((a, b) => (a.startAt || 0) - (b.startAt || 0)).map((b) => [
-      wibStamp(b.createdAt).slice(0, 10),
-      wibStamp(b.createdAt).slice(11),
+      witaStamp(b.createdAt).slice(0, 10),
+      witaStamp(b.createdAt).slice(11),
       b.outletId,
       b.therapistName || '-',
       b.treatmentName || '-',
@@ -298,8 +298,8 @@ export default function LaporanBelumDitandaiPage({ active, profile }) {
                     const perluTindak = b.status === 'selesai';
                     return (
                       <tr key={b.id} style={perluTindak ? { background: 'var(--busy-bg)' } : undefined}>
-                        <td>{wibStamp(b.createdAt).slice(0, 10)}</td>
-                        <td>{wibStamp(b.createdAt).slice(11)}</td>
+                        <td>{witaStamp(b.createdAt).slice(0, 10)}</td>
+                        <td>{witaStamp(b.createdAt).slice(11)}</td>
                         <td>{OUTLET_NAME[b.outletId] || b.outletId}</td>
                         <td>{b.therapistName || '-'}</td>
                         <td>{b.treatmentName || '-'}</td>

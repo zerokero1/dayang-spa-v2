@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { OUTLETS } from './constants';
 import { getShiftWindowStatus } from './shiftService';
 import {
-  wibDayBoundsUtc,
+  witaDayBoundsUtc,
   fmtLocalDate,
   overtimeMinutesFor,
   shiftEndMsForDate,
@@ -25,7 +25,7 @@ export const todayWib = () => fmtLocalDate(new Date());
 // Epoch ms "sekarang" pada tanggal Lombok tertentu (untuk status jeda shift).
 // nowMs boleh diteruskan supaya fungsi ini deterministik dan bisa diuji.
 function nowMsOnWib(dateStr, nowMs = Date.now()) {
-  const { startUtc } = wibDayBoundsUtc(dateStr);
+  const { startUtc } = witaDayBoundsUtc(dateStr);
   const now = Number(nowMs) || Date.now();
   // Kalau tanggal yang diminta = hari ini, pakai waktu sungguhan.
   if (now >= startUtc.getTime() && now < startUtc.getTime() + 24 * 3600000) return now;
@@ -60,7 +60,7 @@ const outletName = (id) => OUTLETS.find((o) => o.id === id)?.name || id || '-';
  * @param {number}  opts.nowMs      waktu referensi (default Date.now())
  */
 export async function getTherapistBoard({ date = todayWib(), outletIds = null, nowMs = Date.now() } = {}) {
-  const { startUtc, endUtc } = wibDayBoundsUtc(date);
+  const { startUtc, endUtc } = witaDayBoundsUtc(date);
   const nowRef = nowMsOnWib(date, nowMs);
   const isToday = date === todayWib();
 

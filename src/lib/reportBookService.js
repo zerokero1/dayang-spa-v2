@@ -22,12 +22,12 @@ import { businessDateFromTimestamp, businessRangeIso } from './businessDate';
 // ---------------------------------------------------------------- utils
 
 /** Tanggal Lombok (YYYY-MM-DD) dari kolom timestamptz. */
-export function wibDateOf(iso) {
+export function witaDateOf(iso) {
   return businessDateFromTimestamp(iso);
 }
 
 /** Batas UTC untuk satu hari Lombok. */
-function wibDayUtc(dateStr, endOfDay = false) {
+function witaDayUtc(dateStr, endOfDay = false) {
   const { startIso, endIso } = businessRangeIso(dateStr, dateStr);
   return endOfDay ? endIso : startIso;
 }
@@ -68,8 +68,8 @@ function bookingQuery({ startDate, endDate, outletId, extraSelect }) {
   let q = supabase
     .from('bookings')
     .select(extraSelect)
-    .gte('created_at', wibDayUtc(startDate))
-    .lte('created_at', wibDayUtc(endDate, true))
+    .gte('created_at', witaDayUtc(startDate))
+    .lte('created_at', witaDayUtc(endDate, true))
     .neq('status', 'batal')
     .limit(20000);
   if (outletId) q = q.eq('outlet_id', outletId);
@@ -98,22 +98,22 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
     supabase
       .from('oil_inventory_logs')
       .select('outlet_id, oil_type, size, type, qty, stock_after, note, created_at')
-      .gte('created_at', wibDayUtc(startDate))
-      .lte('created_at', wibDayUtc(endDate, true))
+      .gte('created_at', witaDayUtc(startDate))
+      .lte('created_at', witaDayUtc(endDate, true))
       .limit(20000),
     supabase
       .from('inventory_logs')
       .select('outlet_id, item_id, type, qty, note, created_at')
-      .gte('created_at', wibDayUtc(startDate))
-      .lte('created_at', wibDayUtc(endDate, true))
+      .gte('created_at', witaDayUtc(startDate))
+      .lte('created_at', witaDayUtc(endDate, true))
       .limit(20000),
     supabase
       .from('bookings')
       .select('outlet_id, oil_type, oil_size, uses_oil, created_at')
       .neq('status', 'batal')
       .eq('uses_oil', true)
-      .gte('created_at', wibDayUtc(startDate))
-      .lte('created_at', wibDayUtc(endDate, true))
+      .gte('created_at', witaDayUtc(startDate))
+      .lte('created_at', witaDayUtc(endDate, true))
       .limit(20000)
   ]);
 
@@ -152,7 +152,7 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
   const movementRows = [];
   (oilLogRes.data || []).filter(inScope).forEach((r) => {
     movementRows.push({
-      tanggal: wibDateOf(r.created_at),
+      tanggal: witaDateOf(r.created_at),
       outlet: outletName(r.outlet_id),
       kategori: 'Minyak',
       nama: r.oil_type,
@@ -166,7 +166,7 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
   (itemLogRes.data || []).filter(inScope).forEach((r) => {
     const nm = itemNameById[r.item_id] || '(item terhapus)';
     movementRows.push({
-      tanggal: wibDateOf(r.created_at),
+      tanggal: witaDateOf(r.created_at),
       outlet: outletName(r.outlet_id),
       kategori: 'Barang',
       nama: nm,
@@ -183,7 +183,7 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
   const oilUsage = {};   // date -> outlet -> "type|size" -> qty
   (bookingRes.data || []).forEach((r) => {
     if (!r.oil_type) return;
-    const d = wibDateOf(r.created_at);
+    const d = witaDateOf(r.created_at);
     oilUsage[d] = oilUsage[d] || {};
     oilUsage[d][r.outlet_id] = oilUsage[d][r.outlet_id] || {};
     const k = `${r.oil_type}|${r.oil_size}`;
@@ -191,7 +191,7 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
   });
   const itemUsage = {};  // date -> outlet -> itemId -> qty (barang keluar)
   (itemLogRes.data || []).filter((r) => r.type === 'out').forEach((r) => {
-    const d = wibDateOf(r.created_at);
+    const d = witaDateOf(r.created_at);
     itemUsage[d] = itemUsage[d] || {};
     itemUsage[d][r.outlet_id] = itemUsage[d][r.outlet_id] || {};
     itemUsage[d][r.outlet_id][r.item_id] = (itemUsage[d][r.outlet_id][r.item_id] || 0) + (r.qty || 0);
@@ -436,7 +436,7 @@ export async function getRevenueCommissionBook({ startDate, endDate, outletId })
   // ---------------------------------------------------------- REVENUE
   const dayOutlet = {};   // date -> outlet -> { trx, omzet, cash, nonCash }
   paid.forEach((r) => {
-    const d = wibDateOf(r.created_at);
+    const d = witaDateOf(r.created_at);
     dayOutlet[d] = dayOutlet[d] || {};
     const cell = dayOutlet[d][r.outlet_id] = dayOutlet[d][r.outlet_id] || {
       trx: 0, omzet: 0, cash: 0, nonCash: 0, diskon: 0
@@ -495,7 +495,7 @@ export async function getRevenueCommissionBook({ startDate, endDate, outletId })
   // supaya tidak ada angka yang disembunyikan.
   const byTherapistDay = {};
   paid.forEach((r) => {
-    const d = wibDateOf(r.created_at);
+    const d = witaDateOf(r.created_at);
     const key = `${r.therapist_name}|${d}|${r.outlet_id}`;
     const c = byTherapistDay[key] = byTherapistDay[key] || {
       nama: r.therapist_name, tanggal: d, outlet: outletName(r.outlet_id),

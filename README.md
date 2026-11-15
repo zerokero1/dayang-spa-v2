@@ -6,7 +6,7 @@ Aplikasi manajemen operasional Dayang Spa: kasir, oncall, reservasi, status tera
 
 - React 18 + Vite 5
 - Supabase JS (auth, database, RPC)
-- `vite-plugin-pwa` (service worker, manifest, auto update)
+- `vite-plugin-pwa` (service worker, manifest, update lewat prompt — bukan auto reload)
 - ExcelJS untuk ekspor laporan
 - ESLint 9 + `node:test` untuk pemeriksaan kualitas
 
@@ -72,10 +72,16 @@ Pembatasan peran di UI **bukan** pengganti RLS. Pastikan kebijakan RLS di databa
 
 ## Catatan migrasi database
 
-- `supabase/schema.sql` dan `supabase/MASTER_PATCH_LATEST.sql` **tidak selalu mencerminkan database produksi**. Jangan menjalankan ulang patch lama tanpa memeriksa urutannya karena bisa menurunkan versi RPC `create_booking`.
+Rincian ada di `supabase/README.md`.
+
+- `supabase/schema.sql` dan `supabase/MASTER_PATCH_LATEST.sql` adalah **snapshot lama**, bukan sumber kebenaran. Jangan menjalankan ulang patch lama karena bisa menurunkan versi RPC `create_booking`.
 - Patch terbaru untuk transaksi + konsumsi stok produk ada di `supabase/produk_treatment_auto_stok.sql`.
 - Selalu uji di database salinan sebelum menjalankan SQL di produksi.
 
 ## Deploy
 
 Panduan VPS (domain, reverse proxy, Supabase) ada di `docs/MIGRASI_VPS.md`. Jangan commit file `.env`, `.env-pg`, atau folder backup.
+
+Setiap push ke `master` diuji otomatis oleh GitHub Actions (`.github/workflows/ci.yml`): lint, tes unit, cek render halaman, dan build produksi. Workflow ini tidak melakukan deploy; Vercel tetap men-deploy dari `master` seperti biasa.
+
+Daftar pekerjaan yang sudah selesai dan yang masih terbuka ada di `docs/RENCANA-PERBAIKAN.md`.

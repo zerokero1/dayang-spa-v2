@@ -6,7 +6,7 @@ import {
   eachDayCount,
   firstLogDay,
   rangeIso,
-  wibDate
+  witaDate
 } from './stokLedger';
 
 function dayStrUtc(dateStr) {
@@ -353,7 +353,7 @@ export async function getConsumableUsage(outletId, startDate, endDate) {
   const cntDay = {};
   (bookingRes.data || []).forEach((b) => {
     if (!b.treatment_id || !ruleByTreatment[b.treatment_id]) return;
-    const d = wibDate(b.created_at);
+    const d = witaDate(b.created_at);
     const t = b.treatment_id;
     cntTreatment[t] = (cntTreatment[t] || 0) + 1;
     cntDay[d] = cntDay[d] || {};

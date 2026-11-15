@@ -1,0 +1,37 @@
+name: Cek kualitas
+
+# Gerbang kualitas saja — workflow ini TIDAK men-deploy apa pun.
+# Deploy tetap lewat Vercel dari branch master.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cek:
+    name: Lint, tes, cek halaman, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Pasang dependensi
+        run: npm ci
+
+      # Menjalankan lint, tes unit, cek render 35 halaman, lalu build Vite.
+      - name: Cek + build
+        run: npm run build

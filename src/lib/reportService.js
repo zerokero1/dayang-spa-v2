@@ -29,10 +29,10 @@ function mapBooking(row) {
     discountReason: row.discount_reason,
     bookingSource: row.booking_source,
     hotelCommission: row.hotel_commission != null ? Number(row.hotel_commission) : 0,
-    // Tanggal Lombok dihitung dari created_at, bukan kolom wib_date.
-    // Di database banyak baris wib_date meleset +1 hari, jadi kolom itu
-    // tidak boleh dipercaya untuk pengelompokan tanggal.
-    wibDate: businessDateFromTimestamp(row.created_at),
+    // Tanggal bisnis (WITA) dihitung ulang dari created_at, bukan dari kolom
+    // database `wib_date`. Nama kolom itu warisan lama dan isinya sering
+    // meleset +1 hari, jadi tidak boleh dipakai untuk pengelompokan tanggal.
+    witaDate: businessDateFromTimestamp(row.created_at),
     createdAt: row.created_at,
     completedAt: row.completed_at,
     cancelledAt: row.cancelled_at
@@ -41,12 +41,12 @@ function mapBooking(row) {
 
 // Batas UTC untuk satu hari lokal Lombok (WITA = UTC+8) agar konsisten,
 // tidak bergantung zona waktu mesin/browser.
-function wibDayBoundsUtc(dateStr) {
+function witaDayBoundsUtc(dateStr) {
   return businessRangeBoundsUtc(dateStr, dateStr);
 }
 
 export async function getDailyBookings(outletId, dateStr) {
-  const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
+  const { startUtc, endUtc } = witaDayBoundsUtc(dateStr);
   const { data, error } = await supabase
     .from('bookings')
     .select('*')
@@ -82,7 +82,7 @@ export async function getTherapistTransactionsRange(
   startDate,
   endDate
 ) {
-  const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
+  const { startUtc, endUtc } = witaRangeBounds(startDate, endDate);
   const { data, error } = await supabase
     .from('bookings')
     .select(
@@ -128,7 +128,7 @@ export async function getTherapistTransactionsRange(
 }
 
 async function getAllDailyBookings(dateStr) {
-  const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
+  const { startUtc, endUtc } = witaDayBoundsUtc(dateStr);
   const { data, error } = await supabase
     .from('bookings')
     .select(DAILY_COLUMNS)
@@ -148,7 +148,7 @@ export async function getAllBookingsRange(startDate, endDate) {
   // jadi baris yang dikembalikan persis sama dengan gabungan query per tanggal
   // yang lama. Konsumen fungsi ini hanya mengagregasi/filter, tidak bergantung
   // urutan baris, jadi menggabungkan sekaligus tidak mengubah hasil.
-  const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
+  const { startUtc, endUtc } = witaRangeBounds(startDate, endDate);
   const { data, error } = await supabase
     .from('bookings')
     .select(DAILY_COLUMNS)
@@ -191,7 +191,7 @@ export async function getDailyBookingsRange(outletId, startDate, endDate) {
 export async function getUnpaidRange(startDate, endDate, outletId) {
   const all = [];
   for (let dateStr = startDate; dateStr <= endDate; dateStr = shiftBusinessDate(dateStr, 1)) {
-    const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
+    const { startUtc, endUtc } = witaDayBoundsUtc(dateStr);
     let q = supabase
       .from('bookings')
       .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, original_price, discount_pct, discount_reason, commission_percent, commission_amount, hotel_commission, paid, payment_method, status, customer_name, booking_source, created_at')
@@ -444,7 +444,7 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
   //
   // Kolom wib_date sengaja TIDAK dipakai: di database banyak baris meleset
   // +1 hari, jadi kalau ikut dipakai sebaran per harinya jadi salah.
-  const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
+  const { startUtc, endUtc } = witaRangeBounds(startDate, endDate);
   let rows = [];
   try {
     const { data, error } = await supabase
@@ -469,7 +469,7 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
     tanggalUrut.push(k);
   }
   rows.forEach((b) => {
-    const k = b.wibDate && perTanggal[b.wibDate] ? b.wibDate : wibDateStr(b.createdAt);
+    const k = b.witaDate && perTanggal[b.witaDate] ? b.witaDate : witaDateStr(b.createdAt);
     if (!perTanggal[k]) return;
     perTanggal[k].push(b);
   });
@@ -634,7 +634,7 @@ export async function getCommissionAudit(startDate, endDate) {
         therapistId: b.therapistId,
         therapistName: b.therapistName || '-',
         treatmentName: b.treatmentName || '-',
-        date: wibDateStr(b.createdAt),
+        date: witaDateStr(b.createdAt),
         status: b.status,
         commissionPercent: percent,
         treatmentPrice: price,
@@ -719,17 +719,17 @@ export async function getProductionBookings(startDate, endDate) {
       treatmentName: b.treatment_name || '-',
       oilType: b.uses_oil ? b.oil_type || null : null,
       oilSize: b.uses_oil ? b.oil_size || null : null,
-      date: wibDateStr(b.created_at)
+      date: witaDateStr(b.created_at)
     }));
 }
 
 // Tanggal lokal Lombok dari timestamp DB, tak bergantung zona waktu perangkat.
-function wibDateStr(iso) {
+function witaDateStr(iso) {
   return businessDateFromTimestamp(iso);
 }
 
 // Batas UTC untuk rentang tanggal bisnis Lombok inklusif.
-function wibRangeBounds(startDate, endDate) {
+function witaRangeBounds(startDate, endDate) {
   return businessRangeBoundsUtc(startDate, endDate);
 }
 
@@ -804,7 +804,7 @@ export function buildProductionReport(rows, outletIds) {
  *   - treatment yang katalognya naik, sehingga booking lamanya terlihat murah
  */
 export async function getDiscountRange(startDate, endDate, outletId) {
-  const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
+  const { startUtc, endUtc } = witaRangeBounds(startDate, endDate);
   let q = supabase
     .from('bookings')
     .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, original_price, discount_pct, discount_reason, commission_percent, commission_amount, hotel_commission, paid, status, customer_name, booking_source, created_at')
@@ -892,7 +892,7 @@ export async function getPayslip(periode, outletId) {
   if (!periode || !periode.startDate || !periode.endDate) {
     throw new Error('Slip gaji butuh tanggal awal dan tanggal akhir.');
   }
-  const { startUtc, endUtc } = wibRangeBounds(periode.startDate, periode.endDate);
+  const { startUtc, endUtc } = witaRangeBounds(periode.startDate, periode.endDate);
   let q = supabase
     .from('bookings')
     .select('therapist_id, therapist_name, commission_amount, status, created_at, outlet_id')
@@ -996,7 +996,7 @@ function fmtDate(d = new Date()) {
  */
 export async function getRevenueSementara(outletId) {
   const hariIni = fmtDate();
-  const { startUtc, endUtc } = wibRangeBounds(hariIni, hariIni);
+  const { startUtc, endUtc } = witaRangeBounds(hariIni, hariIni);
   let q = supabase
     .from('bookings')
     .select('outlet_id, treatment_price, hotel_commission, commission_amount, status, booking_source, therapist_name, treatment_name, created_at, paid, payment_method')

@@ -14,7 +14,7 @@ const OUTLET_NAME = Object.fromEntries(OUTLETS.map((o) => [o.id, o.name]));
 const navBtn = { width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' };
 const hint = { fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0' };
 
-function wibStamp(iso) {
+function witaStamp(iso) {
   const time = new Intl.DateTimeFormat('id-ID', {
     timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
   }).format(new Date(iso));
@@ -111,8 +111,8 @@ export default function LaporanDiskonPage({ active, profile }) {
       'Alasan', 'Perlu Ditinjau'
     ];
     const body = shown.map((r) => [
-      wibStamp(r.createdAt).slice(0, 10),
-      wibStamp(r.createdAt).slice(11),
+      witaStamp(r.createdAt).slice(0, 10),
+      witaStamp(r.createdAt).slice(11),
       r.outletId,
       r.therapistName || '-',
       r.treatmentName || '-',
@@ -316,7 +316,7 @@ export default function LaporanDiskonPage({ active, profile }) {
                 <tbody>
                   {shown.slice(0, 400).map((r) => (
                     <tr key={r.id} style={r.issues.length ? { background: 'var(--busy-bg)' } : undefined}>
-                      <td>{wibStamp(r.createdAt).slice(0, 10)}</td>
+                      <td>{witaStamp(r.createdAt).slice(0, 10)}</td>
                       <td>{OUTLET_NAME[r.outletId] || r.outletId}</td>
                       <td>{r.therapistName || '-'}</td>
                       <td>{r.treatmentName || '-'}</td>
