@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { OUTLETS } from '../lib/constants';
 import {
   getDailyBookingsRange, summarizeDailyBookings, getCombinedDailyReport, getCommissionStaffReport,
   getDailyRevenueCommissionReport
 } from '../lib/reportService';
 import { exportExcelReport, exportDailyRevenueCommission } from '../lib/excelExport';
 import { businessDate } from '../lib/businessDate';
+import { notifyError, notifySuccess } from '../lib/notifications';
+import { classifyPaymentMethod } from '../lib/paymentMethod';
 
 export default function LaporanPage({ outletId, profile }) {
   const isKasir = profile?.role === 'kasir';
@@ -17,15 +18,21 @@ export default function LaporanPage({ outletId, profile }) {
   const [rawBookings, setRawBookings] = useState([]);
   const [combined, setCombined] = useState(null);
   const [staffCommissions, setStaffCommissions] = useState(null);
+  const [loadError, setLoadError] = useState('');
 
   const rangeLabel = startDate === endDate ? startDate : `${startDate} s/d ${endDate}`;
 
   async function loadOutletReport() {
     setLoading(true);
+    setLoadError('');
     try {
       const bookings = await getDailyBookingsRange(outletId, startDate, endDate);
       setRawBookings(bookings.filter((b) => b.status !== 'batal'));
       setOutletSummary(summarizeDailyBookings(bookings));
+    } catch (e) {
+      setRawBookings([]);
+      setOutletSummary(null);
+      setLoadError(`Gagal memuat laporan keuangan: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -33,9 +40,13 @@ export default function LaporanPage({ outletId, profile }) {
 
   async function loadCombinedReport() {
     setLoading(true);
+    setLoadError('');
     try {
       const result = await getCombinedDailyReport(startDate, endDate);
       setCombined(result);
+    } catch (e) {
+      setCombined(null);
+      setLoadError(`Gagal memuat laporan gabungan: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -43,9 +54,13 @@ export default function LaporanPage({ outletId, profile }) {
 
   async function loadCommissionReport() {
     setLoading(true);
+    setLoadError('');
     try {
       const result = await getCommissionStaffReport(startDate, endDate);
       setStaffCommissions(result);
+    } catch (e) {
+      setStaffCommissions(null);
+      setLoadError(`Gagal memuat laporan komisi: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -71,7 +86,9 @@ export default function LaporanPage({ outletId, profile }) {
     const rows = rawBookings.map((b) => [
       b.therapistName, b.treatmentName, b.treatmentPrice,
       b.commissionPercent, b.commissionAmount, b.hotelCommission,
-      b.paymentMethod === 'cardless' ? 'Cardless' : 'Cash',
+      !b.paid ? '-' : classifyPaymentMethod(b.paymentMethod) === 'cash'
+        ? 'Cash'
+        : classifyPaymentMethod(b.paymentMethod) === 'nonCash' ? 'Non-Cash' : 'Metode tidak dikenali',
       b.paid ? 'Lunas' : 'Belum Bayar',
       b.customerName || '-'
     ]);
@@ -84,35 +101,46 @@ export default function LaporanPage({ outletId, profile }) {
     }
     rows.push(['', 'TOTAL REVENUE NET', outletSummary.totalRevenue + outletSummary.oncallRevenue, '', '', '', '', '', '']);
     const totalRowIndex = rows.length - 1;
-    await exportExcelReport({
-      filename: `Laporan-Keuangan-${outletId}-${startDate}_${endDate}`,
-      title: 'Laporan Keuangan — Dayang Spa',
-      subtitle: `Outlet ${outletId} · ${rangeLabel}`,
-      headers, rows,
-      currencyColumns: [2, 4, 5],
-      totalRowIndex
-    });
+    try {
+      await exportExcelReport({
+        filename: `Laporan-Keuangan-${outletId}-${startDate}_${endDate}`,
+        title: 'Laporan Keuangan — Dayang Spa',
+        subtitle: `Outlet ${outletId} · ${rangeLabel}`,
+        headers, rows,
+        currencyColumns: [2, 4, 5],
+        totalRowIndex
+      });
+      notifySuccess('Laporan keuangan berhasil diunduh.');
+    } catch {
+      notifyError('Gagal mengunduh laporan keuangan.');
+    }
   }
 
   async function handleDownloadCombined() {
-    const headers = ['Outlet', 'Jumlah Treatment', 'Revenue Reguler', 'Total Komisi', 'Komisi Hotel', 'Oncall Net', 'Total Revenue Net'];
+    const headers = ['Outlet', 'Jumlah Treatment', 'Revenue Reguler', 'Total Komisi', 'Komisi Hotel', 'Oncall Net', 'Total Revenue Net', 'Metode tidak dikenali', 'Jumlah transaksi tidak dikenali'];
     const rows = Object.values(combined.perOutlet).map((o) => [
       o.outletName, o.totalTreatment, o.totalRevenue, o.totalCommission, o.totalHotelCommission,
-      o.oncallRevenue, o.totalRevenue + o.oncallRevenue
+      o.oncallRevenue, o.totalRevenue + o.oncallRevenue, o.unknownPaymentRevenue, o.unknownPaymentCount
     ]);
     rows.push([
       'GRAND TOTAL', combined.grandTotalTreatment, combined.grandTotalRevenue,
       combined.grandTotalCommission, combined.grandTotalHotelCommission,
-      combined.grandOncallRevenue, combined.grandTotalRevenue + combined.grandOncallRevenue
+      combined.grandOncallRevenue, combined.grandTotalRevenue + combined.grandOncallRevenue,
+      combined.grandUnknownPaymentRevenue, combined.grandUnknownPaymentCount
     ]);
-    await exportExcelReport({
-      filename: `Laporan-Keuangan-Gabungan-${startDate}_${endDate}`,
-      title: 'Laporan Keuangan Gabungan — Dayang Spa',
-      subtitle: `Semua Outlet · ${rangeLabel}`,
-      headers, rows,
-      currencyColumns: [2, 3, 4, 5, 6],
-      totalRowIndex: rows.length - 1
-    });
+    try {
+      await exportExcelReport({
+        filename: `Laporan-Keuangan-Gabungan-${startDate}_${endDate}`,
+        title: 'Laporan Keuangan Gabungan — Dayang Spa',
+        subtitle: `Semua Outlet · ${rangeLabel}`,
+        headers, rows,
+        currencyColumns: [2, 3, 4, 5, 6, 7],
+        totalRowIndex: rows.length - 1
+      });
+      notifySuccess('Laporan gabungan berhasil diunduh.');
+    } catch {
+      notifyError('Gagal mengunduh laporan gabungan.');
+    }
   }
 
   async function handleDownloadKomisi() {
@@ -128,14 +156,19 @@ export default function LaporanPage({ outletId, profile }) {
     const totalHotel = staffCommissions.reduce((sum, s) => sum + s.hotelCommissionTotal, 0);
     const totalTrx = staffCommissions.reduce((sum, s) => sum + s.treatmentCount, 0);
     rows.push(['TOTAL', totalTrx, totalOmzet, totalKomisi, totalHotel, '']);
-    await exportExcelReport({
-      filename: `Laporan-Komisi-Staff-${startDate}_${endDate}`,
-      title: 'Laporan Komisi Staff — Dayang Spa',
-      subtitle: `Semua Outlet · ${rangeLabel}`,
-      headers, rows,
-      currencyColumns: [2, 3, 4],
-      totalRowIndex: rows.length - 1
-    });
+    try {
+      await exportExcelReport({
+        filename: `Laporan-Komisi-Staff-${startDate}_${endDate}`,
+        title: 'Laporan Komisi Staff — Dayang Spa',
+        subtitle: `Semua Outlet · ${rangeLabel}`,
+        headers, rows,
+        currencyColumns: [2, 3, 4],
+        totalRowIndex: rows.length - 1
+      });
+      notifySuccess('Laporan komisi berhasil diunduh.');
+    } catch {
+      notifyError('Gagal mengunduh laporan komisi.');
+    }
   }
 
   // Data blok harian hanya dipakai untuk file Excel, jadi diambil saat tombol
@@ -166,9 +199,11 @@ export default function LaporanPage({ outletId, profile }) {
           + 'Transaksi batal tidak dihitung. Oncall tidak termasuk di sheet outlet. '
           + 'Kolom TOTAL PENDAPATAN berisi komisi per terapis untuk hari tersebut.'
       });
+      notifySuccess('Laporan harian berhasil diunduh.');
     } catch (e) {
       console.error('gagal membuat laporan harian', e);
       setHarianError('Gagal memuat data harian. Coba lagi beberapa saat.');
+      notifyError('Gagal membuat laporan harian.');
     } finally {
       setHarianLoading(false);
     }
@@ -224,6 +259,7 @@ export default function LaporanPage({ outletId, profile }) {
       <button onClick={handleLoad} disabled={loading}>
         {loading ? 'Memuat...' : 'Tampilkan laporan'}
       </button>
+      {loadError && <p className="message warn">{loadError}</p>}
 
       {mode === 'outlet' && outletSummary && (
         <section style={{ marginTop: 16 }}>
@@ -254,6 +290,11 @@ export default function LaporanPage({ outletId, profile }) {
                 Belum dibayar: {rp(outletSummary.unpaidRevenue)} ({outletSummary.unpaidCount} treatment)
               </div>
             )}
+            {outletSummary.unknownPaymentCount > 0 && (
+              <div style={{ color: 'var(--busy)', fontWeight: 600 }}>
+                Metode pembayaran tidak dikenali: {rp(outletSummary.unknownPaymentRevenue)} ({outletSummary.unknownPaymentCount} transaksi); cek data pembayaran.
+              </div>
+            )}
           </div>
           <h4>Per terapis</h4>
           {Object.values(outletSummary.byTherapist).map((t, i) => (
@@ -271,6 +312,11 @@ export default function LaporanPage({ outletId, profile }) {
             </button>
           </div>
           <p>Total treatment: {combined.grandTotalTreatment}</p>
+          {combined.grandUnknownPaymentCount > 0 && (
+            <p className="message warn">
+              ⚠ Metode pembayaran tidak dikenali: {rp(combined.grandUnknownPaymentRevenue)} ({combined.grandUnknownPaymentCount} transaksi). Nilai ini tidak dimasukkan sebagai Cash atau Cardless.
+            </p>
+          )}
           <p>Revenue reguler: {rp(combined.grandTotalRevenue)}</p>
           {combined.grandOncallCount > 0 && (
             <p>Omzet oncall (setelah komisi hotel): {rp(combined.grandOncallRevenue)} ({combined.grandOncallCount} transaksi)</p>

@@ -4,6 +4,7 @@ import { listenAllTherapists } from '../lib/therapistService';
 import { getTherapistTransactionsRange } from '../lib/reportService';
 import { exportExcelWorkbook } from '../lib/excelExport';
 import { openWhatsAppMessage } from '../lib/bookingService';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const OUTLET_NAME = Object.fromEntries(OUTLETS.map((o) => [o.id, o.name]));
 
@@ -165,8 +166,10 @@ export default function TransaksiTerapisPage() {
           }]
         }]
       });
+      notifySuccess('Transaksi berhasil diunduh.');
     } catch (e) {
       setGalat('Gagal membuat Excel: ' + (e.message || e));
+      notifyError('Gagal mengunduh transaksi.');
     }
   };
   const kirimWa = () => {
@@ -178,7 +181,12 @@ export default function TransaksiTerapisPage() {
       `Komisi    : ${rp(rekap.komisi)}\n` +
       `Sudah lunas : ${rekap.sudahLunas}\n` +
       `Belum lunas : ${rekap.belumLunas}`;
-    openWhatsAppMessage(teks);
+    try {
+      openWhatsAppMessage(teks);
+      notifySuccess('Ringkasan dibuka di WhatsApp.');
+    } catch {
+      notifyError('Gagal membuka WhatsApp.');
+    }
   };
 
   return (

@@ -3,6 +3,7 @@ import { OUTLETS } from '../lib/constants';
 import { getAttendanceRange } from '../lib/attendanceService';
 import { listenAllTherapists } from '../lib/therapistService';
 import { exportExcelReport } from '../lib/excelExport';
+import { notifyError, notifySuccess } from '../lib/notifications';
 import { businessDate, businessDateDaysAgo, businessMonth } from '../lib/businessDate';
 
 const ALL_OUTLETS = '__all__';
@@ -134,15 +135,20 @@ export default function LaporanOvertimePage({ active, profile }) {
     body.push([]);
     body.push(['TOTAL', '', totals.catatan, totals.total, durasi(totals.total), totals.belumDitinjau || '']);
 
-    await exportExcelReport({
-      filename: `Laporan-Overtime-Absensi-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${startDate}_${endDate}`,
-      title: 'Laporan Overtime (dari Absensi) — Dayang Spa',
-      subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
-      headers,
-      rows: body,
-      currencyColumns: [3],
-      totalRowIndex: body.length - 1
-    });
+    try {
+      await exportExcelReport({
+        filename: `Laporan-Overtime-Absensi-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${startDate}_${endDate}`,
+        title: 'Laporan Overtime (dari Absensi) — Dayang Spa',
+        subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
+        headers,
+        rows: body,
+        currencyColumns: [3],
+        totalRowIndex: body.length - 1
+      });
+      notifySuccess('Laporan lembur berhasil diunduh.');
+    } catch {
+      notifyError('Gagal mengunduh laporan lembur.');
+    }
   }
 
   return (

@@ -308,7 +308,12 @@ export async function exportAbsensiGrid({
 
   // --- Baris data -----------------------------------------------------------
   rows.forEach((r) => {
-    const values = [r.name, r.shift || '', ...r.cells.map((c) => c.text)];
+    const values = [
+      r.name,
+      r.shift || '',
+      ...r.cells.map((c) => c.text),
+      ...(r.recapCells || [])
+    ];
     const row = sheet.addRow(values);
     row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       cell.border = thinBorder;
@@ -641,15 +646,15 @@ export async function exportExcelWorkbook({ filename, sheets = [] }) {
  * @param {string} note - catatan kaki di bawah seluruh tabel (opsional)
  */
 export async function exportStockLedger({
-  filename, title, subtitle, dates, blocks = [], sheetName, note
+  filename, title, subtitle, dates, blocks = [], movementRows = [], sheetName, note
 }) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Dayang Spa';
 
   const sheet = workbook.addWorksheet(safeSheetName(sheetName, 'Laporan Produk'));
   const subHeaders = ['Stock', 'In', 'Out', 'Sisa'];
-  // kolom 1 = No, kolom 2 = nama produk, lalu 4 kolom per tanggal
-  const colCount = 2 + dates.length * subHeaders.length;
+  // kolom 1 = No, kolom 2 = nama produk, kolom 3 = total In, lalu 4 kolom per tanggal
+  const colCount = 3 + dates.length * subHeaders.length;
   const cur = () => sheet.rowCount + 1;
 
   const putMerged = (row, from, to, value, style) => {
@@ -692,7 +697,7 @@ export async function exportStockLedger({
     const h1 = cur();
     if (firstHeaderRow === null) firstHeaderRow = h1;
     dates.forEach((d, i) => {
-      putMerged(h1, 3 + i * 4, 6 + i * 4, d, {
+      putMerged(h1, 4 + i * 4, 7 + i * 4, d, {
         alignment: { horizontal: 'center', vertical: 'middle' }
       });
     });
@@ -701,17 +706,17 @@ export async function exportStockLedger({
     const h2 = cur();
     dates.forEach((_, i) => {
       subHeaders.forEach((s, j) => {
-        sheet.getCell(h2, 3 + i * 4 + j).value = s;
+        sheet.getCell(h2, 4 + i * 4 + j).value = s;
       });
     });
 
-    // No + Produk Treatment diturunkan sampai baris sub-judul (rowSpan 2).
+    // Kolom identitas dan Total In diturunkan sampai baris sub-judul.
     // Baris 2 harus dibuat dulu, baru di-merge â€” jangan mergeCells(a, a)
     // karena itu bikin ExcelJS menolak merge yang sebenarnya.
     sheet.getCell(h1, 1).value = 'No';
     sheet.getCell(h1, 2).value = 'Produk Treatment';
-    sheet.mergeCells(h1, 1, h2, 1);
-    sheet.mergeCells(h1, 2, h2, 2);
+    sheet.getCell(h1, 3).value = 'Total In';
+    [1, 2, 3].forEach((col) => sheet.mergeCells(h1, col, h2, col));
 
     [h1, h2].forEach((r) => {
       const row = sheet.getRow(r);
@@ -733,8 +738,8 @@ export async function exportStockLedger({
       )));
       row.eachCell((cell, colNumber) => {
         cell.border = thinBorder;
-        if (colNumber <= 2) {
-          cell.alignment = { horizontal: colNumber === 1 ? 'center' : 'left' };
+        if (colNumber <= 3) {
+          cell.alignment = { horizontal: colNumber === 1 ? 'center' : colNumber === 2 ? 'left' : 'right' };
           return;
         }
         cell.alignment = { horizontal: 'right' };
@@ -751,6 +756,40 @@ export async function exportStockLedger({
     }
   });
 
+  if (movementRows.length) {
+    const detailSheet = workbook.addWorksheet(safeSheetName('Rincian Minyak', 'Rincian Minyak'));
+    detailSheet.mergeCells(1, 1, 1, 7);
+    const titleCell = detailSheet.getCell(1, 1);
+    titleCell.value = 'Rincian Pergerakan Minyak';
+    Object.assign(titleCell, {
+      font: { bold: true, size: 11, color: { argb: BRAND } },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_LIGHT } },
+      alignment: { horizontal: 'left', vertical: 'middle' }
+    });
+    const headers = ['Tanggal', 'Outlet', 'Minyak', 'Pergerakan', 'Jumlah', 'Sisa stok', 'Alasan / catatan'];
+    const headerRow = detailSheet.addRow(headers);
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border = thinBorder;
+    });
+    movementRows.forEach((values) => {
+      const row = detailSheet.addRow(values);
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        cell.border = thinBorder;
+        cell.alignment = { horizontal: colNumber === 5 || colNumber === 6 ? 'right' : 'left' };
+        if ((colNumber === 5 || colNumber === 6) && typeof cell.value === 'number') {
+          cell.numFmt = '#,##0';
+        }
+      });
+    });
+    [14, 18, 22, 14, 10, 12, 42].forEach((width, index) => {
+      detailSheet.getColumn(index + 1).width = width;
+    });
+    detailSheet.views = [{ state: 'frozen', ySplit: 2 }];
+  }
+
   if (note) {
     sheet.getRow(cur());
     putMergedTitle(note, {
@@ -761,9 +800,10 @@ export async function exportStockLedger({
 
   sheet.getColumn(1).width = 6;
   sheet.getColumn(2).width = 30;
-  for (let c = 3; c <= colCount; c++) sheet.getColumn(c).width = 9;
+  sheet.getColumn(3).width = 10;
+  for (let c = 4; c <= colCount; c++) sheet.getColumn(c).width = 9;
   if (firstHeaderRow !== null) {
-    sheet.views = [{ state: 'frozen', xSplit: 2, ySplit: firstHeaderRow }];
+    sheet.views = [{ state: 'frozen', xSplit: 3, ySplit: firstHeaderRow }];
   }
 
   const buffer = await workbook.xlsx.writeBuffer();

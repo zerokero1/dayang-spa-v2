@@ -3,6 +3,7 @@ import { PAYMENT_METHOD_LABEL, parseRupiah, sanitizeNominal, formatRupiah } from
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createOncallBookingMulti, editOncallBooking, cancelOncallBooking, selesaiOncallDanBebaskan, bebaskanTerapisDariOncall, getTodayOncall, outletNames } from '../lib/oncallService';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const THERAPIST_COMMISSION = 10;
 
@@ -188,10 +189,12 @@ export default function OncallPage({ outletId, active, isOffice, profile }) {
         entries
       });
       setMessage(`Order oncall ${selEntries.length} terapis berhasil dicatat dan langsung lunas.`);
+      notifySuccess(`Order oncall berhasil dicatat untuk ${selEntries.length} terapis.`);
       resetForm();
       await loadList();
     } catch (e) {
       setError(e.message || 'Gagal mencatat order oncall.');
+      notifyError('Gagal mencatat order oncall: ' + (e.message || 'Terjadi kesalahan.'));
     } finally {
       setSaving(false);
     }
@@ -226,9 +229,11 @@ export default function OncallPage({ outletId, active, isOffice, profile }) {
     try {
       await cancelOncallBooking(b.id);
       setMessage('Transaksi oncall dibatalkan.');
+      notifySuccess('Transaksi oncall berhasil dibatalkan.');
       await loadList();
     } catch (e) {
       setError(e.message || 'Gagal membatalkan transaksi oncall.');
+      notifyError('Gagal membatalkan transaksi oncall: ' + (e.message || 'Terjadi kesalahan.'));
     }
   }
 
@@ -239,9 +244,11 @@ export default function OncallPage({ outletId, active, isOffice, profile }) {
       setMessage(hasil.freed
         ? `Oncall ${b.therapistName} diselesaikan, terapis dibebaskan.`
         : `Transaksi oncall ${b.therapistName} diselesaikan. Terapis belum dibebaskan karena ${hasil.reason || 'masih ada sesi lain'}.`);
+      notifySuccess(`Transaksi oncall ${b.therapistName} berhasil diselesaikan.`);
       await loadList();
     } catch (e) {
       setError(e.message || 'Gagal menyelesaikan oncall.');
+      notifyError('Gagal menyelesaikan oncall: ' + (e.message || 'Terjadi kesalahan.'));
     }
   }
 
@@ -252,9 +259,12 @@ export default function OncallPage({ outletId, active, isOffice, profile }) {
       setMessage(hasil.freed
         ? `${b.therapistName} sudah bebas.`
         : `${b.therapistName} belum bisa dibebaskan: ${hasil.reason || 'masih ada sesi lain'}.`);
+      if (hasil.freed) notifySuccess(`${b.therapistName} berhasil dibebaskan.`);
+      else notifyError(`${b.therapistName} belum bisa dibebaskan: ${hasil.reason || 'masih ada sesi lain'}.`);
       await loadList();
     } catch (e) {
       setError(e.message || 'Gagal membebaskan terapis.');
+      notifyError('Gagal membebaskan terapis: ' + (e.message || 'Terjadi kesalahan.'));
     }
   }
 
@@ -294,10 +304,12 @@ export default function OncallPage({ outletId, active, isOffice, profile }) {
         paymentMethod: editForm.method
       });
       setMessage('Transaksi oncall berhasil diubah.');
+      notifySuccess('Transaksi oncall berhasil diperbarui.');
       closeEdit();
       await loadList();
     } catch (e) {
       setEditError(e.message || 'Gagal menyimpan perubahan oncall.');
+      notifyError('Gagal memperbarui transaksi oncall: ' + (e.message || 'Terjadi kesalahan.'));
     } finally {
       setEditing(false);
     }

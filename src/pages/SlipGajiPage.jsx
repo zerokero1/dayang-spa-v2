@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { getPayslip } from '../lib/reportService';
 import { OUTLETS } from '../lib/constants';
 import { exportExcelReport } from '../lib/excelExport';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const POLA_TANGGAL = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -62,7 +63,7 @@ export default function SlipGajiPage() {
     return sertakanNol ? data.rows : data.rows.filter((r) => r.totalKomisi !== 0);
   }, [data, sertakanNol]);
 
-  const unduh = () => {
+  const unduh = async () => {
     if (!data) return;
     const headers = ['NAMA', 'OUTLET', 'TREATMENT', 'TOTAL KOMISI', 'TAB 30%', 'TOTAL', 'POTONGAN', 'KOMISI BERSIH'];
 
@@ -92,17 +93,22 @@ export default function SlipGajiPage() {
     }
 
     const namaOutlet = outletId ? (OUTLETS.find((o) => o.id === outletId)?.name || outletId) : 'Semua Outlet';
-    exportExcelReport({
-      filename: `Slip-Gaji-${kolomPeriode}-${outletId || 'Semua-Outlet'}`,
-      title: `SLIP GAJI ${kolomPeriode}`,
-      subtitle: namaOutlet,
-      headers,
-      rows: isi,
-      currencyColumns: [3, 4, 5, 6, 7],
-      totalRowIndex: isi.length ? isi.length - 1 : undefined,
-      sheetName: `Komisi ${kolomPeriode}`,
-      note: 'Tabungan 30% dihitung otomatis. Isi kolom POTONGAN sendiri bila ada potongan lain.'
-    });
+    try {
+      await exportExcelReport({
+        filename: `Slip-Gaji-${kolomPeriode}-${outletId || 'Semua-Outlet'}`,
+        title: `SLIP GAJI ${kolomPeriode}`,
+        subtitle: namaOutlet,
+        headers,
+        rows: isi,
+        currencyColumns: [3, 4, 5, 6, 7],
+        totalRowIndex: isi.length ? isi.length - 1 : undefined,
+        sheetName: `Komisi ${kolomPeriode}`,
+        note: 'Tabungan 30% dihitung otomatis. Isi kolom POTONGAN sendiri bila ada potongan lain.'
+      });
+      notifySuccess('Slip gaji berhasil diunduh.');
+    } catch {
+      notifyError('Gagal mengunduh slip gaji.');
+    }
   };
 
   const rp = (n) => 'Rp' + Math.round(Number(n || 0)).toLocaleString('id-ID');

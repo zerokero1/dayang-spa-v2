@@ -613,17 +613,40 @@ end;
 $fn$;
 
 -- ============================================================
--- RPC: adjust_oil_stock (+/- stok minyak, atomik, min 0)
+-- RPC: adjust_oil_stock (+/- stok minyak, atomik; keluar wajib beralasan)
 -- ============================================================
 create or replace function adjust_oil_stock(
-  p_outlet_id text, p_oil_type text, p_size text, p_delta int
+  p_outlet_id text, p_oil_type text, p_size text, p_delta int, p_note text default null
 ) returns void
 language plpgsql as $fn$
+declare
+  v_current int;
 begin
-  insert into oil_inventory (outlet_id, oil_type, size, stock, unit)
-  values (p_outlet_id, p_oil_type, p_size, greatest(p_delta, 0), 'botol')
-  on conflict (outlet_id, oil_type, size)
-  do update set stock = greatest(oil_inventory.stock + p_delta, 0);
+  if p_delta = 0 then raise exception 'Jumlah perubahan stok tidak boleh nol'; end if;
+
+  if p_delta < 0 then
+    if nullif(btrim(p_note), '') is null then
+      raise exception 'Alasan pengurangan stok minyak wajib diisi';
+    end if;
+
+    select stock into v_current
+      from oil_inventory
+     where outlet_id = p_outlet_id and oil_type = p_oil_type and size = p_size
+     for update;
+    if not found then raise exception 'Stok minyak tidak ditemukan'; end if;
+    if v_current + p_delta < 0 then raise exception 'Stok minyak tidak cukup'; end if;
+
+    perform set_config('dayang.oil_stock_note', btrim(p_note), true);
+    update oil_inventory
+       set stock = stock + p_delta
+     where outlet_id = p_outlet_id and oil_type = p_oil_type and size = p_size;
+  else
+    perform set_config('dayang.oil_stock_note', '', true);
+    insert into oil_inventory (outlet_id, oil_type, size, stock, unit)
+    values (p_outlet_id, p_oil_type, p_size, p_delta, 'botol')
+    on conflict (outlet_id, oil_type, size)
+    do update set stock = oil_inventory.stock + p_delta;
+  end if;
 end;
 $fn$;
 

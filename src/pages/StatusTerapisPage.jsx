@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { listenAllTherapists, setTherapistStatusManual } from '../lib/therapistService';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { listenAllTherapists, refreshAllTherapists, setTherapistStatusManual } from '../lib/therapistService';
 import { THERAPIST_STATUS, OUTLETS, OIL_TYPES, OIL_SIZES, PAYMENT_METHOD_LABEL, treatmentUsesOil, oilChoicesFor, isSingleSizeProduct, SIZE_NONE } from '../lib/constants';
 import { completeBooking, cancelBookingFull, cancelBookingPartial, markBookingPaid, continueTreatment, completeBookingGroup, markGroupPaid, openWhatsAppMessage } from '../lib/bookingService';
 import { listenTreatments } from '../lib/treatmentService';
@@ -9,6 +9,10 @@ import { SHIFT_LABEL, SHIFT_SHORT_CODE } from '../lib/constants';
 import { ReceiptLines } from '../components/Receipt';
 import { supabase } from '../lib/supabase';
 import { businessDate, businessRangeBoundsUtc } from '../lib/businessDate';
+import { notifyError, notifySuccess } from '../lib/notifications';
+import { printPaidReceipt } from '../lib/paidReceiptPrinter';
+import { shareWhatsAppMessage } from '../lib/whatsappShare';
+import { Capacitor } from '@capacitor/core';
 
 const STATUS_LABEL = { free: 'Free', libur: 'Libur', ambil_tamu: 'Ambil Tamu', break: 'Break' };
 const OUTLET_NAME = Object.fromEntries(OUTLETS.map((o) => [o.id, o.name]));
@@ -67,7 +71,7 @@ async function ambilOncallAktif() {
     .limit(200);
   if (error) {
     console.warn('gagal memuat oncall aktif', error);
-    return {};
+    throw error;
   }
   const peta = {};
   (data || []).forEach((b) => {
@@ -93,7 +97,7 @@ async function ambilOncallAktif() {
  *  Oncall dibaca dari tabel `bookings` (booking_source = 'oncall'), bukan dari
  *  current_group_id terapis: RPC oncall tidak pernah mengisi kolom itu, jadi
  *  kalau dicek dari sana tandanya tidak akan pernah muncul sama sekali. */
-function buildAndSendTherapistList({ therapists, dailyTotals, hotelTotals, oncallAktif }) {
+function buildTherapistListText({ therapists, dailyTotals, hotelTotals, oncallAktif }) {
   const today = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
   let text = `LIST TERAPIS ${today}\n`;
 
@@ -143,7 +147,12 @@ function buildAndSendTherapistList({ therapists, dailyTotals, hotelTotals, oncal
     offList.forEach((t) => { text += `~${t.name}~\n`; });
   }
 
-  openWhatsAppMessage(text);
+  return text;
+}
+
+function buildAndSendTherapistList(data) {
+  openWhatsAppMessage(buildTherapistListText(data));
+  notifySuccess('Daftar terapis siap dibagikan melalui WhatsApp.');
 }
 
 /** Susun teks daftar transaksi BELUM BAYAR untuk dikirim sebagai pengingat ke WhatsApp. */
@@ -162,7 +171,7 @@ function buildUnpaidReminderText(list) {
   return text;
 }
 
-function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh, onBatalSebagian, onTandaiLunas, onContinue, onUnpaidPaid, unpaid, payTotal, sedangBayar }) {
+function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh, onBatalSebagian, onTandaiLunas, onContinue, onUnpaidPaid, unpaid, payTotal, sedangBayar, sedangBatal }) {
   const status = t.status || 'free';
   const busy = status === 'ambil_tamu';
   const isOncall = busy && (t.currentGroupId || '').startsWith('oncall:');
@@ -329,8 +338,9 @@ function TherapistCard({ t, dailyTotal, onManualStatus, onSelesai, onBatalPenuh,
               </button>
             )}
             <button className="btn btn-danger"
+              disabled={sedangBatal(t.id)}
               onClick={() => { if (confirm(`Batalkan ${multi ? `semua ${bookingIdsOf(t).length} treatment` : `booking ${t.name}`} sepenuhnya? Stok minyak akan dikembalikan.`)) onBatalPenuh(t); }}>
-              Batalkan penuh
+              {sedangBatal(t.id) ? 'Membatalkan...' : 'Batalkan penuh'}
             </button>
           </div>
 
@@ -511,12 +521,18 @@ export default function StatusTerapisPage({ active, profile }) {
   const viewOutlets = isKasir ? OUTLETS.filter((o) => o.id === ownOutlet) : OUTLETS;
   const [therapists, setTherapists] = useState([]);
   const [dailyTotals, setDailyTotals] = useState({});
-  const [dailyCommissions, setDailyCommissions] = useState({});
+  const [hotelTotals, setHotelTotals] = useState({});
+  const [oncallAktif, setOncallAktif] = useState({});
+  const [listDataReady, setListDataReady] = useState(false);
+  const [listLoading, setListLoading] = useState(false);
+  const [listLoadError, setListLoadError] = useState('');
+  const listLoadInProgress = useRef(null);
   const [, setTick] = useState(0);
   const [message, setMessage] = useState('');
   const [outletFilter, setOutletFilter] = useState(isKasir ? (ownOutlet || 'semua') : 'semua');
   const [unpaidList, setUnpaidList] = useState([]);
   const [unpaidError, setUnpaidError] = useState('');
+  const [payingBookingIds, setPayingBookingIds] = useState([]);
   const [paidMap, setPaidMap] = useState({});
 
   const [treatments, setTreatments] = useState([]);
@@ -534,6 +550,8 @@ export default function StatusTerapisPage({ active, profile }) {
 // tersbesar "Lunas" dan "Cardless" harus diisi dua kali.
 const [sedangBayarIds, setSedangBayarIds] = useState([]);
 const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
+const [sedangBatalIds, setSedangBatalIds] = useState([]);
+const sedangBatal = (therapistId) => sedangBatalIds.includes(therapistId);
   const [printOutletId, setPrintOutletId] = useState(null);
 
   useEffect(() => {
@@ -608,11 +626,35 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
   }
 
   async function handleUnpaidPaid(b, method) {
+    if (payingBookingIds.includes(b.id)) return;
+    setPayingBookingIds((ids) => [...ids, b.id]);
     try {
       await markBookingPaid(b.outlet_id, b.id, b.therapist_id || null, method, 0, '');
-      setMessage(`Booking ${b.customer_name || b.treatment_name} ditandai lunas (${PAYMENT_METHOD_LABEL[method]}).`);
+      const notice = `Booking ${b.customer_name || b.treatment_name} ditandai lunas (${PAYMENT_METHOD_LABEL[method]}).`;
+      setMessage(notice);
+      notifySuccess(notice);
+      try {
+        if (await printPaidReceipt([{
+          treatmentName: b.treatment_name,
+          treatmentPrice: b.treatment_price,
+          therapistName: b.therapist_name,
+          customerName: b.customer_name || '',
+          startAt: b.start_at,
+          paymentMethod: method,
+        }], b.outlet_id)) {
+          notifySuccess('Struk pembayaran dikirim ke printer.');
+        }
+      } catch (printError) {
+        notifyError(`Pembayaran berhasil, tetapi struk gagal dicetak: ${printError.message || 'Periksa printer Bluetooth.'}`);
+      }
       loadUnpaid();
-    } catch (e) { setMessage('Gagal: ' + e.message); }
+      loadListData();
+    } catch (e) {
+      setMessage('Gagal: ' + e.message);
+      notifyError('Gagal menandai pembayaran: ' + e.message);
+    } finally {
+      setPayingBookingIds((ids) => ids.filter((id) => id !== b.id));
+    }
   }
 
   useEffect(() => {
@@ -620,49 +662,110 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
     return () => clearInterval(interval);
   }, []);
 
-  // Refresh total harga & komisi hari ini — di-DEBOUNCE (jeda 2.5 detik setelah
-  // perubahan terakhir) supaya tidak memicu banyak query saat daftar terapis
-  // berubah cepat (pemboros kuota). Hanya berjalan saat halaman terlihat (active).
+  const loadListData = useCallback(() => {
+    if (listLoadInProgress.current) return listLoadInProgress.current;
+    setListLoading(true);
+    setListLoadError('');
+    const request = Promise.all([
+      getTherapistDailyReport(todayId()),
+      ambilOncallAktif()
+    ]).then(([{ totals, hotelTotals: hotels }, oncall]) => {
+      setDailyTotals(totals);
+      setHotelTotals(hotels);
+      setOncallAktif(oncall);
+      setListDataReady(true);
+      return { dailyTotals: totals, hotelTotals: hotels, oncallAktif: oncall };
+    }).catch((error) => {
+      const notice = 'Gagal memuat data daftar: ' + (error.message || 'Terjadi kesalahan.');
+      setListLoadError(notice);
+      setMessage(notice);
+      return null;
+    }).finally(() => {
+      listLoadInProgress.current = null;
+      setListLoading(false);
+    });
+    listLoadInProgress.current = request;
+    return request;
+  }, []);
+
+  // Refresh list data in the background so the WhatsApp intent can be opened
+  // synchronously from the user's tap without being blocked by the WebView.
   useEffect(() => {
     if (!active) return;
-    const timer = setTimeout(() => {
-      getTherapistDailyReport(todayId())
-        .then(({ totals, commissions }) => {
-          setDailyTotals(totals);
-          setDailyCommissions(commissions);
-        })
-        .catch(() => {});
-    }, 2500);
-    return () => clearTimeout(timer);
-  }, [therapists, active]);
+    loadListData();
+    const timer = setInterval(loadListData, 30000);
+    return () => clearInterval(timer);
+  }, [active, loadListData, therapists]);
 
   async function handleManualStatus(therapistId, status) {
-    await setTherapistStatusManual(therapistId, status);
+    try {
+      await setTherapistStatusManual(therapistId, status);
+      notifySuccess('Status terapis berhasil diperbarui.');
+    } catch (e) {
+      notifyError('Gagal memperbarui status terapis: ' + e.message);
+    }
   }
   async function handleSelesai(t) {
     if (!t.currentOutletId) return;
-    for (const bId of bookingIdsOf(t)) {
-      await completeBooking(t.currentOutletId, bId, t.id);
+    try {
+      for (const bId of bookingIdsOf(t)) {
+        await completeBooking(t.currentOutletId, bId, t.id);
+      }
+      notifySuccess(`Treatment ${t.name} berhasil diselesaikan.`);
+    } catch (e) {
+      notifyError('Gagal menyelesaikan treatment: ' + e.message);
     }
   }
   async function handleBatalPenuh(t) {
     if (!t.currentOutletId) return;
+    if (sedangBatal(t.id)) return;
+    setSedangBatalIds((ids) => [...ids, t.id]);
     try {
       for (const bId of bookingIdsOf(t)) {
         await cancelBookingFull(t.currentOutletId, bId, t.id);
       }
-      setMessage(`Booking ${t.name} dibatalkan, stok minyak dikembalikan.`);
-    } catch (e) { setMessage('Gagal membatalkan: ' + e.message); }
+      try {
+        await refreshAllTherapists();
+      } catch (e) {
+        const notice = `Pembatalan ${t.name} tersimpan, tetapi status terapis gagal diperbarui: ${e.message}`;
+        setMessage(notice);
+        notifyError(notice);
+        return;
+        }
+        const notice = `Booking ${t.name} berhasil dibatalkan, stok minyak dikembalikan.`;
+        setMessage(notice);
+        notifySuccess(notice);
+    } catch (e) {
+        setMessage('Gagal membatalkan: ' + e.message);
+        notifyError('Gagal membatalkan booking: ' + e.message);
+    }
+    finally { setSedangBatalIds((ids) => ids.filter((id) => id !== t.id)); }
   }
   async function handleBatalSebagian(t, newPrice, index = 0) {
     if (!t.currentOutletId) return;
+    if (sedangBatal(t.id)) return;
     const ids = bookingIdsOf(t);
     const targetId = ids[index] || ids[0];
     if (!targetId) return;
+    setSedangBatalIds((current) => [...current, t.id]);
     try {
       await cancelBookingPartial(t.currentOutletId, targetId, t.id, newPrice);
-      setMessage(`Booking ${t.name} ditutup dengan harga baru ${rp(newPrice)}.`);
-    } catch (e) { setMessage('Gagal: ' + e.message); }
+      try {
+        await refreshAllTherapists();
+      } catch (e) {
+        const notice = `Perubahan booking ${t.name} tersimpan, tetapi status terapis gagal diperbarui: ${e.message}`;
+        setMessage(notice);
+        notifyError(notice);
+        return;
+        }
+        const notice = `Booking ${t.name} berhasil diperbarui dengan harga ${rp(newPrice)}.`;
+        setMessage(notice);
+        notifySuccess(notice);
+    } catch (e) {
+        setMessage('Gagal: ' + e.message);
+        notifyError('Gagal memperbarui booking: ' + e.message);
+    }
+    finally { setSedangBatalIds((current) => current.filter((id) => id !== t.id)); }
   }
   // Menampilkan struk sebagai konfirmasi visual setelah pembayaran lunas.
   // Catatan: `window.print()` TIDAK lagi dipanggil di sini — agar dialog
@@ -698,13 +801,15 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
       if ((t.endAt || 0) <= Date.now()) {
         await setTherapistStatusManual(t.id, 'free');
       }
+      loadListData();
       setMessage(`Booking ${t.name} ditandai lunas (${PAYMENT_METHOD_LABEL[method]}).`);
+      notifySuccess(`Pembayaran booking ${t.name} berhasil disimpan.`);
       const names = Array.isArray(t.currentTreatmentNames) && t.currentTreatmentNames.length
         ? t.currentTreatmentNames
         : (t.currentTreatmentName ? [t.currentTreatmentName] : []);
       const base = t.currentPrice || 0;
       const eff = base - (disc ? Math.round(base * disc / 100) : 0);
-      triggerPrint([{
+      const receiptLines = [{
         treatmentName: names.join(' + '),
         treatmentPrice: eff,
         originalPrice: disc > 0 ? base : null,
@@ -713,8 +818,19 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
         startAt: t.startAt,
         paymentMethod: method,
         usesOil: t.currentUsesOil
-      }], t.currentOutletId);
-    } catch (e) { setMessage('Gagal: ' + e.message); }
+      }];
+      triggerPrint(receiptLines, t.currentOutletId);
+      try {
+        if (await printPaidReceipt(receiptLines, t.currentOutletId)) {
+          notifySuccess('Struk pembayaran dikirim ke printer.');
+        }
+      } catch (printError) {
+        notifyError(`Pembayaran berhasil, tetapi struk gagal dicetak: ${printError.message || 'Periksa printer Bluetooth.'}`);
+      }
+    } catch (e) {
+      setMessage('Gagal: ' + e.message);
+      notifyError('Gagal menyimpan pembayaran: ' + e.message);
+    }
     finally { setSedangBayarIds((s) => s.filter((x) => x !== t.id)); }
   }
 
@@ -737,7 +853,9 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
     try {
       const usesOilFlag = treatmentUsesOil(cTreatment);
       await continueTreatment({
+        outletId: continueTarget.currentOutletId,
         therapistId: continueTarget.id,
+        therapistName: continueTarget.name,
         treatmentId: cTreatment.id,
         treatmentName: cTreatment.name,
         treatmentPrice: cTreatment.price,
@@ -751,8 +869,9 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
         paymentMethod: cMethod
       });
       setMessage(`Treatment lanjutan untuk ${continueTarget.name} dicatat.`);
+      notifySuccess(`Treatment lanjutan untuk ${continueTarget.name} berhasil dicatat.`);
       if (cPaid) {
-        triggerPrint([{
+        const receiptLines = [{
           treatmentName: cTreatment.name,
           treatmentPrice: cTreatment.price,
           therapistName: continueTarget.name,
@@ -760,12 +879,22 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
           startAt: Date.now(),
           paymentMethod: cMethod,
           usesOil: usesOilFlag
-        }], continueTarget.currentOutletId);
+        }];
+        triggerPrint(receiptLines, continueTarget.currentOutletId);
+        try {
+          if (await printPaidReceipt(receiptLines, continueTarget.currentOutletId)) {
+            notifySuccess('Struk pembayaran dikirim ke printer.');
+          }
+        } catch (printError) {
+          notifyError(`Pembayaran berhasil, tetapi struk gagal dicetak: ${printError.message || 'Periksa printer Bluetooth.'}`);
+        }
       }
+      if (cPaid) loadListData();
       setContinueTarget(null);
       setCTreatment(null); setCOil(null); setCSize(null);
     } catch (e) {
       setMessage('Gagal mencatat lanjutan: ' + e.message);
+      notifyError('Gagal mencatat treatment lanjutan: ' + e.message);
     } finally {
       setCSaving(false);
     }
@@ -775,7 +904,11 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
     try {
       await completeBookingGroup(members);
       setMessage(`Grup (${members.length} orang) selesai sekaligus.`);
-    } catch (e) { setMessage('Gagal: ' + e.message); }
+      notifySuccess(`Treatment grup (${members.length} orang) berhasil diselesaikan.`);
+    } catch (e) {
+      setMessage('Gagal: ' + e.message);
+      notifyError('Gagal menyelesaikan grup: ' + e.message);
+    }
   }
   async function handlePayGroup(members, method, discountPct, discountReason) {
     try {
@@ -783,9 +916,10 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
       const reason = discountReason || '';
       await markGroupPaid(members, method, disc, reason);
       setMessage(`Grup (${members.length} orang) ditandai lunas (${PAYMENT_METHOD_LABEL[method]}).`);
+      notifySuccess(`Pembayaran grup (${members.length} orang) berhasil disimpan.`);
       const base = members.reduce((s, m) => s + (m.currentPrice || 0), 0);
       const eff = base - (disc ? Math.round(base * disc / 100) : 0);
-      triggerPrint([{
+      const receiptLines = [{
         treatmentName: `Grup Massage (${members.length} orang)`,
         treatmentPrice: eff,
         originalPrice: disc > 0 ? base : null,
@@ -793,25 +927,43 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
         customerName: '',
         startAt: members[0] && members[0].startAt,
         paymentMethod: method
-      }], (members[0] && members[0].currentOutletId) || undefined);
-    } catch (e) { setMessage('Gagal: ' + e.message); }
+      }];
+      const outletId = (members[0] && members[0].currentOutletId) || undefined;
+      triggerPrint(receiptLines, outletId);
+      try {
+        if (await printPaidReceipt(receiptLines, outletId)) {
+          notifySuccess('Struk pembayaran dikirim ke printer.');
+        }
+      } catch (printError) {
+        notifyError(`Pembayaran berhasil, tetapi struk gagal dicetak: ${printError.message || 'Periksa printer Bluetooth.'}`);
+      }
+    } catch (e) {
+      setMessage('Gagal: ' + e.message);
+      notifyError('Gagal menyimpan pembayaran grup: ' + e.message);
+    }
   }
 
-  // Kirim list lengkap ke WhatsApp: muat ulang komisi hari ini TERLEBIH DAHULU
-  // (segar) supaya angka komisi pasti tampil di daftar — tidak bergantung pada
-  // state dailyCommissions yang mungkin belum terisi / sudah kedaluwarsa.
   async function handleSendList() {
-    try {
-      const { totals, commissions, hotelTotals } = await getTherapistDailyReport(todayId());
-      setDailyCommissions(commissions);
-      setDailyTotals(totals);
-      // Diambil bareng supaya tanda ❌ dan 🔶ONCALL di daftar selalu sesuai
-      // dengan booking oncall yang sedang jalan saat tombol ditekan.
-      const oncallAktif = await ambilOncallAktif();
-      buildAndSendTherapistList({ therapists, dailyTotals: totals, hotelTotals, oncallAktif });
-    } catch (e) {
-      setMessage('Gagal memuat komisi: ' + e.message);
+    if (!listDataReady) {
+      setMessage('Data daftar belum siap. Tunggu sebentar lalu coba lagi.');
+      return;
     }
+    if (Capacitor.getPlatform() === 'android') {
+      try {
+        const freshData = await loadListData();
+        if (!freshData) return;
+        const text = buildTherapistListText({ therapists, ...freshData });
+        await shareWhatsAppMessage(text);
+        notifySuccess('Daftar terapis dibuka untuk dibagikan melalui WhatsApp.');
+      } catch (error) {
+        const notice = 'Gagal membuka WhatsApp: ' + (error.message || 'Coba lagi.');
+        setMessage(notice);
+        notifyError(notice);
+      }
+      return;
+    }
+
+    buildAndSendTherapistList({ therapists, dailyTotals, hotelTotals, oncallAktif });
   }
 
   const busy = therapists.filter((t) => (t.status || 'free') === 'ambil_tamu');
@@ -855,6 +1007,7 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
     onContinue: openContinue,
     onUnpaidPaid: handleUnpaidPaid,
     sedangBayar,
+    sedangBatal,
     payTotal
   };
 
@@ -874,18 +1027,27 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
       </p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <button className="btn btn-primary" onClick={handleSendList}>
-          Kirim daftar lengkap ke WhatsApp
+        <button className="btn btn-primary" disabled={!listDataReady} onClick={handleSendList}>
+          {listDataReady ? 'Kirim daftar lengkap ke WhatsApp' : (listLoading ? 'Memuat data daftar...' : 'Data daftar belum siap')}
         </button>
+        {(!listDataReady || listLoadError) && (
+          <button className="btn btn-outline" disabled={listLoading} onClick={loadListData}>
+            {listLoading ? 'Memuat...' : 'Coba muat ulang daftar'}
+          </button>
+        )}
         <button
           className={unpaidShown.filter((b) => b.end_at && Number(b.end_at) <= Date.now()).length > 0 ? 'btn btn-danger' : 'btn btn-primary'}
           style={{ opacity: unpaidShown.length === 0 ? 0.5 : 1 }}
           disabled={unpaidShown.length === 0}
-          onClick={() => openWhatsAppMessage(buildUnpaidReminderText(unpaidShown))}
+          onClick={() => {
+            openWhatsAppMessage(buildUnpaidReminderText(unpaidShown));
+            notifySuccess('Pengingat pembayaran siap dibagikan melalui WhatsApp.');
+          }}
         >
           ⚠ Kirim pengingat bayar ke WhatsApp
         </button>
       </div>
+      {listLoadError && <p role="alert" style={{ color: 'var(--danger)', fontSize: 13 }}>{listLoadError}</p>}
 
       {message && <p style={{ fontSize: 13 }}>{message}</p>}
 
@@ -912,13 +1074,15 @@ const sedangBayar = (therapistId) => sedangBayarIds.includes(therapistId);
             <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
               <button className="btn btn-primary btn-sm"
                 onClick={() => handleUnpaidPaid(b, 'cash')}
+                disabled={payingBookingIds.includes(b.id)}
               >
-                Lunas (Cash)
+                {payingBookingIds.includes(b.id) ? 'Memproses...' : 'Lunas (Cash)'}
               </button>
               <button className="btn btn-outline btn-sm"
                 onClick={() => handleUnpaidPaid(b, 'cardless')}
+                disabled={payingBookingIds.includes(b.id)}
               >
-                Lunas (Cardless)
+                {payingBookingIds.includes(b.id) ? 'Memproses...' : 'Lunas (Cardless)'}
               </button>
             </div>
           </div>

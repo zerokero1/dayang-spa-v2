@@ -4,6 +4,7 @@ import { listenTreatments } from '../lib/treatmentService';
 import { getDailyBookingsRange } from '../lib/reportService';
 import { businessDate } from '../lib/businessDate';
 import { editBookingDetails } from '../lib/bookingService';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -34,9 +35,11 @@ function EditRow({ booking, treatments, onSave, onCancel }) {
         commissionPercent: t.commissionPercent, durationMinutes: t.durationMinutes,
         usesOil: treatmentUsesOil(t), oilType: selOil, oilSize: selSize
       });
+      notifySuccess('Perubahan booking berhasil disimpan.');
       onSave();
     } catch (e) {
       setError(e.message);
+      notifyError('Gagal menyimpan perubahan booking: ' + e.message);
     } finally {
       setSaving(false);
     }

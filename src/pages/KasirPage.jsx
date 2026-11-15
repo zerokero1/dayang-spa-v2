@@ -11,6 +11,8 @@ import { listenTreatments } from '../lib/treatmentService';
 import { createBooking, createBookingsBatch } from '../lib/bookingService';
 import { listenInventory, fetchTreatmentConsumables } from '../lib/inventoryService';
 import { forecastStockAlerts, describeStockAlerts } from '../lib/stockForecast';
+import { notifyError, notifySuccess } from '../lib/notifications';
+import { printPaidReceipt } from '../lib/paidReceiptPrinter';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -349,6 +351,7 @@ function addLine(t, tera, opts = {}) {
     try {
       if (markPaidNow && !paymentMethod) {
         setError('Pilih metode pembayaran (Cash/Cardless) terlebih dahulu.');
+        notifyError('Pilih metode pembayaran terlebih dahulu.');
         setSaving(false);
         return;
       }
@@ -388,6 +391,26 @@ function addLine(t, tera, opts = {}) {
       } else {
         await createBookingsBatch(items);
       }
+      notifySuccess(items.length > 1 ? `${items.length} booking berhasil dibuat.` : 'Booking berhasil dibuat.');
+      if (markPaidNow) {
+        const receiptLines = items.map((item) => ({
+          treatmentName: item.treatmentName,
+          treatmentPrice: item.treatmentPrice,
+          originalPrice: item.originalPrice,
+          therapistName: item.therapistName,
+          customerName: item.customerName,
+          startAt: new Date().toISOString(),
+          paymentMethod: item.paymentMethod,
+          usesOil: item.usesOil,
+        }));
+        try {
+          if (await printPaidReceipt(receiptLines, outletId)) {
+            notifySuccess('Struk pembayaran dikirim ke printer.');
+          }
+        } catch (printError) {
+          notifyError(`Pembayaran berhasil, tetapi struk gagal dicetak: ${printError.message || 'Periksa printer Bluetooth.'}`);
+        }
+      }
       // Sukses: bersihkan keranjang saja. Nama pelanggan, metode pembayaran,
       // dan status "sudah dibayar" sengaja DIKEEP supaya transaksi berikutnya
       // tidak perlu diisi ulang.
@@ -398,6 +421,7 @@ function addLine(t, tera, opts = {}) {
     } catch (e) {
       console.error('handlePay error:', e, e && e.stack);
       setError((e && e.message) || String(e));
+      notifyError('Gagal menyimpan booking: ' + ((e && e.message) || String(e)));
       setSaving(false);
     }
   }

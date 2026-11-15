@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import { getConsumableUsage, getItemLedger, getOilLedger } from '../lib/stockUsageService';
 import { exportExcelReport, exportStockLedger } from '../lib/excelExport';
+import { notifyError, notifySuccess } from '../lib/notifications';
 import { labelHari, shiftDate, startOfWeek } from '../lib/stokLedger';
 import { businessDate } from '../lib/businessDate';
 
@@ -96,6 +97,7 @@ export default function LaporanPemakaianStokPage({ profile, outletId: outletIdPr
     const parts = [];
     if (oil) parts.push(`Minyak tercatat mulai ${tgl(oil)}`);
     else parts.push('Minyak belum ada catatan pergerakan');
+    parts.push('Setelah perubahan diterapkan saldo minyak dihitung manual; In/Out pada periode lama bisa memuat gerakan otomatis historis. Pemakaian booking ditampilkan terpisah di halaman Stok.');
     if (item) parts.push(`barang tercatat mulai ${tgl(item)}`);
     else parts.push('barang belum ada catatan pergerakan');
     return `${parts.join(' · ')}. Hari sebelum pencatatan pertama dikosongkan (–), bukan 0.`;
@@ -106,18 +108,23 @@ export default function LaporanPemakaianStokPage({ profile, outletId: outletIdPr
   // ------------------------------------------------------------------
   async function handleDownload() {
     if (!data) return;
-    await exportStockLedger({
-      filename: `Laporan-Produk-${target}-${startDate}`,
-      title: 'Laporan Produk — Dayang Spa',
-      subtitle: `${outletName} · ${labelHari(startDate, true)} s/d ${labelHari(data.oil.days[DAY_COUNT - 1], true)} ${startDate.slice(0, 4)}`,
-      dates: data.oil.days.map((d) => labelHari(d, true)),
-      blocks: blocks.map((b) => ({
-        title: b.title,
-        rows: b.entries.map((e, i) => [i + 1, e.label, ...e.cells.flat()])
-      })),
-      note: catatan,
-      sheetName: 'Laporan Produk'
-    });
+    try {
+      await exportStockLedger({
+        filename: `Laporan-Produk-${target}-${startDate}`,
+        title: 'Laporan Produk — Dayang Spa',
+        subtitle: `${outletName} · ${labelHari(startDate, true)} s/d ${labelHari(data.oil.days[DAY_COUNT - 1], true)} ${startDate.slice(0, 4)}`,
+        dates: data.oil.days.map((d) => labelHari(d, true)),
+        blocks: blocks.map((b) => ({
+          title: b.title,
+          rows: b.entries.map((e, i) => [i + 1, e.label, ...e.cells.flat()])
+        })),
+        note: catatan,
+        sheetName: 'Laporan Produk'
+      });
+      notifySuccess('Laporan produk berhasil diunduh.');
+    } catch {
+      notifyError('Gagal mengunduh laporan produk.');
+    }
   }
 
   async function handleDownloadKonsum() {
@@ -130,12 +137,17 @@ export default function LaporanPemakaianStokPage({ profile, outletId: outletIdPr
     ]);
     rows.push([]);
     rows.push(['TOTAL', konsum.totalCount, ...konsum.items.map((i) => i.keluar), konsum.totalItem]);
-    await exportExcelReport({
-      filename: `Pemakaian-FullBodyMassage-${target}-${startDate}`,
-      title: 'Pemakaian Full Body Massage (Jumlah Item Keluar) — Dayang Spa',
-      subtitle: `${outletName} · ${startDate}`,
-      headers, rows
-    });
+    try {
+      await exportExcelReport({
+        filename: `Pemakaian-FullBodyMassage-${target}-${startDate}`,
+        title: 'Pemakaian Full Body Massage (Jumlah Item Keluar) — Dayang Spa',
+        subtitle: `${outletName} · ${startDate}`,
+        headers, rows
+      });
+      notifySuccess('Laporan pemakaian berhasil diunduh.');
+    } catch {
+      notifyError('Gagal mengunduh laporan pemakaian.');
+    }
   }
 
   return (
@@ -266,8 +278,7 @@ export default function LaporanPemakaianStokPage({ profile, outletId: outletIdPr
           </button>
         </div>
         <p style={hint}>
-          1 treatment full body = 1 Hole Sheet + 1 Single Sheet + 1 Face Cradle,
-          dihitung otomatis dari booking yang tidak dibatalkan pada tanggal {labelHari(startDate, true)}.
+          Estimasi produk treatment dihitung dari booking yang tidak dibatalkan pada tanggal {labelHari(startDate, true)}. Laundry tidak dihitung di sini karena dicatat dari hitungan fisik saat closing.
         </p>
 
         {konsum && konsum.ok && showKonsum && (

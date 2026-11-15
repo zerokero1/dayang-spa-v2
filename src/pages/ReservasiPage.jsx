@@ -4,6 +4,7 @@ import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createReservation, listenReservations, checkInReservationMulti, cancelReservation } from '../lib/reservationService';
 import { openWhatsAppMessage, openWhatsAppToNumber, normalizeWaNumber } from '../lib/bookingService';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const OUTLET_NAME = {
   D1: 'Dayang 1', D2: 'Dayang 2', DP: 'Dayang Putri', DR: 'Dream', RR: 'Rere', Y: 'Yulis'
@@ -76,6 +77,7 @@ function kirimReservasiKeGrup(r, treatment) {
   }
   lines.push('Mohon siapkan room dan minyak sesuai daftar.');
   openWhatsAppMessage(lines.join('\n'));
+  notifySuccess('Pesan reservasi siap dibagikan melalui WhatsApp.');
 }
 
 /**
@@ -97,6 +99,7 @@ function kirimGrupBanyak(rows, scheduledAt) {
   });
   lines.push('', 'Mohon siapkan room dan minyak sesuai daftar.');
   openWhatsAppMessage(lines.join('\n'));
+  notifySuccess('Daftar reservasi siap dibagikan melalui WhatsApp.');
 }
 
 /**
@@ -116,6 +119,7 @@ function kirimListReservasiKeGrup(list, tanggal) {
     text.push('');
   });
   openWhatsAppMessage(text.join('\n'));
+  notifySuccess('Daftar reservasi siap dibagikan melalui WhatsApp.');
 }
 function kirimPengingatWa(r, treatment) {
   const jam = jamSingkat(r.scheduledAt);
@@ -137,7 +141,13 @@ function kirimPengingatWa(r, treatment) {
     '',
     'Mohon datang 10 menit lebih awal. Mohon konfirmasi ya, terima kasih 🙏'
   );  const message = lines.join('\n');
-  return openWhatsAppToNumber(r.customerPhone, message) || (openWhatsAppMessage(message), false);
+  const openedDirect = openWhatsAppToNumber(r.customerPhone, message);
+  if (openedDirect) notifySuccess('Pengingat reservasi siap dikirim melalui WhatsApp.');
+  else {
+    openWhatsAppMessage(message);
+    notifySuccess('Pengingat reservasi siap dibagikan melalui WhatsApp.');
+  }
+  return openedDirect;
 }
 
 function formatSchedule(ms) {
@@ -273,6 +283,9 @@ export default function ReservasiPage({ outletId, active }) {
           ? `${tersimpan.length} reservasi ${formatSchedule(scheduledAt)} tersimpan untuk ${tersimpan.length} orang.`
           : `Reservasi ${formatSchedule(scheduledAt)} tersimpan. Saat jamnya mendekat, isi treatment via "Isi Treatment".`
       );
+      notifySuccess(tersimpan.length > 1
+        ? `${tersimpan.length} reservasi berhasil disimpan.`
+        : 'Reservasi berhasil disimpan.');
       setSaved(tersimpan);
       if (kirimWa) {
         // Kirim ke grup sekali untuk semua orang; ke pelanggan hanya untuk yang
@@ -288,6 +301,7 @@ export default function ReservasiPage({ outletId, active }) {
       setScheduleDate('');
     } catch (e) {
       setError(e.message);
+      notifyError('Gagal menyimpan reservasi: ' + e.message);
     } finally {
       setSaving(false);
     }
@@ -355,6 +369,9 @@ export default function ReservasiPage({ outletId, active }) {
           ? `Booking ${namaTamu} dibuat: ${bookingIds.length} treatment untuk ${jumlahOrang} orang, total Rp${total.toLocaleString('id-ID')}.`
           : `Booking ${namaTamu} dibuat — ${pItems[0].treatment.name}.`
       );
+      notifySuccess(bookingIds.length > 1
+        ? `Booking ${namaTamu} berhasil dibuat (${bookingIds.length} treatment).`
+        : `Booking ${namaTamu} berhasil dibuat.`);
       // Ringkasan per treatment supaya bisa dikirim ke grup dalam satu pesan.
       setSaved({
         ...processTarget,
@@ -372,6 +389,7 @@ export default function ReservasiPage({ outletId, active }) {
       setProcessTarget(null);
     } catch (e) {
       setError('Gagal membuat booking: ' + e.message);
+      notifyError('Gagal membuat booking: ' + e.message);
     } finally {
       setPSaving(false);
     }
@@ -381,8 +399,10 @@ export default function ReservasiPage({ outletId, active }) {
     if (!confirm(`Batalkan reservasi ${r.customerName || 'tamu ini'}?`)) return;
     try {
       await cancelReservation(outletId, r.id);
+      notifySuccess(`Reservasi ${r.customerName || 'tamu'} berhasil dibatalkan.`);
     } catch (e) {
       setError(e.message);
+      notifyError('Gagal membatalkan reservasi: ' + e.message);
     }
   }
 

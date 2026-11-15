@@ -4,6 +4,7 @@ import { getOilLedgerRange, getItemLedgerRange, getAllOutletLedger } from '../li
 import { exportStockLedger } from '../lib/excelExport';
 import { labelHari, shiftDate, startOfWeek } from '../lib/stokLedger';
 import { businessDate } from '../lib/businessDate';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const LOW_STOCK_OIL = 1;
 const LOW_STOCK_ITEM = 2;
@@ -90,25 +91,35 @@ export default function LaporanInventoryPage({ active, profile }) {
   const blocks = useMemo(() => {
     if (!data) return [];
     const angka = (row) => (row ? [row.stock, row.in, row.out, row.sisa] : [null, null, null, null]);
+    const makeEntry = (label, cells) => {
+      const dailyIn = cells.map((day) => day[1]);
+      return {
+        label,
+        cells,
+        totalIn: dailyIn.every((value) => value === null)
+          ? null
+          : dailyIn.reduce((sum, value) => sum + (value || 0), 0)
+      };
+    };
     const showOutlet = target === ALL_OUTLETS;
 
     const oilRows = data.oil.rows;
-    const oilEntries = data.oil.variants.map((v) => ({
-      label: showOutlet
+    const oilEntries = data.oil.variants.map((v) => makeEntry(
+      showOutlet
         ? `[${v.outletId}] ${labelOils(v.oilType, v.size)}`
         : labelOils(v.oilType, v.size),
-      cells: data.days.map((d) => angka(
+      data.days.map((d) => angka(
         oilRows.find((r) => r.oilType === v.oilType && r.size === v.size && r.date === d && (!showOutlet || r.outletId === v.outletId))
       ))
-    }));
+    ));
 
-    const itemEntries = data.item.items.map((it) => ({
-      label: showOutlet ? `[${it.outletId}] ${it.unit ? `${it.name} (${it.unit})` : it.name}`
+    const itemEntries = data.item.items.map((it) => makeEntry(
+      showOutlet ? `[${it.outletId}] ${it.unit ? `${it.name} (${it.unit})` : it.name}`
         : (it.unit ? `${it.name} (${it.unit})` : it.name),
-      cells: data.days.map((d) => angka(
+      data.days.map((d) => angka(
         data.item.rows.find((r) => r.itemId === it.id && r.date === d && (!showOutlet || r.outletId === it.outletId))
       ))
-    }));
+    ));
 
     return [
       { title: 'Minyak', entries: oilEntries },
@@ -163,18 +174,32 @@ export default function LaporanInventoryPage({ active, profile }) {
 
   async function handleDownload() {
     if (!data) return;
-    await exportStockLedger({
-      filename: `Laporan-Inventory-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${from}_${to}`,
-      title: 'Laporan Inventory — Dayang Spa',
-      subtitle: `${outletLabel} · ${labelHari(from, true)} s/d ${labelHari(to, true)} ${from.slice(0, 4)}`,
-      dates: data.days.map((d) => labelHari(d, true)),
-      blocks: blocks.map((b) => ({
-        title: b.title,
-        rows: b.entries.map((e, i) => [i + 1, e.label, ...e.cells.flat()])
-      })),
-      note: catatan,
-      sheetName: 'Laporan Inventory'
-    });
+    try {
+      await exportStockLedger({
+        filename: `Laporan-Inventory-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${from}_${to}`,
+        title: 'Laporan Inventory — Dayang Spa',
+        subtitle: `${outletLabel} · ${labelHari(from, true)} s/d ${labelHari(to, true)} ${from.slice(0, 4)}`,
+        dates: data.days.map((d) => labelHari(d, true)),
+        blocks: blocks.map((b) => ({
+          title: b.title,
+          rows: b.entries.map((e, i) => [i + 1, e.label, e.totalIn, ...e.cells.flat()])
+        })),
+        movementRows: (data.oil.movements || []).map((r) => [
+          r.date,
+          OUTLETS.find((o) => o.id === r.outletId)?.name || r.outletId,
+          labelOils(r.oilType, r.size),
+          r.type === 'in' ? 'Masuk' : 'Keluar',
+          r.qty,
+          r.stockAfter,
+          r.note || '—'
+        ]),
+        note: catatan,
+        sheetName: 'Laporan Inventory'
+      });
+      notifySuccess('Laporan inventory berhasil diunduh.');
+    } catch {
+      notifyError('Gagal mengunduh laporan inventory.');
+    }
   }
 
   return (
@@ -247,7 +272,7 @@ export default function LaporanInventoryPage({ active, profile }) {
         </div>
         <p style={hint}>
           {dayCount} hari · {labelHari(from, true)} s/d {labelHari(to, true)} {from.slice(0, 4)}.
-          Setiap tanggal punya 4 angka: Stock (awal hari), In (barang masuk), Out (barang keluar), Sisa (akhir hari).
+          Total In menjumlahkan barang masuk sepanjang rentang; setiap tanggal juga menampilkan Stock, In, Out, dan Sisa.
         </p>
       </section>
 
@@ -302,6 +327,7 @@ export default function LaporanInventoryPage({ active, profile }) {
                       <tr>
                         <th rowSpan={2} style={cellHeadNo}>No</th>
                         <th rowSpan={2} style={{ ...cell, fontWeight: 700 }}>Produk</th>
+                        <th rowSpan={2} style={cellHeadNo}>Total In</th>
                         {data.days.map((d) => (
                           <th key={d} colSpan={SUB_HEADERS.length} style={cellHeadGroup}>
                             {labelHari(d, true)}
@@ -319,6 +345,7 @@ export default function LaporanInventoryPage({ active, profile }) {
                         <tr key={e.label}>
                           <td style={cellNo}>{i + 1}</td>
                           <td style={cell}>{e.label}</td>
+                          <td style={{ ...cell, textAlign: 'right', fontWeight: 700 }}>{sel(e.totalIn)}</td>
                           {e.cells.flat().map((v, j) => (
                             <td
                               key={j}
@@ -340,6 +367,39 @@ export default function LaporanInventoryPage({ active, profile }) {
               )}
             </div>
           ))}
+          {(data.oil.movements || []).length > 0 && (
+            <div style={{ marginTop: 18 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>
+                Rincian Pergerakan Minyak
+              </p>
+              <div className="table-wrap">
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      {['Tanggal', 'Outlet', 'Minyak', 'Pergerakan', 'Jumlah', 'Sisa stok', 'Alasan / catatan'].map((title) => (
+                        <th key={title} style={cellHeadSub}>{title}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...(data.oil.movements || [])].reverse().map((movement, index) => (
+                      <tr key={`${movement.createdAt}-${movement.outletId}-${index}`}>
+                        <td style={cell}>{labelHari(movement.date, true)}</td>
+                        <td style={cell}>{OUTLETS.find((o) => o.id === movement.outletId)?.name || movement.outletId}</td>
+                        <td style={cell}>{labelOils(movement.oilType, movement.size)}</td>
+                        <td style={{ ...cell, color: movement.type === 'out' ? 'var(--busy)' : undefined }}>
+                          {movement.type === 'in' ? 'Masuk' : 'Keluar'}
+                        </td>
+                        <td style={{ ...cell, textAlign: 'right' }}>{movement.qty}</td>
+                        <td style={{ ...cell, textAlign: 'right' }}>{movement.stockAfter ?? '–'}</td>
+                        <td style={cell}>{movement.note || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </section>
       )}
     </div>

@@ -3,6 +3,7 @@ import { OUTLETS } from '../lib/constants';
 import { listenOilInventory } from '../lib/oilInventoryService';
 import { listenInventory } from '../lib/inventoryService';
 import { submitStockRequests, getStockRequests, updateStockRequestStatus } from '../lib/stockRequestService';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const LOW_OIL = 1;   // botol
 const LOW_ITEM = 2;  // pcs/unit
@@ -113,9 +114,11 @@ export default function OrderStockPage({ outletId, active, isOffice, profile }) 
       setDraft({});
       setNote('');
       setMessage(`Order stok terkirim (${rows.length} item). Menunggu diproses pihak pusat.`);
+      notifySuccess(`Order stok (${rows.length} item) berhasil dikirim.`);
       await reloadRequests();
     } catch (e) {
       setError(e.message || 'Gagal mengirim order stok.');
+      notifyError('Gagal mengirim order stok: ' + (e.message || 'Terjadi kesalahan.'));
     } finally {
       setSaving(false);
     }
@@ -124,9 +127,11 @@ export default function OrderStockPage({ outletId, active, isOffice, profile }) 
   async function handleSetStatus(id, status) {
     try {
       await updateStockRequestStatus(id, status);
+      notifySuccess('Status order stok berhasil diperbarui.');
       await reloadRequests();
     } catch (e) {
       setError(e.message || 'Gagal mengubah status.');
+      notifyError('Gagal memperbarui status order stok: ' + (e.message || 'Terjadi kesalahan.'));
     }
   }
 

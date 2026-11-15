@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getRevenueSementara } from '../lib/reportService';
 import { openWhatsAppMessage } from '../lib/bookingService';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const OUTLET_BARIS = [
   ['RR', 'Dayang spa Rere'],
@@ -82,7 +83,12 @@ export default function RevenueSementaraPage() {
   // jadi kasir tinggal menekan tombol kirim di WhatsApp.
   const kirimWa = () => {
     if (!teks) return;
-    openWhatsAppMessage(teks);
+    try {
+      openWhatsAppMessage(teks);
+      notifySuccess('Ringkasan revenue dibuka di WhatsApp.');
+    } catch {
+      notifyError('Gagal membuka WhatsApp.');
+    }
   };
 
   const salin = async () => {
@@ -91,8 +97,10 @@ export default function RevenueSementaraPage() {
       await navigator.clipboard.writeText(teks);
       setTersalin(true);
       setTimeout(() => setTersalin(false), 2500);
-    } catch (e) {
+      notifySuccess('Ringkasan revenue berhasil disalin.');
+    } catch {
       setGalat('Tidak bisa menyalin otomatis. Pilih teks di bawah lalu salin manual.');
+      notifyError('Gagal menyalin ringkasan revenue.');
     }
   };
 

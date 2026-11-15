@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import { getCommissionAudit } from '../lib/reportService';
 import { businessDate } from '../lib/businessDate';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -28,8 +29,10 @@ export default function PeriksaKomisiPage({ active }) {
       const data = await getCommissionAudit(startDate, endDate);
       setRows(data);
       setSearched(true);
+      notifySuccess(`Pemeriksaan komisi selesai: ${data.length} transaksi diperiksa.`);
     } catch (e) {
       setError(e.message || 'Gagal memuat data komisi.');
+      notifyError('Gagal memeriksa komisi: ' + (e.message || 'Terjadi kesalahan.'));
       setSearched(false);
     } finally {
       setLoading(false);

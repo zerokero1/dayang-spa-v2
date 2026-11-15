@@ -1,5 +1,9 @@
 import { supabase } from './supabase';
 import { THERAPIST_STATUS } from './constants';
+import { notifyError } from './notifications';
+import { shareWhatsAppMessage } from './whatsappShare';
+
+export { openWhatsAppMessage } from './whatsappLinks';
 
 export async function createBookingCore({
   outletId, therapistId, therapistName, treatmentId, treatmentName,
@@ -47,7 +51,7 @@ export async function createBookingCore({
 
 export async function createBooking(item) {
   const result = await createBookingCore(item);
-  sendWhatsAppNotification({
+  await sendWhatsAppNotification({
     lines: [{
       therapistName: result.therapistName,
       treatmentName: result.treatmentName,
@@ -110,7 +114,7 @@ export async function createBookingsBatch(items) {
     oilSize: item.usesOil !== false ? item.oilSize : null
   }));
 
-  sendWhatsAppNotification({
+  await sendWhatsAppNotification({
     lines: results,
     outletId: items[0]?.outletId,
     customerName: items[0]?.customerName
@@ -119,7 +123,7 @@ export async function createBookingsBatch(items) {
 }
 
 export async function continueTreatment({
-  therapistId, treatmentId, treatmentName, treatmentPrice,
+  outletId, therapistId, therapistName, treatmentId, treatmentName, treatmentPrice,
   commissionPercent, durationMinutes, oilType, oilSize, usesOil,
   customerName, paid, paymentMethod
 }) {
@@ -138,6 +142,16 @@ export async function continueTreatment({
     p_payment_method: paymentMethod || 'cash'
   });
   if (error) throw error;
+  await sendWhatsAppNotification({
+    lines: [{
+      therapistName,
+      treatmentName,
+      oilType: usesOil !== false ? oilType : null,
+      oilSize: usesOil !== false ? oilSize : null
+    }],
+    outletId,
+    customerName
+  });
   return bookingId;
 }
 
@@ -276,7 +290,7 @@ export async function cancelBookingPartial(outletId, bookingId, therapistId, new
   if (error) throw error;
 }
 
-function sendWhatsAppNotification({ lines, outletId, customerName }) {
+async function sendWhatsAppNotification({ lines, outletId, customerName }) {
   const treatmentLines = lines
     .map((l) => {
       const oilInfo = l.oilType ? ` (Minyak ${l.oilType}, ${l.oilSize})` : '';
@@ -289,7 +303,12 @@ function sendWhatsAppNotification({ lines, outletId, customerName }) {
     `Pelanggan: ${customerName || '-'}\n` +
     treatmentLines;
 
-  openWhatsAppMessage(message);
+  try {
+    await shareWhatsAppMessage(message);
+  } catch (error) {
+    console.error('Booking tersimpan, tetapi pesan WhatsApp gagal dibuka:', error);
+    notifyError(`Booking tersimpan, tetapi pesan WhatsApp gagal dibuka: ${error.message || 'Coba kirim ulang dari WhatsApp.'}`);
+  }
 }
 
 /**
@@ -342,38 +361,4 @@ export function openWhatsAppToNumber(phone, message) {
   const win = window.open(url, '_blank');
   if (!win) window.location.href = url;
   return true;
-}
-
-// Buka WhatsApp dengan pesan terisi. Penerima dipilih manual oleh pengguna.
-//
-// Supaya di HP langsung membuka APLIKASI WhatsApp (bukan tinggal di browser/PWA):
-//  - Android : pakai Android Intent (whatsapp://) + browser_fallback ke wa.me
-//  - iPhone/iPad : pakai deep link whatsapp:// (tidak bisa auto-send pesan)
-//  - Desktop : wa.me dibuka di tab baru (WA Web / app bila terpasang)
-export function openWhatsAppMessage(message) {
-  const text = encodeURIComponent(message || '');
-  const fallback = `https://wa.me/?text=${text}`;
-  const ua = navigator.userAgent;
-
-  if (/Android/i.test(ua)) {
-    const intentUrl =
-      `intent://send?text=${text}#Intent;` +
-      `scheme=whatsapp;package=com.whatsapp;` +
-      `S.browser_fallback_url=${encodeURIComponent(fallback)};end`;
-    const a = document.createElement('a');
-    a.href = intentUrl;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    return;
-  }
-
-  if (/iPhone|iPad|iPod/i.test(ua)) {
-    const win = window.open(`whatsapp://send?text=${text}`, '_self');
-    if (!win) window.location.href = fallback;
-    return;
-  }
-
-  const win = window.open(fallback, '_blank');
-  if (!win) window.location.href = fallback;
 }

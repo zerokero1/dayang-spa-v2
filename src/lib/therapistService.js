@@ -40,34 +40,53 @@ async function fetchAll() {
 let _refCount = 0;
 let _unsub = null;
 let _latest = [];
-let _loading = false;
+let _syncPromise = null;
+let _syncAgain = false;
+let _syncTimer = null;
 const _callbacks = new Set();
 
-async function _sync() {
-  if (_loading) return;
-  _loading = true;
-  try {
-    _latest = await fetchAll();
-    _callbacks.forEach((cb) => {
-      try { cb([..._latest]); } catch (e) { console.error(e); }
-    });
-  } catch (e) {
-    console.warn('therapists sync error:', e);
-  } finally {
-    _loading = false;
+function _sync() {
+  if (_syncPromise) {
+    _syncAgain = true;
+    return _syncPromise;
   }
+  _syncPromise = (async () => {
+    let synced = true;
+    do {
+      _syncAgain = false;
+      try {
+        _latest = await fetchAll();
+        _callbacks.forEach((cb) => {
+          try { cb([..._latest]); } catch (e) { console.error(e); }
+        });
+      } catch (e) {
+        console.warn('therapists sync error:', e);
+        synced = false;
+      }
+    } while (_syncAgain);
+    return synced;
+  })().finally(() => {
+    _syncPromise = null;
+  });
+  return _syncPromise;
+}
+
+export async function refreshAllTherapists() {
+  clearTimeout(_syncTimer);
+  _syncTimer = null;
+  if (!await _sync()) throw new Error('Gagal memuat ulang status terapis.');
 }
 
 function _start() {
   _sync();
-  // Debounce (trailing 800ms) supaya meledakan update cepat dari batch booking /
-  // aksi grup tdk memicu beberapa fetch berturut-turut (penghemat kuota request).
-  let syncTimer = null;
   _unsub = supabase
     .channel('realtime-therapists')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'therapists' }, () => {
-      clearTimeout(syncTimer);
-      syncTimer = setTimeout(() => _sync(), 800);
+      clearTimeout(_syncTimer);
+      _syncTimer = setTimeout(() => {
+        _syncTimer = null;
+        _sync();
+      }, 800);
     })
     .subscribe();
 }
@@ -81,6 +100,8 @@ export function listenAllTherapists(callback) {
     _callbacks.delete(callback);
     _refCount = Math.max(0, _refCount - 1);
     if (_refCount === 0 && _unsub) {
+      clearTimeout(_syncTimer);
+      _syncTimer = null;
       supabase.removeChannel(_unsub);
       _unsub = null;
       _latest = [];

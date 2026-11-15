@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { getOvertimeReport, setOvertimeAdjustment, removeOvertimeAdjustment } from '../lib/overtimeService';
 import { businessDate } from '../lib/businessDate';
 import { exportExcelReport } from '../lib/excelExport';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const SHIFT_LABEL = { sp: 'Shift SP (Split)', malam: 'Shift Malam', st: 'Shift ST (Short)' };
 
@@ -41,16 +42,24 @@ export default function OvertimePage({ isOffice }) {
         reason: (corr[key] && corr[key].reason) || ''
       });
       setCorrMsg(`Koreksi disimpan untuk ${row.therapistName} (${row.date}).`);
+      notifySuccess(`Koreksi lembur ${row.therapistName} berhasil disimpan.`);
       await handleLoad();
     } catch (e) {
       setCorrMsg('Gagal menyimpan koreksi: ' + e.message);
+      notifyError('Gagal menyimpan koreksi lembur: ' + e.message);
     }
   }
 
   async function handleResetCorrection(row) {
-    await removeOvertimeAdjustment(row.therapistId, row.date);
-    setCorrMsg(`Koreksi dihapus, kembali ke hitung otomatis.`);
-    await handleLoad();
+    try {
+      await removeOvertimeAdjustment(row.therapistId, row.date);
+      setCorrMsg('Koreksi dihapus, kembali ke hitung otomatis.');
+      notifySuccess(`Koreksi lembur ${row.therapistName} berhasil dihapus.`);
+      await handleLoad();
+    } catch (e) {
+      setCorrMsg('Gagal menghapus koreksi: ' + e.message);
+      notifyError('Gagal menghapus koreksi lembur: ' + e.message);
+    }
   }
 
   async function handleLoad() {
@@ -74,12 +83,17 @@ export default function OvertimePage({ isOffice }) {
       r.treatmentCount, fmtEnd(r.maxEndAt), r.overtimeMinutes
     ]);
     rowsExcel.push(['TOTAL', '', '', '', '', '', total]);
-    await exportExcelReport({
-      filename: `Laporan-Overtime-${startDate}_${endDate}`,
-      title: 'Laporan Overtime (dari data booking) — Dayang Spa',
-      subtitle: `${startDate} s/d ${endDate}`,
-      headers, rows: rowsExcel, totalRowIndex: rowsExcel.length - 1
-    });
+    try {
+      await exportExcelReport({
+        filename: `Laporan-Overtime-${startDate}_${endDate}`,
+        title: 'Laporan Overtime (dari data booking) — Dayang Spa',
+        subtitle: `${startDate} s/d ${endDate}`,
+        headers, rows: rowsExcel, totalRowIndex: rowsExcel.length - 1
+      });
+      notifySuccess('Laporan lembur berhasil diunduh.');
+    } catch {
+      notifyError('Gagal mengunduh laporan lembur.');
+    }
   }
 
   if (!isOffice) {

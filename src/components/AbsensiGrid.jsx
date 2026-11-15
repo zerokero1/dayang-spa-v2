@@ -4,10 +4,15 @@ import {
   deleteAttendance, getAttendanceRange, deleteOvertime, recordAttendance, saveOvertime
 } from '../lib/attendanceService';
 import { clockToMinutes, minutesToClock, minutesToDuration, shiftStartMinutes } from '../lib/shiftService';
+import { notifyError, notifySuccess } from '../lib/notifications';
 import {
   DOW, QUICK, cellClass, cellText, todayWib, DEFAULT_RECAP,
   buildGridRows, buildRecMap, computeRecap, computeRecapTotals, presentCount
 } from '../lib/attendanceGrid';
+
+function invalidateLoadRequest(requestIdRef) {
+  requestIdRef.current++;
+}
 
 /**
  * Grid absensi dipakai dua halaman: Absensi (tab Bulanan) dan Laporan
@@ -47,6 +52,7 @@ export default function AbsensiGrid({
   const [cellDraft, setCellDraft] = useState({});
   const [savingCell, setSavingCell] = useState(false);
   const [bulkDate, setBulkDate] = useState(todayWib);
+  const loadRequestId = useRef(0);
 
   // Callback parent selalu berubah tiap render. Simpan di ref supaya `load`
   // tidak ikut berubah dan memicu muat ulang tanpa henti.
@@ -55,23 +61,29 @@ export default function AbsensiGrid({
 
   const list = Array.isArray(days) ? days : [];
 
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ throwOnError = false } = {}) => {
     if (!list.length) { setRecords([]); return; }
+    const requestId = ++loadRequestId.current;
     setLoading(true);
     try {
       const rows = await getAttendanceRange(list[0].date, list[list.length - 1].date, outletFilter || undefined);
+      if (loadRequestId.current !== requestId) return null;
       setRecords(rows);
       if (notifyRef.current) notifyRef.current(rows);
+      return rows;
     } catch (e) {
-      setMessage('Gagal memuat absensi: ' + e.message);
+      if (loadRequestId.current === requestId) setMessage('Gagal memuat absensi: ' + e.message);
+      if (throwOnError) throw e;
+      return null;
     } finally {
-      setLoading(false);
+      if (loadRequestId.current === requestId) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list[0]?.date, list[list.length - 1]?.date, outletFilter]);
 
   useEffect(() => {
     if (active) load();
+    return () => invalidateLoadRequest(loadRequestId);
   }, [active, load]);
 
   // employeeId|date -> record. Satu baris attendance per orang per tanggal,
@@ -114,6 +126,8 @@ export default function AbsensiGrid({
   /** Simpan hanya kolom kehadiran + jam, lalu muat ulang. */
   async function persistPresence(employee, draft, { closeEditor }) {
     const rec = recMap[`${employee.id}|${cellEdit.date}`];
+    let attendanceSaved = false;
+    let refreshAttempted = false;
     setSavingCell(true);
     try {
       // Telat boleh dikoreksi manual, sama seperti lembur. Kotak yang dikosongkan
@@ -141,6 +155,7 @@ export default function AbsensiGrid({
         recordedBy: user?.email || user?.name || null,
         lateMinutesOverride
       });
+      attendanceSaved = true;
 
       // Lembur lama harus dihapus kalau kasir mengosongkan atau menurunkannya.
       // Kalau tidak, record lama di attendance_overtime tetap ikut terhitung di
@@ -161,12 +176,32 @@ export default function AbsensiGrid({
         await deleteOvertime(employee.id, cellEdit.date);
       }
 
+      refreshAttempted = true;
+      const refreshedRows = await load({ throwOnError: true });
+      const savedRow = refreshedRows?.find(
+        (row) => row.employeeId === employee.id && row.date === cellEdit.date
+      );
+      if (!savedRow || savedRow.type !== draft.status) {
+        throw new Error('data belum muncul di tabel setelah dimuat ulang. Periksa outlet dan tekan Muat ulang.');
+      }
+
       if (closeEditor) setCellEdit(null);
       const telat = lateMinutes > 0 ? ` (telat ${minutesToDuration(lateMinutes)})` : '';
       setMessage(`${employee.name} ${cellEdit.date}: ${draft.status}${telat}`);
-      await load();
+      notifySuccess(`Absensi ${employee.name} berhasil disimpan.`);
     } catch (e) {
-      setMessage('Gagal menyimpan: ' + (e.message || e));
+      const detail = e.message || e;
+      const message = attendanceSaved && refreshAttempted
+        ? `Absensi ${employee.name} sudah tersimpan, tetapi belum tampil setelah dimuat ulang: ${detail}`
+        : attendanceSaved
+          ? `Absensi ${employee.name} sudah tersimpan, tetapi data tambahan gagal disimpan: ${detail}`
+          : 'Gagal menyimpan: ' + detail;
+      setMessage(message);
+      notifyError(attendanceSaved && refreshAttempted
+        ? `Absensi tersimpan, tetapi tampilan belum terbarui: ${detail}`
+        : attendanceSaved
+          ? `Absensi tersimpan, tetapi data tambahan gagal disimpan: ${detail}`
+          : 'Gagal menyimpan absensi: ' + detail);
     } finally {
       setSavingCell(false);
     }
@@ -211,9 +246,11 @@ export default function AbsensiGrid({
       await deleteAttendance(employee.id, cellEdit.date);
       setCellEdit(null);
       setMessage(`${employee.name} ${cellEdit.date} dikosongkan.`);
+      notifySuccess(`Absensi ${employee.name} berhasil dikosongkan.`);
       await load();
     } catch (e) {
       setMessage('Gagal mengosongkan: ' + (e.message || e));
+      notifyError('Gagal mengosongkan absensi: ' + (e.message || e));
     } finally {
       setSavingCell(false);
     }
@@ -254,9 +291,32 @@ export default function AbsensiGrid({
         gagal++;
       }
     }
+    let refreshedRows;
+    try {
+      refreshedRows = await load({ throwOnError: true });
+    } catch (e) {
+      setSavingCell(false);
+      setMessage(`${dateStr}: ${ok} tersimpan${gagal ? `, ${gagal} gagal` : ''}, tetapi gagal memuat ulang: ${e.message}`);
+      notifyError(`Absensi ${dateStr} tersimpan, tetapi tampilan gagal dimuat ulang: ${e.message}`);
+      return;
+    }
+
+    const belumTampil = targets.filter((employee) => {
+      const saved = refreshedRows?.find(
+        (row) => row.employeeId === employee.id && row.date === dateStr
+      );
+      return saved?.type !== status;
+    }).length;
     setSavingCell(false);
-    setMessage(`${dateStr}: ${ok} tersimpan${gagal ? `, ${gagal} gagal` : ''}.`);
-    await load();
+    setMessage(
+      `${dateStr}: ${ok} tersimpan${gagal ? `, ${gagal} gagal` : ''}`
+      + `${belumTampil ? `, ${belumTampil} belum tampil` : ''}.`
+    );
+    if (gagal || belumTampil) {
+      notifyError(`Absensi ${dateStr}: ${ok} tersimpan, ${gagal} gagal, ${belumTampil} belum tampil.`);
+    } else {
+      notifySuccess(`Absensi ${dateStr} untuk ${ok} terapis berhasil disimpan.`);
+    }
   }
 
   const editEmployee = cellEdit ? rows.find((e) => e.id === cellEdit.employeeId) : null;

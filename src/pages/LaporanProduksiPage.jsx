@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs';
 import { OUTLETS } from '../lib/constants';
 import { getProductionBookings, buildProductionReport } from '../lib/reportService';
 import { businessDate } from '../lib/businessDate';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 export default function LaporanProduksiPage({ profile }) {
   const isKasir = profile?.role === 'kasir';
@@ -90,53 +91,58 @@ export default function LaporanProduksiPage({ profile }) {
   async function handleDownload() {
     if (!report) { alert('Tampilkan laporan dulu.'); return; }
 
-    const wb = new ExcelJS.Workbook();
-    const addSheet = (name, title, rows, numericCols) => {
-      const sh = wb.addWorksheet(name);
-      sh.mergeCells(1, 1, 1, headers.length);
-      const t = sh.getCell(1, 1);
-      t.value = title;
-      t.font = { bold: true, size: 14, color: { argb: 'FF0F6E56' } };
-      sh.mergeCells(2, 1, 2, headers.length);
-      const s = sh.getCell(2, 1);
-      s.value = rangeLabel;
-      s.font = { italic: true, size: 10, color: { argb: 'FF6B7280' } };
-      const hr = sh.getRow(4);
-      headers.forEach((h, i) => { hr.getCell(i + 1).value = h; });
-      hr.eachCell((cell) => {
-        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F6E56' } };
-      });
-      rows.forEach((r) => {
-        const row = sh.addRow(r);
-        row.eachCell((cell, colNumber) => {
-          cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-          if (numericCols.includes(colNumber - 1)) {
-            cell.numFmt = '#,##0';
-            cell.alignment = { horizontal: 'right' };
-          }
+    try {
+      const wb = new ExcelJS.Workbook();
+      const addSheet = (name, title, rows, numericCols) => {
+        const sh = wb.addWorksheet(name);
+        sh.mergeCells(1, 1, 1, headers.length);
+        const t = sh.getCell(1, 1);
+        t.value = title;
+        t.font = { bold: true, size: 14, color: { argb: 'FF0F6E56' } };
+        sh.mergeCells(2, 1, 2, headers.length);
+        const s = sh.getCell(2, 1);
+        s.value = rangeLabel;
+        s.font = { italic: true, size: 10, color: { argb: 'FF6B7280' } };
+        const hr = sh.getRow(4);
+        headers.forEach((h, i) => { hr.getCell(i + 1).value = h; });
+        hr.eachCell((cell) => {
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F6E56' } };
         });
-      });
-    };
+        rows.forEach((r) => {
+          const row = sh.addRow(r);
+          row.eachCell((cell, colNumber) => {
+            cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+            if (numericCols.includes(colNumber - 1)) {
+              cell.numFmt = '#,##0';
+              cell.alignment = { horizontal: 'right' };
+            }
+          });
+        });
+      };
 
-    const cleanNum = (s) => (s == null ? 0 : Number(String(s).replace(/[^\d]/g, '')));
-    const numCols = cols.map((_, i) => i + 1); // semua kolom outlet + TOTAL
+      const cleanNum = (s) => (s == null ? 0 : Number(String(s).replace(/[^\d]/g, '')));
+      const numCols = cols.map((_, i) => i + 1); // semua kolom outlet + TOTAL
 
-    addSheet('Treatment', 'Jumlah Treatment per Jenis', treatmentRows.map((r) => [r[0], ...r.slice(1).map(cleanNum)]), numCols);
-    addSheet('Minyak', 'Pemakaian Minyak (botol)', oilRows.map((r) => [r[0], ...r.slice(1).map(cleanNum)]), numCols);
-    addSheet('perTanggal', 'Treatment per Tanggal', dateTreatmentRows.map((r) => [r[0], ...r.slice(1).map(cleanNum)]), numCols);
-    addSheet('perTanggalMinyak', 'Minyak per Tanggal (botol)', dateOilRows.map((r) => [r[0], ...r.slice(1).map(cleanNum)]), numCols);
+      addSheet('Treatment', 'Jumlah Treatment per Jenis', treatmentRows.map((r) => [r[0], ...r.slice(1).map(cleanNum)]), numCols);
+      addSheet('Minyak', 'Pemakaian Minyak (botol)', oilRows.map((r) => [r[0], ...r.slice(1).map(cleanNum)]), numCols);
+      addSheet('perTanggal', 'Treatment per Tanggal', dateTreatmentRows.map((r) => [r[0], ...r.slice(1).map(cleanNum)]), numCols);
+      addSheet('perTanggalMinyak', 'Minyak per Tanggal (botol)', dateOilRows.map((r) => [r[0], ...r.slice(1).map(cleanNum)]), numCols);
 
-    const buffer = await wb.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Laporan-Produksi-${startDate}_${endDate}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Laporan-Produksi-${startDate}_${endDate}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      notifySuccess('Laporan produksi berhasil diunduh.');
+    } catch {
+      notifyError('Gagal mengunduh laporan produksi.');
+    }
   }
 
   return (

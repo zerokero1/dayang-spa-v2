@@ -20,6 +20,11 @@ function key(name) {
  */
 export function forecastStockAlerts(cartLines, consumablesByTreatment, stockItems) {
   const needed = {};
+  const laundryItems = new Set(
+    (stockItems || [])
+      .filter((item) => String(item.category || '').trim().toLowerCase() === 'laundry')
+      .map((item) => key(item.name))
+  );
   (cartLines || []).forEach((line) => {
     const list = consumablesByTreatment && line.treatment
       ? consumablesByTreatment[line.treatment.id]
@@ -27,7 +32,7 @@ export function forecastStockAlerts(cartLines, consumablesByTreatment, stockItem
     if (!list) return;
     list.forEach(({ itemName, qty }) => {
       const k = key(itemName);
-      if (!k) return;
+      if (!k || laundryItems.has(k)) return;
       needed[k] = (needed[k] || 0) + (Number(qty) || 0);
     });
   });

@@ -4,6 +4,7 @@ import {
   jalankanPemeriksaan,
   getRiwayatPemeriksaan
 } from '../lib/reportService';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const WARNA = {
   tinggi: { label: 'Perlu ditangani', cls: 'danger' },
@@ -49,9 +50,11 @@ export default function PemeriksaanSistemPage() {
     try {
       const n = await jalankanPemeriksaan();
       setCatatan('Pemeriksaan selesai, ' + n + ' temuan.');
+      notifySuccess(`Pemeriksaan sistem selesai dengan ${n} temuan.`);
       await muat();
     } catch (e) {
       setGalat('Gagal menjalankan: ' + (e.message || e));
+      notifyError('Gagal menjalankan pemeriksaan sistem: ' + (e.message || e));
     } finally {
       setSedangJalan(false);
     }

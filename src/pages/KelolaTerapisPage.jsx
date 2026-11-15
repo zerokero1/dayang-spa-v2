@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { OUTLETS, STAFF_ROLES, SHIFTS, SHIFT_LABEL } from '../lib/constants';
 import { listenAllTherapists, addTherapist, setTherapistHomeOutlet, updateTherapistInfo, setTherapistShift, setTherapistStatusManual, removeTherapist, THERAPIST_STATUS_OPTIONS } from '../lib/therapistService';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const ROLE_LABEL = {
   [STAFF_ROLES.SENIOR_TERAPIS]: 'Senior Terapis',
@@ -44,30 +45,51 @@ export default function KelolaTerapisPage({ active }) {
 
   async function handleAdd() {
     if (!newName.trim()) return;
-    await addTherapist({ name: newName.trim(), role: newRole, homeOutletId: newOutlet || null });
-    setNewName(''); setNewOutlet('');
-    setMessage(`${newName} ditambahkan.`);
+    try {
+      await addTherapist({ name: newName.trim(), role: newRole, homeOutletId: newOutlet || null });
+      setNewName(''); setNewOutlet('');
+      setMessage(`${newName} ditambahkan.`);
+      notifySuccess(`Terapis ${newName} berhasil ditambahkan.`);
+    } catch (e) {
+      setMessage('Gagal menambahkan terapis: ' + e.message);
+      notifyError('Gagal menambahkan terapis: ' + e.message);
+    }
   }
 
   async function handleSetOutlet(t, outletId) {
-    await setTherapistHomeOutlet(t.id, outletId);
+    try {
+      await setTherapistHomeOutlet(t.id, outletId);
+      notifySuccess(`Outlet ${t.name} berhasil diperbarui.`);
+    } catch (e) { notifyError('Gagal memperbarui outlet: ' + e.message); }
   }
 
   async function handleSetRole(t, role) {
-    await updateTherapistInfo(t.id, { role });
+    try {
+      await updateTherapistInfo(t.id, { role });
+      notifySuccess(`Jabatan ${t.name} berhasil diperbarui.`);
+    } catch (e) { notifyError('Gagal memperbarui jabatan: ' + e.message); }
   }
 
   async function handleSetShift(t, shift) {
-    await setTherapistShift(t.id, shift);
+    try {
+      await setTherapistShift(t.id, shift);
+      notifySuccess(`Shift ${t.name} berhasil diperbarui.`);
+    } catch (e) { notifyError('Gagal memperbarui shift: ' + e.message); }
   }
 
   async function handleSetStatus(t, status) {
-    await setTherapistStatusManual(t.id, status);
+    try {
+      await setTherapistStatusManual(t.id, status);
+      notifySuccess(`Status ${t.name} berhasil diperbarui.`);
+    } catch (e) { notifyError('Gagal memperbarui status: ' + e.message); }
   }
 
   async function handleRemove(t) {
     if (!window.confirm(`Hapus terapis "${t.name}" dari daftar?`)) return;
-    await removeTherapist(t.id);
+    try {
+      await removeTherapist(t.id);
+      notifySuccess(`Terapis ${t.name} berhasil dihapus.`);
+    } catch (e) { notifyError('Gagal menghapus terapis: ' + e.message); }
   }
 
   return (

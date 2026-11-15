@@ -5,6 +5,7 @@ import {
 } from '../lib/reportBookService';
 import { exportExcelWorkbook } from '../lib/excelExport';
 import { businessDateDaysAgo } from '../lib/businessDate';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const PRESETS = [
   { label: 'Hari ini', from: () => todayWib(), to: () => todayWib() },
@@ -43,6 +44,7 @@ export default function LaporanKeseluruhanPage({ active }) {
       const result = await getReportBook({ startDate, endDate, outletId });
       setData(result);
     } catch (e) {
+      setData(null);
       setError('Gagal memuat laporan: ' + e.message);
     } finally {
       setLoading(false);
@@ -70,8 +72,10 @@ export default function LaporanKeseluruhanPage({ active }) {
         filename: `Buku-Laporan-${outletId || 'Semua-Outlet'}-${startDate}_${endDate}`,
         sheets
       });
+      notifySuccess('Buku laporan berhasil diunduh.');
     } catch (e) {
       setError('Gagal membuat file: ' + e.message);
+      notifyError('Gagal membuat file laporan.');
     } finally {
       setExporting(false);
     }
@@ -349,6 +353,13 @@ export default function LaporanKeseluruhanPage({ active }) {
                   </tfoot>
                 </table>
               </div>
+              {rc.grandTotal.unclassified > 0 && (
+                <p className="message warn">
+                  ⚠ Ada {rc.grandTotal.unclassifiedTrx} transaksi lunas senilai {rupiah(rc.grandTotal.unclassified)}
+                  dengan metode pembayaran yang tidak dikenali. Nilai ini tidak dimasukkan ke Cash atau Non-Cash;
+                  periksa data transaksinya.
+                </p>
+              )}
             </details>
 
             <details>
@@ -382,13 +393,14 @@ export default function LaporanKeseluruhanPage({ active }) {
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Outlet</th><th>Transaksi</th><th>Omzet</th><th>Cash</th><th>Non-Cash</th><th>Rata-rata</th></tr>
+                    <tr><th>Outlet</th><th>Transaksi</th><th>Omzet</th><th>Cash</th><th>Non-Cash</th><th>Metode tidak dikenali</th><th>Rata-rata</th></tr>
                   </thead>
                   <tbody>
                     {rc.grandByOutlet.map((g, i) => (
                       <tr key={i}>
                         <td>{g.outlet}</td><td>{g.trx}</td><td>{rupiah(g.omzet)}</td>
                         <td>{rupiah(g.cash)}</td><td>{rupiah(g.nonCash)}</td>
+                        <td style={{ color: g.unclassified > 0 ? 'var(--busy)' : undefined }}>{rupiah(g.unclassified)}</td>
                         <td>{rupiah(g.trx ? Math.round(g.omzet / g.trx) : 0)}</td>
                       </tr>
                     ))}
@@ -400,6 +412,9 @@ export default function LaporanKeseluruhanPage({ active }) {
                       <td><strong>{rupiah(rc.grandTotal.omzet)}</strong></td>
                       <td><strong>{rupiah(rc.grandTotal.cash)}</strong></td>
                       <td><strong>{rupiah(rc.grandTotal.nonCash)}</strong></td>
+                      <td style={{ color: rc.grandTotal.unclassified > 0 ? 'var(--busy)' : undefined }}>
+                        <strong>{rupiah(rc.grandTotal.unclassified)}</strong>
+                      </td>
                       <td>{rupiah(rc.grandTotal.trx ? Math.round(rc.grandTotal.omzet / rc.grandTotal.trx) : 0)}</td>
                     </tr>
                   </tfoot>
@@ -484,14 +499,16 @@ export default function LaporanKeseluruhanPage({ active }) {
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Tanggal</th><th>Outlet</th><th>Transaksi</th><th>Omzet</th><th>Cash</th><th>Non-Cash</th><th>Diskon</th></tr>
+                    <tr><th>Tanggal</th><th>Outlet</th><th>Transaksi</th><th>Omzet</th><th>Cash</th><th>Non-Cash</th><th>Metode tidak dikenali</th><th>Diskon</th></tr>
                   </thead>
                   <tbody>
                     {rc.dailyRows.slice(0, 400).map((r, i) => (
                       <tr key={i} className={r.outlet === 'TOTAL' ? 'row-total' : ''}>
                         <td>{r.tanggal}</td><td>{r.outlet}</td><td>{r.trx}</td>
                         <td>{rupiah(r.omzet)}</td><td>{rupiah(r.cash)}</td>
-                        <td>{rupiah(r.nonCash)}</td><td>{rupiah(r.diskon)}</td>
+                        <td>{rupiah(r.nonCash)}</td>
+                        <td style={{ color: r.unclassified > 0 ? 'var(--busy)' : undefined }}>{rupiah(r.unclassified)}</td>
+                        <td>{rupiah(r.diskon)}</td>
                       </tr>
                     ))}
                   </tbody>

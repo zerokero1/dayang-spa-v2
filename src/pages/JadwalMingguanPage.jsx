@@ -5,6 +5,7 @@ import {
   getWeeklySchedules, setWeeklySchedule, seedFromTherapistShift,
   applyToAllDays, isTabelBelumAda
 } from '../lib/weeklyScheduleService';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const SETUP_SQL = `create table if not exists public.therapist_weekly_schedules (
   id uuid primary key default gen_random_uuid(),
@@ -105,8 +106,11 @@ export default function JadwalMingguanPage({ profile }) {
     try {
       await setWeeklySchedule(therapistId, dow, kode);
       setInfo('');
+      notifySuccess('Jadwal shift berhasil disimpan.');
     } catch (e) {
-      setError(isTabelBelumAda(e) ? 'Tabel jadwal belum ada' : (e.message || 'Gagal menyimpan.'));
+      const notice = isTabelBelumAda(e) ? 'Tabel jadwal belum ada' : (e.message || 'Gagal menyimpan.');
+      setError(notice);
+      notifyError(notice);
       muat();
     }
   }
@@ -118,8 +122,11 @@ export default function JadwalMingguanPage({ profile }) {
       await muat();
       setInfo(`${n} sel diisi dari shift tetap.`);
       setError('');
+      notifySuccess(`${n} jadwal berhasil diisi dari shift tetap.`);
     } catch (e) {
-      setError(isTabelBelumAda(e) ? 'Tabel jadwal belum ada' : (e.message || 'Gagal mengisi jadwal.'));
+      const notice = isTabelBelumAda(e) ? 'Tabel jadwal belum ada' : (e.message || 'Gagal mengisi jadwal.');
+      setError(notice);
+      notifyError(notice);
     }
   }
 
@@ -131,8 +138,11 @@ export default function JadwalMingguanPage({ profile }) {
       await muat();
       setInfo(`${n} terapis diubah untuk ${hari.long}.`);
       setError('');
+      notifySuccess(`Jadwal ${hari.long} berhasil diperbarui untuk ${n} terapis.`);
     } catch (e) {
-      setError(isTabelBelumAda(e) ? 'Tabel jadwal belum ada' : (e.message || 'Gagal menyimpan.'));
+      const notice = isTabelBelumAda(e) ? 'Tabel jadwal belum ada' : (e.message || 'Gagal menyimpan.');
+      setError(notice);
+      notifyError(notice);
     }
   }
 

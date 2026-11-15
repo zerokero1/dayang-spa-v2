@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import { getDiscountRange, groupDiscountReasons, flagDiscountIssues } from '../lib/reportService';
 import { exportExcelReport } from '../lib/excelExport';
+import { notifyError, notifySuccess } from '../lib/notifications';
 import { businessDate, businessDateDaysAgo, businessDateFromTimestamp } from '../lib/businessDate';
 
 const ALL_OUTLETS = '__all__';
@@ -132,14 +133,19 @@ export default function LaporanDiskonPage({ active, profile }) {
       totalDiskon, '', '', totalKomisiKurang, '', ''
     ]);
 
-    await exportExcelReport({
-      filename: `Laporan-Diskon-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${startDate}_${endDate}`,
-      title: 'Laporan Diskon / Potongan Harga — Dayang Spa',
-      subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
-      headers,
-      rows: body,
-      currencyColumns: [5, 6, 7, 9, 10]
-    });
+    try {
+      await exportExcelReport({
+        filename: `Laporan-Diskon-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${startDate}_${endDate}`,
+        title: 'Laporan Diskon / Potongan Harga — Dayang Spa',
+        subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
+        headers,
+        rows: body,
+        currencyColumns: [5, 6, 7, 9, 10]
+      });
+      notifySuccess('Laporan diskon berhasil diunduh.');
+    } catch {
+      notifyError('Gagal mengunduh laporan diskon.');
+    }
   }
 
   return (

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { OUTLETS, PAYMENT_METHOD_LABEL, DEFAULT_ONCALL_COMMISSION_PCT, parseRupiah, sanitizeNominal } from '../lib/constants';
 import { listenAllTherapists } from '../lib/therapistService';
 import { editOncallBooking, getOncallRange } from '../lib/oncallService';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -94,9 +95,11 @@ function EditOncallForm({ booking, therapists, onSaved, onCancel }) {
         customerName: customerName.trim(),
         paymentMethod: method
       });
+      notifySuccess('Koreksi transaksi oncall berhasil disimpan.');
       onSaved();
     } catch (e) {
       setError(e.message || 'Gagal menyimpan perubahan oncall.');
+      notifyError('Gagal menyimpan koreksi oncall: ' + (e.message || 'Terjadi kesalahan.'));
       setSaving(false);
     }
   }
@@ -340,6 +343,7 @@ export default function EditOncallPage({ active, isOffice }) {
               onSaved={async () => {
                 setEditingId(null);
                 setMessage(`Oncall ${b.therapistName} (${fmtWib(b.createdAt)}) berhasil dikoreksi.`);
+                notifySuccess(`Oncall ${b.therapistName} berhasil dikoreksi.`);
                 await load();
                 setTimeout(() => setMessage(''), 4000);
               }}

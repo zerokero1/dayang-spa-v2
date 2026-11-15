@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const WARNA = {
   jalan: { label: 'Jalan', cls: 'ok' },
@@ -87,9 +88,11 @@ export default function SupervisorPage() {
         if (error) throw new Error(nama + ': ' + error.message);
       }
       setCatatan('Agent yang bisa dijalankan dari sini sudah selesai.');
+      notifySuccess('Seluruh pemeriksaan supervisor berhasil dijalankan.');
       await muat(terpilih);
     } catch (e) {
       setGalat('Gagal: ' + (e.message || e));
+      notifyError('Gagal menjalankan pemeriksaan supervisor: ' + (e.message || e));
     } finally {
       setSedangJalan(false);
     }

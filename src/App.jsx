@@ -7,6 +7,7 @@ import { completeBooking } from './lib/bookingService';
 import { useUnpaid } from './lib/useUnpaid';
 import ReservationReminder from './components/ReservationReminder';
 import UnpaidReminder from './components/UnpaidReminder';
+import ToastNotifications from './components/ToastNotifications';
 import KasirBeranda from './components/KasirBeranda';
 import LoginPage from './pages/LoginPage';
 import './styles.css';
@@ -296,6 +297,7 @@ export default function App() {
 
         <UnpaidReminder count={unpaidCount} overdue={overdueCount} onOpen={() => openPage('status')} />
         <ReservationReminder outletId={activeOutlet} onOpen={() => openPage('reservasi')} />
+        <ToastNotifications />
       </div>
     );
   }
@@ -378,6 +380,7 @@ export default function App() {
 
       <UnpaidReminder count={unpaidCount} overdue={overdueCount} onOpen={() => setActivePage('status')} />
       <ReservationReminder outletId={activeOutlet} onOpen={() => setActivePage('reservasi')} />
+      <ToastNotifications />
     </div>
   );
 }

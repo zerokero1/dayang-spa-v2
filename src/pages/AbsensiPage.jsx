@@ -5,6 +5,7 @@ import { listenAllTherapists } from '../lib/therapistService';
 import { clockToMinutes, minutesToClock, minutesToDuration, shiftStartMinutes } from '../lib/shiftService';
 import AbsensiBulanan from './AbsensiBulanan';
 import { businessDate } from '../lib/businessDate';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 // Status kehadiran yang dipilih kasir. LEMBUR sengaja TIDAK ada di sini:
 // lembur bukan kondisi kerja, melainkan keterangan tambahan hari yang sama,
@@ -67,13 +68,16 @@ export default function AbsensiPage({ outletId, active, user }) {
     return () => unsub();
   }, [active]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ throwOnError = false } = {}) => {
     setLoading(true);
     try {
       const rows = await getAttendanceRange(date, date, outletFilter || undefined);
       setRecords(rows);
+      return rows;
     } catch (e) {
       setMessage('Gagal memuat absensi: ' + e.message);
+      if (throwOnError) throw e;
+      return null;
     } finally {
       setLoading(false);
     }
@@ -152,6 +156,8 @@ export default function AbsensiPage({ outletId, active, user }) {
 
   async function saveRow(employee) {
     const rowDraft = draft[employee.id] || {};
+    let attendanceSaved = false;
+    let refreshAttempted = false;
     setSavingId(employee.id);
     setMessage('');
     try {
@@ -170,6 +176,7 @@ export default function AbsensiPage({ outletId, active, user }) {
           recordedBy: user?.email || user?.name || null,
           lateMinutesOverride: rowDraft.lateManual ? Number(rowDraft.lateOverride) || 0 : null
         });
+        attendanceSaved = true;
         if (lateMinutes > 0) {
           lateText = ` (telat ${minutesToDuration(lateMinutes)}${overridden ? ', dikoreksi kasir' : ''})`;
         }
@@ -185,10 +192,32 @@ export default function AbsensiPage({ outletId, active, user }) {
           recordedBy: user?.email || user?.name || null
         });
       }
-      await load();
+      refreshAttempted = true;
+      const refreshedRows = await load({ throwOnError: true });
+      const savedRow = refreshedRows?.find(
+        (row) => row.employeeId === employee.id && row.date === date
+      );
+      if (rowDraft.status && (!savedRow || savedRow.type !== rowDraft.status)) {
+        throw new Error('data belum muncul di tabel setelah dimuat ulang. Periksa outlet dan tekan Muat ulang.');
+      }
+      if (Number(rowDraft.lembur) > 0 && savedRow?.overtimeMinutes !== Number(rowDraft.lembur)) {
+        throw new Error('catatan lembur belum muncul setelah dimuat ulang. Periksa outlet dan tekan Muat ulang.');
+      }
       setMessage(`Absensi ${employee.name} tersimpan${lateText}`);
+      notifySuccess(`Absensi ${employee.name} berhasil disimpan${lateText}.`);
     } catch (e) {
-      setMessage(`Gagal menyimpan ${employee.name}: ${e.message}`);
+      const detail = e.message || e;
+      const message = attendanceSaved && refreshAttempted
+        ? `Absensi ${employee.name} sudah tersimpan, tetapi belum tampil setelah dimuat ulang: ${detail}`
+        : attendanceSaved
+          ? `Absensi ${employee.name} sudah tersimpan, tetapi data tambahan gagal disimpan: ${detail}`
+          : `Gagal menyimpan ${employee.name}: ${detail}`;
+      setMessage(message);
+      notifyError(attendanceSaved && refreshAttempted
+        ? `Absensi tersimpan, tetapi tampilan belum terbarui: ${detail}`
+        : attendanceSaved
+          ? `Absensi tersimpan, tetapi data tambahan gagal disimpan: ${detail}`
+          : `Gagal menyimpan absensi ${employee.name}: ${detail}`);
     } finally {
       setSavingId(null);
     }

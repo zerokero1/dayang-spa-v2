@@ -4,6 +4,7 @@ import { listenTreatments } from '../lib/treatmentService';
 import { listenAllTherapists } from '../lib/therapistService';
 import { getDailyBookings } from '../lib/reportService';
 import { koreksiBooking, hapusBookingOffice, koreksiPembayaran } from '../lib/bookingService';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -44,9 +45,11 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
     setError('');
     try {
       await koreksiPembayaran(booking.id, { paid, paymentMethod: method });
+      notifySuccess('Status pembayaran berhasil diperbarui.');
       onSave();
     } catch (e) {
       setError('Gagal ubah pembayaran: ' + e.message);
+      notifyError('Gagal mengubah pembayaran: ' + e.message);
     } finally {
       setPaySaving(false);
     }
@@ -130,9 +133,11 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
         discountReason: potongFinal > 0 ? discountReason.trim() : null,
         newOutletId: selOutletId !== booking.outletId ? selOutletId : null
       });
+      notifySuccess('Koreksi booking berhasil disimpan.');
       onSave();
     } catch (e) {
       setError(e.message);
+      notifyError('Gagal menyimpan koreksi booking: ' + e.message);
     } finally {
       setSaving(false);
     }
@@ -370,6 +375,7 @@ export default function KoreksiBookingPage({ active, isOffice }) {
   async function handleSave() {
     setEditingId(null);
     setMessage('Koreksi berhasil disimpan.');
+    notifySuccess('Koreksi booking berhasil disimpan.');
     await loadBookings();
     setTimeout(() => setMessage(''), 3000);
   }
@@ -379,10 +385,12 @@ export default function KoreksiBookingPage({ active, isOffice }) {
     try {
       await hapusBookingOffice(b.id);
       setMessage(`Treatment ${b.therapistName} - ${b.treatmentName} dihapus (batal).`);
+      notifySuccess(`Treatment ${b.treatmentName} berhasil dibatalkan.`);
       await loadBookings();
       setTimeout(() => setMessage(''), 3000);
     } catch (e) {
       alert('Gagal menghapus: ' + e.message);
+      notifyError('Gagal membatalkan treatment: ' + e.message);
     }
   }
 

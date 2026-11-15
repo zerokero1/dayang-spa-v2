@@ -3,6 +3,7 @@ import { OUTLETS } from '../lib/constants';
 import { getUnpaidRange } from '../lib/reportService';
 import { exportExcelReport } from '../lib/excelExport';
 import { businessDate, businessDateDaysAgo, businessDateFromTimestamp } from '../lib/businessDate';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const ALL_OUTLETS = '__all__';
 
@@ -116,14 +117,19 @@ export default function LaporanBelumDitandaiPage({ active, profile }) {
     body.push([]);
     body.push(['SUBTOTAL', '', '', '', `${shown.length} transaksi belum ditandai`, shown.reduce((s, b) => s + (b.treatmentPrice || 0), 0), shown.reduce((s, b) => s + (b.commissionAmount || 0), 0)]);
 
-    await exportExcelReport({
-      filename: `Belum-Ditandai-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${startDate}_${endDate}`,
-      title: 'Laporan Belum Ditandai (Belum Lunas) — Dayang Spa',
-      subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
-      headers,
-      rows: body,
-      currencyColumns: [5, 6]
-    });
+    try {
+      await exportExcelReport({
+        filename: `Belum-Ditandai-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${startDate}_${endDate}`,
+        title: 'Laporan Belum Ditandai (Belum Lunas) — Dayang Spa',
+        subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
+        headers,
+        rows: body,
+        currencyColumns: [5, 6]
+      });
+      notifySuccess('Laporan berhasil diunduh.');
+    } catch {
+      notifyError('Gagal mengunduh laporan.');
+    }
   }
 
   return (

@@ -6,8 +6,9 @@ import {
 } from '../lib/attendanceGrid';
 import { getOvertimeByEmployee } from '../lib/overtimeService';
 import { listenAllTherapists } from '../lib/therapistService';
-import { OUTLETS } from '../lib/constants';
+import { ATTENDANCE_TYPES, OUTLETS } from '../lib/constants';
 import { exportAbsensiGrid } from '../lib/excelExport';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 /**
  * Laporan Absensi memakai grid yang sama dengan halaman Absensi: baris = orang,
@@ -24,6 +25,12 @@ import { exportAbsensiGrid } from '../lib/excelExport';
 function makeRecapColumns(autoOt) {
   return [
     { key: 'H', label: 'H', title: 'Jumlah hari hadir (hadir + telat)' },
+    {
+      key: 'T',
+      label: 'T',
+      title: 'Jumlah hari terlambat',
+      get: (employeeId, list) => list.filter((r) => r.type === ATTENDANCE_TYPES.TELAT).length
+    },
     { key: 'S', label: 'S', title: 'Sakit' },
     { key: 'A', label: 'A', title: 'Alpha' },
     { key: 'I', label: 'I', title: 'Izin' },
@@ -120,7 +127,8 @@ export default function LaporanAbsensiPage({ active, user }) {
       cells: days.map((d) => {
         const rec = recMap[`${e.id}|${d.date}`];
         return { text: gridCellText(rec), type: rec?.type || '' };
-      })
+      }),
+      recapCells: recapCols.map((c) => gridRecap[e.id]?.[c.key] || 0)
     }));
 
     const outletLabel = outletFilter ? (OUTLETS.find((o) => o.id === outletFilter)?.name || outletFilter) : 'Semua Outlet';
@@ -142,12 +150,15 @@ export default function LaporanAbsensiPage({ active, user }) {
           + '+25 = lembur 25 menit (bisa digabung, mis. -17+25). '
           + 'S = sakit, I = izin, A = alpha, OFF = libur. '
           + 'Jam pulang tersimpan di data tapi tidak dicetak di grid. '
-          + 'Kolom rekap: H = jumlah hari hadir, S/A/I/Off = jumlah hari masing-masing, '
+          + 'Kolom rekap: H = jumlah hari hadir (hadir + telat), T = jumlah hari telat, '
+          + 'S/A/I/Off = jumlah hari masing-masing, '
           + 'Lm = total menit lembur absensi, Lo = total menit lembur otomatis dari booking, Tot = Lm + Lo. '
           + 'Baris TOTAL: angka per tanggal = jumlah orang yang hadir hari itu.'
       });
+      notifySuccess('Laporan absensi berhasil diunduh.');
     } catch (e) {
       alert('Gagal membuat file Excel: ' + e.message);
+      notifyError('Gagal membuat file laporan absensi.');
     } finally {
       setDownloading(false);
     }

@@ -86,7 +86,10 @@ Tab ini untuk memantau/mengelola layanan yang sedang berjalan:
 
 1. Pilih **Tanggal**.
 2. Cari transaksi, klik **Cetak**.
-3. Struk terformat otomatis untuk printer.
+3. Di aplikasi Android, pasangkan printer dahulu di pengaturan Bluetooth Android. Pada bagian **Printer Bluetooth** di halaman Struk, pilih printer yang sudah dipasangkan lalu tekan **Cetak uji**. Jika hasil uji terbaca, klik **Cetak** pada transaksi.
+4. Di browser/PWA, **Cetak** tetap membuka dialog cetak browser.
+
+> **Catatan Android:** cetak Bluetooth masih eksperimen untuk printer Bluetooth Classic SPP dengan teks ESC/POS. Nama printer yang terlihat hanya “Mobile Printer”, sehingga format printer belum terkonfirmasi. Coba **Cetak uji** dahulu; kompatibilitas dan hasil kertas belum diverifikasi.
 
 ---
 

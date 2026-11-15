@@ -3,6 +3,7 @@ import { OUTLETS, OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, 
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createBooking, createBookingsBatch } from '../lib/bookingService';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
@@ -178,6 +179,7 @@ export default function AmbilOrderPage({ active }) {
       } else {
         await createBookingsBatch(items);
       }
+      notifySuccess(items.length > 1 ? `${items.length} booking berhasil dibuat.` : 'Booking berhasil dibuat.');
       // WhatsApp terbuka di tab terpisah; form di tab ini langsung dibersihkan.
       setCart([]);
       resetLineSelection();
@@ -186,6 +188,7 @@ export default function AmbilOrderPage({ active }) {
     } catch (e) {
       console.error('handleSaveAll error:', e, e && e.stack);
       setError((e && e.message) || String(e));
+      notifyError('Gagal menyimpan order: ' + ((e && e.message) || String(e)));
       setSaving(false);
     }
   }
