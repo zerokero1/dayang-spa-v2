@@ -4,25 +4,30 @@ import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createReservation, listenReservations, checkInReservationMulti, cancelReservation } from '../lib/reservationService';
 import { openWhatsAppMessage, openWhatsAppToNumber, normalizeWaNumber } from '../lib/bookingService';
+import { businessDate } from '../lib/businessDate';
 
 const OUTLET_NAME = {
   D1: 'Dayang 1', D2: 'Dayang 2', DP: 'Dayang Putri', DR: 'Dream', RR: 'Rere', Y: 'Yulis'
 };
 
 function tanggalPanjang(ms) {
-  return new Date(ms).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return new Date(ms).toLocaleDateString('id-ID', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Makassar'
+  });
 }
 
 // Jam harus "12:00" dengan titik dua. Sebagian versi ICU menulis "12.00"
 // untuk locale id-ID, dan PESAN WA jadi terlihat tidak rapi.
 function jamSingkat(ms) {
-  return new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+  return new Date(ms).toLocaleTimeString('id-ID', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar'
+  }).replace('.', ':');
 }
 
-// Tanggal lokal WIB sebagai "YYYY-MM-DD", dipakai untuk mencocokkan reservasi
+// Tanggal lokal WITA sebagai "YYYY-MM-DD", dipakai untuk mencocokkan reservasi
 // dengan pilihan tanggal di "kirim list".
 function tanggalPendek(ms) {
-  return new Date(new Date(ms).getTime() + 7 * 3600000).toISOString().slice(0, 10);
+  return businessDate(new Date(ms));
 }
 
 function hariIniId() {
@@ -55,7 +60,7 @@ function kirimReservasiKeGrup(r, treatment) {
   const lines = [
     'RESERVASI BARU',
     `Outlet  : ${OUTLET_NAME[r.outletId] || r.outletId}`,
-    `Jadwal  : ${tanggalPanjang(r.scheduledAt)}, ${jamSingkat(r.scheduledAt)} WIB`
+    `Jadwal  : ${tanggalPanjang(r.scheduledAt)}, ${jamSingkat(r.scheduledAt)} WITA`
   ];
   // Kalau satu reservasi berisi beberapa orang, sebutkan semuanya supaya tim
   // tahu berapa orang yang harus disiapkan.
@@ -87,7 +92,7 @@ function kirimGrupBanyak(rows, scheduledAt) {
   const lines = [
     'RESERVASI BARU',
     `Outlet  : ${OUTLET_NAME[rows[0].outletId] || rows[0].outletId}`,
-    `Jadwal  : ${tanggalPanjang(scheduledAt)}, ${jamSingkat(scheduledAt)} WIB`,
+    `Jadwal  : ${tanggalPanjang(scheduledAt)}, ${jamSingkat(scheduledAt)} WITA`,
     `Jumlah  : ${rows.length} orang`,
     ''
   ];
@@ -125,7 +130,7 @@ function kirimPengingatWa(r, treatment) {
     `Ini pengingat reservasi di Dayang Spa ${OUTLET_NAME[r.outletId] || r.outletId}.`,
     '',
     `Tanggal : ${tanggalPanjang(r.scheduledAt)}`,
-    `Jam     : ${jam} WIB`,
+    `Jam     : ${jam} WITA`,
     `Terapis : ${r.therapistName || '-'}`
   ];
   if (treatment) {
@@ -215,7 +220,6 @@ export default function ReservasiPage({ outletId, active }) {
   // booking tanpa menyebut nama.
   const canSave = !!category && !!scheduleDate && guests.length > 0 &&
     guests.every((g) => g.therapistId);
-  const nomorValid = guests.some((g) => normalizeWaNumber(g.customerPhone) !== '');
 
   // "Kirim list": seluruh reservasi aktif pada satu tanggal dikirim ke grup
   // WhatsApp sekaligus, supaya kasir cukup memilih grupnya sekali saja.

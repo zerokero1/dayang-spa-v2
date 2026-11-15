@@ -70,7 +70,8 @@ function bookingQuery({ startDate, endDate, outletId, extraSelect }) {
     .select(extraSelect)
     .gte('created_at', wibDayUtc(startDate))
     .lte('created_at', wibDayUtc(endDate, true))
-    .neq('status', 'batal');
+    .neq('status', 'batal')
+    .limit(20000);
   if (outletId) q = q.eq('outlet_id', outletId);
   return q;
 }
@@ -98,12 +99,14 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
       .from('oil_inventory_logs')
       .select('outlet_id, oil_type, size, type, qty, stock_after, note, created_at')
       .gte('created_at', wibDayUtc(startDate))
-      .lte('created_at', wibDayUtc(endDate, true)),
+      .lte('created_at', wibDayUtc(endDate, true))
+      .limit(20000),
     supabase
       .from('inventory_logs')
       .select('outlet_id, item_id, type, qty, note, created_at')
       .gte('created_at', wibDayUtc(startDate))
-      .lte('created_at', wibDayUtc(endDate, true)),
+      .lte('created_at', wibDayUtc(endDate, true))
+      .limit(20000),
     supabase
       .from('bookings')
       .select('outlet_id, oil_type, oil_size, uses_oil, created_at')
@@ -111,6 +114,7 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
       .eq('uses_oil', true)
       .gte('created_at', wibDayUtc(startDate))
       .lte('created_at', wibDayUtc(endDate, true))
+      .limit(20000)
   ]);
 
   const inScope = (row) => !outletId || row.outlet_id === outletId;
@@ -280,12 +284,14 @@ export async function getAttendanceBook({ startDate, endDate, outletId }) {
       .from('attendance')
       .select('employee_id, employee_name, outlet_id, date, type, check_in_minutes, check_out_minutes, shift_code, late_minutes, source, note')
       .gte('date', startDate)
-      .lte('date', endDate),
+      .lte('date', endDate)
+      .limit(20000),
     supabase
       .from('attendance_overtime')
       .select('employee_id, date, minutes, verified, source, note')
       .gte('date', startDate)
-      .lte('date', endDate),
+      .lte('date', endDate)
+      .limit(20000),
     supabase.from('therapists').select('id, name, shift, home_outlet_id')
   ]);
 

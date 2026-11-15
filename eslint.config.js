@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
+import react from 'eslint-plugin-react';
 
 /**
  * Aturan lint untuk Dayang Spa.
@@ -24,10 +25,14 @@ export default [
   {
     // Many files already carry eslint-disable comments for these rules, so the
     // plugin has to be registered or ESLint treats the directives as errors.
-    plugins: { 'react-hooks': reactHooks },
+    plugins: { 'react-hooks': reactHooks, react },
     rules: {
       'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn'
+      'react-hooks/exhaustive-deps': 'warn',
+      // Tanpa ini, komponen yang hanya dipakai di JSX (mis. <LoginPage />)
+      // dilaporkan sebagai variabel tak terpakai — false positive yang membuat
+      // 60 peringatan menutupi temuan yang benar-benar penting.
+      'react/jsx-uses-vars': 'error'
     }
   },
 
@@ -49,7 +54,7 @@ export default [
       'no-undef': 'error',
 
       // Memberi peringatan saja.
-      'no-unused-vars': ['warn', { args: 'none', varsIgnorePattern: '^_' }],
+      'no-unused-vars': ['warn', { args: 'none', varsIgnorePattern: '^(_|React$)' }],
       'no-empty': ['warn', { allowEmptyCatch: true }],
       'no-constant-condition': ['warn', { checkLoops: false }],
       'no-dupe-keys': 'warn',

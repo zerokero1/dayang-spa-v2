@@ -12,8 +12,15 @@ export default function LoginPage() {
     setError('');
     try {
       await login(email, password);
-    } catch (e) {
-      setError('Email atau password salah');
+    } catch {
+      // Saat internet mati, Supabase juga gagal login. Jangan bilang
+      // "password salah" karena kasir akan mencoba berulang kali tanpa guna.
+      const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+      setError(
+        offline
+          ? 'Tidak ada koneksi internet. Sambungkan internet, lalu coba lagi.'
+          : 'Email atau password salah'
+      );
     } finally {
       setBusy(false);
     }
@@ -31,7 +38,7 @@ export default function LoginPage() {
         </div>
 
         <h1 className="login-title">Masuk ke akun Anda</h1>
-        <p className="login-sub">Gunakan email yang terdaftar untuk accessing.</p>
+        <p className="login-sub">Gunakan email yang terdaftar untuk mengakses aplikasi.</p>
 
         <label className="login-field">
           Email

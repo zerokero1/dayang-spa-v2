@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { OUTLETS, OIL_SIZES, TREATMENT_CATEGORIES, PAYMENT_METHOD_LABEL, treatmentUsesOil, oilChoicesFor, sizesForProduct, isSingleSizeProduct } from '../lib/constants';
+import { OUTLETS, TREATMENT_CATEGORIES, PAYMENT_METHOD_LABEL, treatmentUsesOil, oilChoicesFor, sizesForProduct, isSingleSizeProduct } from '../lib/constants';
+import { businessDate } from '../lib/businessDate';
 import { listenTreatments } from '../lib/treatmentService';
 import { listenAllTherapists } from '../lib/therapistService';
 import { getDailyBookings } from '../lib/reportService';
@@ -11,11 +12,6 @@ const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 function methodLabel(m) {
   if (!m || typeof m !== 'string') return '-';
   return PAYMENT_METHOD_LABEL[m] || '-';
-}
-
-function todayId() {
-  const now = new Date(Date.now() + 7 * 3600000);
-  return now.toISOString().slice(0, 10);
 }
 
 const STATUS_LABEL = { berjalan: 'Berjalan', selesai: 'Selesai', lunas: 'Lunas', batal_sebagian: 'Batal sebagian', batal: 'Batal' };
@@ -32,7 +28,7 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
   const [discount, setDiscount] = useState(booking.discountPct != null ? String(booking.discountPct) : '');
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountReason, setDiscountReason] = useState(booking.discountReason || '');
-  const [selUsesOil, setSelUsesOil] = useState(booking.usesOil !== undefined ? booking.usesOil : (booking.oilType != null));
+  const [selUsesOil] = useState(booking.usesOil !== undefined ? booking.usesOil : (booking.oilType != null));
   const [selOil, setSelOil] = useState(booking.oilType);
   const [selSize, setSelSize] = useState(booking.oilSize);
   const [saving, setSaving] = useState(false);
@@ -326,10 +322,8 @@ function EditRow({ booking, treatments, therapists, onSave, onCancel }) {
   );
 }
 
-function selCommissionUnset() { return true; }
-
 export default function KoreksiBookingPage({ active, isOffice }) {
-  const [date, setDate] = useState(todayId());
+  const [date, setDate] = useState(businessDate());
   const [outletId, setOutletId] = useState('semua');
   const [bookings, setBookings] = useState([]);
   const [treatments, setTreatments] = useState([]);

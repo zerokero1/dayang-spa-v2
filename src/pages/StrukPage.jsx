@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
 import { getDailyBookings } from '../lib/reportService';
 import { ReceiptLines } from '../components/Receipt';
@@ -12,7 +12,7 @@ export default function StrukPage({ outletId, active }) {
   const [loading, setLoading] = useState(false);
   const [printingBooking, setPrintingBooking] = useState(null);
 
-  async function loadBookings() {
+  const loadBookings = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getDailyBookings(outletId, date);
@@ -20,12 +20,12 @@ export default function StrukPage({ outletId, active }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [outletId, date]);
 
   useEffect(() => {
     if (!active) return;
     loadBookings();
-  }, [active, outletId, date]);
+  }, [active, loadBookings]);
 
   function handlePrint(booking) {
     setPrintingBooking(booking);

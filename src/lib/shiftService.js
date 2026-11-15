@@ -1,4 +1,5 @@
-import { SHIFTS } from './constants';
+import { SHIFTS } from './constants.js';
+import { businessMinutesOfDay } from './businessDate.js';
 
 /**
  * SATU SUMBER KEBENARAN definisi shift.
@@ -7,7 +8,8 @@ import { SHIFTS } from './constants';
  * shiftService.js (ST aktif sampai 17:00), overtimeService.js (ST selesai
  * 16:00), dan label di constants.js (ST "11-16"). Akibatnya telat, lembur,
  * dan status "di luar jam" bisa saling bertentangan untuk shift yang sama.
- * Semua angka di bawah memakai menit sejak 00:00 WIB.
+ * Semua angka di bawah memakai menit sejak 00:00 WITA (Asia/Makassar),
+ * zona waktu operasional Lombok — bukan zona waktu perangkat.
  *
  * segments: [['mulai', 'selesai'], ...] — jeda di antara segmen = break.
  * startMin  : mulai shift -> dipakai menghitung KETERLAMBATAN.
@@ -20,10 +22,8 @@ export const SHIFT_DEFS = {
     endMin: 23 * 60
   },
   [SHIFTS.SP1]: {
-    // 11:00-14:00, lalu lanjut lagi 05:00-10:00. Segmen kedua jamnya lebih
-    // kecil dari yang pertama karena shift ini melewati tengah malam, jadi
-    // urutan segmen diurutkan dari yang paling pagi supaya
-    // getShiftWindowStatus() tidak salah menandai jeda.
+    // 05:00-10:00 lalu 11:00-14:00. Segmen diurutkan dari yang paling pagi
+    // supaya getShiftWindowStatus() tidak salah menandai jeda 10:00-11:00.
     segments: [[5 * 60, 10 * 60], [11 * 60, 14 * 60]],
     startMin: 11 * 60,
     endMin: 23 * 60 + 59
@@ -69,6 +69,25 @@ export function shiftStartMinutes(shift) {
 }
 
 /**
+ * Label jam shift yang diturunkan dari SHIFT_DEFS, mis. "05-10, 11-14".
+ * Dipakai grid jadwal mingguan supaya label tidak pernah berbeda dari aturan
+ * telat/lembur yang sebenarnya.
+ */
+export function shiftJamLabel(shift) {
+  const def = SHIFT_DEFS[shift];
+  if (!def) return '';
+  return def.segments
+    .map(([from, to]) => `${jamRingkas(from)}-${jamRingkas(to)}`)
+    .join(', ');
+}
+
+function jamRingkas(minutes) {
+  return minutes % 60 === 0
+    ? String(Math.floor(minutes / 60)).padStart(2, '0')
+    : minutesToClock(minutes);
+}
+
+/**
  * Hitung keterlambatan (menit) dari jam datang.
  *
  * - Datang sebelum shift mulai -> 0 (tidak telat, lebih awal).
@@ -99,7 +118,8 @@ export function lateMinutesFor(checkInMinutes, shift) {
  */
 export function getShiftWindowStatus(shift, now = new Date()) {
   if (!shift) return null;
-  const minutes = now.getHours() * 60 + now.getMinutes();
+  // Selalu pakai jam Lombok, bukan jam perangkat (browser bisa beda zona).
+  const minutes = businessMinutesOfDay(now);
   const def = SHIFT_DEFS[shift];
   if (!def) return null;
 

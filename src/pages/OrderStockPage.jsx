@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { OUTLETS } from '../lib/constants';
+import { businessDateFromTimestamp, businessTimeParts } from '../lib/businessDate';
 import { listenOilInventory } from '../lib/oilInventoryService';
 import { listenInventory } from '../lib/inventoryService';
 import { submitStockRequests, getStockRequests, updateStockRequestStatus } from '../lib/stockRequestService';
@@ -14,12 +15,12 @@ function outletName(id) {
   return OUTLETS.find((o) => o.id === id)?.name || id;
 }
 
-function fmtWib(iso) {
+function fmtWita(iso) {
   if (!iso) return '';
-  const d = new Date(new Date(iso).getTime() + 7 * 3600000);
-  const date = `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-  const time = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
-  return `${date} ${time}`;
+  const date = new Date(iso);
+  const { hour, minute } = businessTimeParts(date);
+  const tgl = businessDateFromTimestamp(iso);
+  return `${tgl.slice(8, 10)}/${tgl.slice(5, 7)} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 export default function OrderStockPage({ outletId, active, isOffice, profile }) {
@@ -32,7 +33,7 @@ export default function OrderStockPage({ outletId, active, isOffice, profile }) 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [filterOutlet, setFilterOutlet] = useState('ALL');
+  const [filterOutlet] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selOutlet, setSelOutlet] = useState(outletId);
 
@@ -273,7 +274,7 @@ export default function OrderStockPage({ outletId, active, isOffice, profile }) 
                 </span>
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-                {outletName(r.outletId)} · {fmtWib(r.createdAt)} WIB{r.createdBy ? ` · oleh ${r.createdBy}` : ''}
+                {outletName(r.outletId)} · {fmtWita(r.createdAt)} WITA{r.createdBy ? ` · oleh ${r.createdBy}` : ''}
               </div>
               {r.note && <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>📝 {r.note}</div>}
               {isAdmin && r.status !== 'selesai' && r.status !== 'batal' && (

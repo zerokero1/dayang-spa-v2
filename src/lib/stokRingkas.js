@@ -1,4 +1,4 @@
-import { isSingleSizeProduct, OIL_SIZES } from './constants';
+import { isSingleSizeProduct, OIL_SIZES } from './constants.js';
 
 /**
  * Perhitungan murni untuk halaman Stok.

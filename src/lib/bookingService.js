@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { THERAPIST_STATUS } from './constants';
 
 export async function createBookingCore({
   outletId, therapistId, therapistName, treatmentId, treatmentName,
@@ -8,7 +7,6 @@ export async function createBookingCore({
 }) {
   const isPaid = !!paid;
   const method = paymentMethod || 'cash';
-  const commissionAmount = Math.round((commissionPercent / 100) * treatmentPrice);
 
   // NB: p_discount_pct sengaja tidak dikirim. RPC create_booking sudah
   // menghitungnya sendiri dari (original_price vs treatment_price), jadi

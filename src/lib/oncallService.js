@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { OUTLETS } from './constants';
+import { businessRangeBoundsUtc } from './businessDate';
 
 export async function createOncallBooking({
   outletId, therapistId, packageName, durationMinutes, price,
@@ -178,19 +179,10 @@ export async function bebaskanTerapisDariOncall(therapistId, bookingId) {
   return { freed: false, therapistName: therapist.name, reason: 'masih ada sesi lain yang berjalan' };
 }
 
-// Booking oncall outlet pada satu hari WIB (konsisten dengan reportService).
-function wibDayBoundsUtc(dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const startUtc = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - 7 * 3600000);
-  const endUtc = new Date(startUtc.getTime() + 24 * 3600000 - 1);
-  return { startUtc, endUtc };
-}
-
-/** Batas UTC untuk rentang hari WIB inklusif. */
-function wibRangeBoundsUtc(startDate, endDate) {
-  const s = wibDayBoundsUtc(startDate).startUtc;
-  const e = wibDayBoundsUtc(endDate).endUtc;
-  return { startUtc: s, endUtc: e };
+// Booking oncall outlet pada satu hari WITA (Asia/Makassar, UTC+8).
+// Memakai helper bisnis bersama supaya batas hari oncall sama dengan laporan.
+function dayBoundsUtc(dateStr) {
+  return businessRangeBoundsUtc(dateStr, dateStr);
 }
 
 function mapOncall(r) {
@@ -213,13 +205,14 @@ function mapOncall(r) {
 }
 
 export async function getTodayOncall(outletId, dateStr) {
-  const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
+  const { startUtc, endUtc } = dayBoundsUtc(dateStr);
   let query = supabase
     .from('bookings')
     .select('*')
     .eq('booking_source', 'oncall')
     .gte('created_at', startUtc.toISOString())
-    .lte('created_at', endUtc.toISOString());
+    .lte('created_at', endUtc.toISOString())
+    .limit(20000);
   // outletId = null -> semua outlet (dipakai office/admin pusat).
   if (outletId) query = query.eq('outlet_id', outletId);
   const { data, error } = await query;
@@ -228,20 +221,21 @@ export async function getTodayOncall(outletId, dateStr) {
 }
 
 /**
- * Booking oncall pada rentang tanggal WIB (inklusif), terbaru dulu.
+ * Booking oncall pada rentang tanggal WITA (inklusif), terbaru dulu.
  * Dipakai halaman office untuk mengoreksi data oncall tanggal lalu -
  * getTodayOncall hanya bisa melihat hari ini, jadi transaksi yang
  * tercatat salah tanggal tidak bisa disentuh dari sana.
  * outletId = null -> semua outlet.
  */
 export async function getOncallRange(outletId, startDate, endDate) {
-  const { startUtc, endUtc } = wibRangeBoundsUtc(startDate, endDate);
+  const { startUtc, endUtc } = businessRangeBoundsUtc(startDate, endDate);
   let query = supabase
     .from('bookings')
     .select('*')
     .eq('booking_source', 'oncall')
     .gte('created_at', startUtc.toISOString())
-    .lte('created_at', endUtc.toISOString());
+    .lte('created_at', endUtc.toISOString())
+    .limit(20000);
   if (outletId) query = query.eq('outlet_id', outletId);
   const { data, error } = await query.order('created_at', { ascending: false });
   if (error) throw error;

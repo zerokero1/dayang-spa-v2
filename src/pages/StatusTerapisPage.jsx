@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listenAllTherapists, setTherapistStatusManual } from '../lib/therapistService';
-import { THERAPIST_STATUS, OUTLETS, OIL_TYPES, OIL_SIZES, PAYMENT_METHOD_LABEL, treatmentUsesOil, oilChoicesFor, isSingleSizeProduct, SIZE_NONE } from '../lib/constants';
+import { THERAPIST_STATUS, OUTLETS, OIL_SIZES, PAYMENT_METHOD_LABEL, treatmentUsesOil, oilChoicesFor, isSingleSizeProduct, SIZE_NONE } from '../lib/constants';
 import { completeBooking, cancelBookingFull, cancelBookingPartial, markBookingPaid, continueTreatment, completeBookingGroup, markGroupPaid, openWhatsAppMessage } from '../lib/bookingService';
 import { listenTreatments } from '../lib/treatmentService';
 import { getTherapistDailyReport } from '../lib/reportService';
@@ -511,7 +511,7 @@ export default function StatusTerapisPage({ active, profile }) {
   const viewOutlets = isKasir ? OUTLETS.filter((o) => o.id === ownOutlet) : OUTLETS;
   const [therapists, setTherapists] = useState([]);
   const [dailyTotals, setDailyTotals] = useState({});
-  const [dailyCommissions, setDailyCommissions] = useState({});
+  const [, setDailyCommissions] = useState({});
   const [, setTick] = useState(0);
   const [message, setMessage] = useState('');
   const [outletFilter, setOutletFilter] = useState(isKasir ? (ownOutlet || 'semua') : 'semua');

@@ -6,7 +6,14 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt', bukan 'autoUpdate': versi baru tidak boleh memuat ulang
+      // halaman diam-diam saat kasir sedang mengisi transaksi.
+      // Promptnya ada di src/components/PwaUpdatePrompt.jsx.
+      registerType: 'prompt',
+      workbox: {
+        // Cache lama dibersihkan agar tidak menumpuk setelah beberapa rilis.
+        cleanupOutdatedCaches: true
+      },
       manifest: {
         name: 'Dayang Spa',
         short_name: 'Dayang Spa',

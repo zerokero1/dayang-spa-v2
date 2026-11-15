@@ -167,3 +167,20 @@ Pemeliharaan rutin (jadwal):
   iptables, ubah binding Kong di `docker-compose.yml` menjadi
   `"127.0.0.1:${KONG_HTTP_PORT:-8000}:8000/tcp"` lalu `docker compose up -d kong`
   (lakukan saat sepi — restart singkat).
+
+---
+
+## 11. Migrasi ke VPS Biznet Gio / NEO Cloud (26–27 Okt 2026)
+
+Tujuan: Pemindahan server dari Hostinger (Singapura) ke Biznet Gio (Data Center Indonesia) untuk mendapatkan latensi koneksi lokal yang lebih cepat dan stabil bagi seluruh tablet kasir di Lombok.
+
+| Item | Nilai aktual |
+|---|---|
+| VPS Baru | `139.190.104.208` — Biznet Gio / NEO Cloud (Ubuntu 24.04 LTS), Swap 4 GB, Docker 29.9.2 |
+| VPS Lama | `72.62.124.87` (Hostinger) — kontainer Supabase sudah di-`down` secara aman |
+| Domain & HTTPS | `https://lombokdayangspa.tech` — Caddy 2.11.7 (Let's Encrypt SSL otomatis, CORS allow-all) |
+| Reverse Proxy | Caddyfile meneruskan port 443 ke `localhost:8000` (Envoy/Kong) dengan penanganan CORS preflight |
+| Data Berhasil Dimigrasi | 7.438 bookings, 44 therapists, 89 treatments, 10 user kasir/admin |
+| Akun Admin Utama | `putra.gagah03@gmail.com` (role: `admin_pusat`) & `office.op@dayang.com` (role: `admin_pusat`) |
+| DNS Record | A record `@` pada `lombokdayangspa.tech` diarahkan ke `139.190.104.208` |
+| Status Aplikasi | PWA (`https://dayang-spa-v2.vercel.app`) dan tablet-tablet kasir berjalan normal tanpa perlu install ulang |

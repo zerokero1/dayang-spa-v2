@@ -1,4 +1,4 @@
-import { businessDateFromTimestamp, businessRangeIso, shiftBusinessDate } from './businessDate';
+import { businessDateFromTimestamp, businessRangeIso, shiftBusinessDate } from './businessDate.js';
 
 // ============================================================
 // MATEMATIKA BUKU STOK — murni, tanpa database / tanpa React
@@ -49,8 +49,8 @@ export function eachDayCount(startDate, count) {
 /** Awal dan akhir rentang tanggal Lombok, sebagai ISO UTC untuk query. */
 export function rangeIso(startDate, days) {
   if (!days.length) return { fromIso: '', toIso: '' };
-  const { startUtc, endUtc } = businessRangeIso(startDate, days[days.length - 1]);
-  return { fromIso: startUtc.toISOString(), toIso: endUtc.toISOString() };
+  const { startIso, endIso } = businessRangeIso(startDate, days[days.length - 1]);
+  return { fromIso: startIso, toIso: endIso };
 }
 
 /** Kunci item. Pemisah '|' supaya nama yg mengandung spasi tetap aman. */

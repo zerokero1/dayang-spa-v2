@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, PAYMENT_METHODS, PAYMENT_METHOD_LABEL,
+  TREATMENT_CATEGORIES, PAYMENT_METHOD_LABEL,
   sizesForProduct, isSingleSizeProduct,
   treatmentUsesOil, oilChoicesFor,
   HAPPY_HOUR_PRICE, HAPPY_HOUR_REASON, HAPPY_HOUR_TIMEZONE,
@@ -336,6 +336,10 @@ function addLine(t, tera, opts = {}) {
     setStep(null);
   }
 
+  // handlePay dibuat ulang setiap render (bergantung pada isi keranjang), jadi
+  // listener cukup dipasang ulang saat cart/saving berubah; menambahkan
+  // handlePay ke deps hanya akan memicu peringatan useCallback tanpa manfaat.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   async function handlePay() {
     if (cart.length === 0) return;
     // Validasi: semua item berdiskon (persen ATAU nominal) wajib punya alasan.
@@ -412,7 +416,9 @@ function addLine(t, tera, opts = {}) {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [cart, saving, customerName, paymentMethod, markPaidNow]);
+  // Listener cukup dipasang ulang saat cart/saving berubah; handlePay selalu
+  // memakai state terbaru karena ikut dibuat ulang tiap render.
+  }, [cart, saving, handlePay]);
 
   return (
     <div className="pos-layout">

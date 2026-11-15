@@ -72,7 +72,8 @@ export async function getTherapistBoard({ date = todayWib(), outletIds = null, n
     .from('bookings')
     .select('id, outlet_id, therapist_id, therapist_name, treatment_name, customer_name, status, start_at, end_at, booking_source')
     .gte('start_at', startUtc.getTime())
-    .lte('start_at', endUtc.getTime());
+    .lte('start_at', endUtc.getTime())
+    .limit(20000);
 
   const [thRes, bkRes, adjustments, lemburRows] = await Promise.all([
     therapistQuery,

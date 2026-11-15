@@ -87,3 +87,4 @@ docs/jadwal-kasir*.html
 
 # Salinan database lokal (berisi data sensitif, jangan pernah di-push)
 backup/
+.vercel

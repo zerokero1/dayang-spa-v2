@@ -129,6 +129,20 @@ export default function DashboardPage({ active, onOpen }) {
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary-dark)', marginTop: 4 }}>{rp(grandTotalRevenueNet)}</div>
         </div>
         <div className="oil-card" style={{ textAlign: 'center', padding: 14 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Kas Lunas Masuk</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary)', marginTop: 4 }}>
+            {rp(grand.grandPaidRevenue ?? ((grand.grandCashRevenue || 0) + (grand.grandCardlessRevenue || 0)))}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>Cash: {rp(grand.grandCashRevenue || 0)} · Non-cash: {rp(grand.grandCardlessRevenue || 0)}</div>
+        </div>
+        <div className="oil-card" style={{ textAlign: 'center', padding: 14 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Belum Bayar</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: (grand.grandUnpaidRevenue || 0) > 0 ? 'var(--busy)' : 'inherit', marginTop: 4 }}>
+            {rp(grand.grandUnpaidRevenue || 0)}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{grand.grandUnpaidCount || 0} transaksi</div>
+        </div>
+        <div className="oil-card" style={{ textAlign: 'center', padding: 14 }}>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Komisi Terapis</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--busy)', marginTop: 4 }}>{rp(grand.grandTotalCommission)}</div>
         </div>
@@ -150,7 +164,7 @@ export default function DashboardPage({ active, onOpen }) {
                 <tr>
                   <th style={{ textAlign: 'left', padding: 8 }}>Outlet</th>
                   <th style={{ padding: 8 }}>Treatment</th>
-                  <th style={{ padding: 8 }}>Omzet</th>
+                  <th style={{ padding: 8 }}>Omzet Net</th>
                   <th style={{ padding: 8 }}>Oncall (net)</th>
                   <th style={{ padding: 8 }}>Cash</th>
                   <th style={{ padding: 8 }}>Cardless</th>
@@ -166,16 +180,30 @@ export default function DashboardPage({ active, onOpen }) {
                     <tr key={o.id}>
                       <td style={{ textAlign: 'left', padding: 8 }}>{o.name}</td>
                       <td style={{ padding: 8 }}>{s.totalTreatment}</td>
-                      <td style={{ padding: 8 }}>{rp(s.totalRevenue)}</td>
+                      <td style={{ padding: 8, fontWeight: 700 }}>{rp(s.totalRevenueNet ?? (s.totalRevenue + s.oncallRevenue))}</td>
                       <td style={{ padding: 8, color: 'var(--primary)' }}>{rp(s.oncallRevenue)}</td>
                       <td style={{ padding: 8 }}>{rp(s.cashRevenue)}</td>
                       <td style={{ padding: 8 }}>{rp(s.cardlessRevenue)}</td>
-                      <td style={{ padding: 8, color: 'var(--busy)' }}>{rp(s.unpaidRevenue)}</td>
+                      <td style={{ padding: 8, color: (s.unpaidRevenue > 0) ? 'var(--busy)' : 'inherit' }}>{rp(s.unpaidRevenue)}</td>
                       <td style={{ padding: 8 }}>{rp(s.totalCommission)}</td>
                     </tr>
                   );
                 })}
               </tbody>
+              <tfoot>
+                <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}>
+                  <td style={{ textAlign: 'left', padding: 8 }}>TOTAL</td>
+                  <td style={{ padding: 8 }}>{grand.grandTotalTreatment}</td>
+                  <td style={{ padding: 8 }}>{rp(grandTotalRevenueNet)}</td>
+                  <td style={{ padding: 8, color: 'var(--primary)' }}>{rp(grand.grandOncallRevenue)}</td>
+                  <td style={{ padding: 8 }}>{rp(grand.grandCashRevenue || 0)}</td>
+                  <td style={{ padding: 8 }}>{rp(grand.grandCardlessRevenue || 0)}</td>
+                  <td style={{ padding: 8, color: (grand.grandUnpaidRevenue || 0) > 0 ? 'var(--busy)' : 'inherit' }}>
+                    {rp(grand.grandUnpaidRevenue || 0)}
+                  </td>
+                  <td style={{ padding: 8 }}>{rp(grand.grandTotalCommission)}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
 

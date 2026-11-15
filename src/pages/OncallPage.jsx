@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { PAYMENT_METHOD_LABEL, parseRupiah, sanitizeNominal, formatRupiah } from '../lib/constants';
+import { PAYMENT_METHOD_LABEL, parseRupiah, sanitizeNominal } from '../lib/constants';
+import { businessDate, businessTimeParts } from '../lib/businessDate';
 import { listenAllTherapists } from '../lib/therapistService';
 import { listenTreatments } from '../lib/treatmentService';
 import { createOncallBookingMulti, editOncallBooking, cancelOncallBooking, selesaiOncallDanBebaskan, bebaskanTerapisDariOncall, getTodayOncall, outletNames } from '../lib/oncallService';
@@ -8,17 +9,10 @@ const THERAPIST_COMMISSION = 10;
 
 const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
-function todayId() {
-  const now = new Date(Date.now() + 7 * 3600000);
-  return now.toISOString().slice(0, 10);
-}
-
-function fmtWib(iso) {
+function fmtWita(iso) {
   if (!iso) return '';
-  const d = new Date(new Date(iso).getTime() + 7 * 3600000);
-  const h = String(d.getUTCHours()).padStart(2, '0');
-  const m = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${h}:${m}`;
+  const { hour, minute } = businessTimeParts(new Date(iso));
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 export default function OncallPage({ outletId, active, isOffice, profile }) {
@@ -65,7 +59,7 @@ export default function OncallPage({ outletId, active, isOffice, profile }) {
   async function loadList() {
     setLoadingList(true);
     try {
-      setOncallList(await getTodayOncall(showAllOutlets ? null : outletId, todayId()));
+      setOncallList(await getTodayOncall(showAllOutlets ? null : outletId, businessDate()));
     } catch (e) {
       console.warn('oncall list', e);
     } finally {
@@ -497,7 +491,7 @@ export default function OncallPage({ outletId, active, isOffice, profile }) {
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
                 {showAllOutlets && b.outletId ? `${outletLabel[b.outletId] || b.outletId} · ` : ''}
-                {b.therapistName} · {b.customerName || '-'} · {fmtWib(b.createdAt)} WIB ·{' '}
+                {b.therapistName} · {b.customerName || '-'} · {fmtWita(b.createdAt)} WITA ·{' '}
                 {b.paymentMethod === 'cardless' ? 'Cardless' : 'Cash'}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -559,7 +553,7 @@ export default function OncallPage({ outletId, active, isOffice, profile }) {
           <div className="oil-card" style={styles.modal}>
             <h3 style={{ marginTop: 0 }}>✏️ Edit Transaksi Oncall</h3>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: -8 }}>
-              {editTarget.therapistName} · {editTarget.customerName || '-'} · {fmtWib(editTarget.createdAt)} WIB
+              {editTarget.therapistName} · {editTarget.customerName || '-'} · {fmtWita(editTarget.createdAt)} WITA
             </p>
 
             <p style={{ fontSize: 13, marginBottom: 4 }}>Terapis</p>

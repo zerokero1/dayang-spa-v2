@@ -29,6 +29,33 @@ export function businessMonth(date = new Date()) {
   return businessDate(date).slice(0, 7);
 }
 
+/** Jam dan menit waktu Lombok (0-23, 0-59) dari sebuah Date. */
+export function businessTimeParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: BUSINESS_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(date);
+  const get = (type) => Number(parts.find((p) => p.type === type)?.value || 0);
+  // Sebagian mesin mengembalikan "24" untuk tengah malam.
+  return { hour: get('hour') % 24, minute: get('minute') };
+}
+
+/**
+ * Menit sejak 00:00 waktu Lombok. Dipakai untuk aturan yang bergantung pada
+ * jam lokal (mis. status jendela shift) agar tidak ikut zona waktu perangkat.
+ */
+export function businessMinutesOfDay(date = new Date()) {
+  const { hour, minute } = businessTimeParts(date);
+  return hour * 60 + minute;
+}
+
+/** Epoch ms untuk jam tertentu (menit sejak 00:00) pada tanggal Lombok. */
+export function businessDayMinutesToMs(dateString, minutes) {
+  return startOfBusinessDayUtc(dateString).getTime() + Math.round(minutes) * 60000;
+}
+
 export function startOfBusinessDayUtc(dateString) {
   const [year, month, day] = dateString.split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day, -BUSINESS_UTC_OFFSET_HOURS));
