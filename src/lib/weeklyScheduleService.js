@@ -1,4 +1,6 @@
 import { supabase } from './supabase';
+import { SHIFTS } from './constants';
+import { shiftJamLabel } from './shiftService';
 
 // Urutan kolom di grid: Senin lebih dulu karena itu yang dipikirkan kasir,
 // Minggu di akhir.
@@ -16,14 +18,18 @@ export const OFF = 'off';
 
 // Shift yang boleh dipilih di grid. Isinya memakai kode yang sama dengan
 // therapists.shift dan attendance.shift_code supaya tidak ada dua daftar.
+// Label jam diturunkan dari SHIFT_DEFS (shiftService.js), jadi grid selalu
+// menampilkan jam yang sama dengan aturan telat dan lembur.
+const shiftEntry = (code, label) => ({ code, label, jam: shiftJamLabel(code) });
+
 export const PILIHAN_SHIFT = [
-  { code: 'sp', label: 'SP', jam: '11-15, 18-23' },
-  { code: 'sp1', label: 'SP1', jam: '11-14, 17-22' },
-  { code: 'sp2', label: 'SP2', jam: '12-15, 18-23' },
-  { code: 'AD', label: 'AD', jam: '15-23' },
-  { code: 'malam', label: 'MALAM', jam: '15-23' },
-  { code: '11', label: '11', jam: '11-23' },
-  { code: 'st', label: 'ST', jam: '11-16' },
+  shiftEntry(SHIFTS.SP, 'SP'),
+  shiftEntry(SHIFTS.SP1, 'SP1'),
+  shiftEntry(SHIFTS.SP2, 'SP2'),
+  shiftEntry(SHIFTS.AD, 'AD'),
+  shiftEntry(SHIFTS.MALAM, 'MALAM'),
+  shiftEntry(SHIFTS.T11, '11'),
+  shiftEntry(SHIFTS.ST, 'ST'),
   { code: OFF, label: 'OFF', jam: '-' },
   { code: 'libur', label: 'LIBUR', jam: '-' }
 ];

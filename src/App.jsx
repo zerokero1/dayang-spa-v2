@@ -3,12 +3,13 @@ import { OUTLETS } from './lib/constants';
 import { listenAuthState, logout } from './lib/authService';
 import { startAutoFreeTicker, stopAutoFreeTicker } from './lib/autoFreeService';
 import { logOfficeLogin, OFFICE_EMAIL } from './lib/logActivityService';
-import { completeBooking } from './lib/bookingService';
 import { useUnpaid } from './lib/useUnpaid';
 import ReservationReminder from './components/ReservationReminder';
 import UnpaidReminder from './components/UnpaidReminder';
 import ToastNotifications from './components/ToastNotifications';
 import KasirBeranda from './components/KasirBeranda';
+import ErrorBoundary from './components/ErrorBoundary';
+import OfflineBanner from './components/OfflineBanner';
 import LoginPage from './pages/LoginPage';
 import './styles.css';
 import './styles-laporan.css';
@@ -182,7 +183,7 @@ export default function App() {
   }
 
   const isAdminPusat = profile.role === 'admin_pusat';
-  const isOffice = (user.email || '').trim().toLowerCase() === 'office.op@dayang.com';
+  const isOffice = (user.email || '').trim().toLowerCase() === OFFICE_EMAIL;
   const visibleOutlets = isAdminPusat ? OUTLETS : OUTLETS.filter((o) => o.id === profile.outletId);
   const currentPage = PAGES[activePage];
   const allowedKeys = RESTRICTED_ROLE_PAGES[profile.role] || null;
@@ -223,6 +224,7 @@ export default function App() {
 
     return (
       <div className="kasir-shell">
+        <OfflineBanner />
         <header className="kasir-top">
           <div className="kasir-top-left">
             <span className="kasir-top-logo">🫧</span>
@@ -253,9 +255,15 @@ export default function App() {
                 <button className="kasir-back" onClick={() => openPage('beranda')} title="Kembali ke Beranda">←</button>
                 <span>{currentPage ? currentPage.label : ''}</span>
               </div>
-              {currentPage && currentPage.Component && (
-<currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} onOpen={openPage} {...(currentPage.props || {})} />
-              )}
+              <ErrorBoundary
+                key={activePage}
+                title={currentPage ? `Halaman ${currentPage.label} gagal dibuka` : 'Halaman gagal dibuka'}
+                onReset={() => openPage('beranda')}
+              >
+                {currentPage && currentPage.Component && (
+                  <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} onOpen={openPage} {...(currentPage.props || {})} />
+                )}
+              </ErrorBoundary>
             </Suspense>
           )}
         </main>
@@ -347,6 +355,7 @@ export default function App() {
 
       {/* ===== Area utama ===== */}
       <div className="main-area">
+        <OfflineBanner />
         <header className="topbar">
           <div className="topbar-title">
             <h1>{currentPage.label}</h1>
@@ -371,9 +380,15 @@ export default function App() {
 
         <main className={overdueCount > 0 ? 'content has-banner' : 'content'}>
           <Suspense fallback={<div className="page-loading">Memuat halaman…</div>}>
-            {currentPage && currentPage.Component && (
-              <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} onOpen={(k) => setActivePage(k)} {...(currentPage.props || {})} />
-            )}
+            <ErrorBoundary
+              key={activePage}
+              title={currentPage ? `Halaman ${currentPage.label} gagal dibuka` : 'Halaman gagal dibuka'}
+              onReset={() => setActivePage('kasir')}
+            >
+              {currentPage && currentPage.Component && (
+                <currentPage.Component outletId={activeOutlet} active={true} isOffice={isOffice} user={user} profile={profile} onOpen={(k) => setActivePage(k)} {...(currentPage.props || {})} />
+              )}
+            </ErrorBoundary>
           </Suspense>
         </main>
       </div>

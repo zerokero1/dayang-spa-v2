@@ -3,7 +3,6 @@ import { OUTLETS, SHIFT_LABEL } from './constants';
 import { lateMinutesFor } from './shiftService';
 import { getConsumableUsage } from './stockUsageService';
 import { businessDateFromTimestamp, businessRangeIso } from './businessDate';
-import { classifyPaymentMethod } from './paymentMethod';
 
 /**
  * ==========================================================================
@@ -54,39 +53,27 @@ export function outletName(id) {
   return OUTLETS.find((o) => o.id === id)?.name || id || '-';
 }
 
+// payment_method di produksi pernah menyimpan JSON objek therapist utuh
+// (salah bug input), jadi nilai yang tidak dikenal dikelompokkan sebagai Lainnya
+// alih-alih ikut jadi header tabel.
+const KNOWN_PAYMENTS = new Set(['cash', 'cardless', 'qris', 'transfer', 'debit', 'kredit', 'edc', 'ovo', 'dana', 'gopay', 'shopeepay']);
+
+function paymentLabel(raw) {
+  const v = String(raw ?? '').trim().toLowerCase();
+  return KNOWN_PAYMENTS.has(v) ? v : 'lainnya';
+}
+
 /** Bangun query bookings terfilter (dipakai 3 sheet sekaligus). */
-async function bookingQuery({ startDate, endDate, outletId, extraSelect }) {
-  const pageSize = 1000;
-  const rows = [];
-  let offset = 0;
-  let totalCount = null;
-  while (totalCount == null || offset < totalCount) {
-    let q = supabase
-      .from('bookings')
-      .select(`${extraSelect}, id`, { count: 'exact' })
-      .gte('created_at', wibDayUtc(startDate))
-      .lte('created_at', wibDayUtc(endDate, true))
-      .neq('status', 'batal');
-    if (outletId) q = q.eq('outlet_id', outletId);
-    const { data, error, count } = await q
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true })
-      .range(offset, offset + pageSize - 1);
-    if (error) throw error;
-    const page = data || [];
-    if (totalCount == null) {
-      if (count == null) {
-        throw new Error('Laporan bookings tidak lengkap: total baris tidak dapat dipastikan untuk pagination.');
-      }
-      totalCount = count;
-    }
-    if (!page.length && offset < totalCount) {
-      throw new Error(`Laporan bookings tidak lengkap: hanya ${offset} dari ${totalCount} baris berhasil dibaca.`);
-    }
-    rows.push(...page);
-    offset += page.length;
-  }
-  return rows;
+function bookingQuery({ startDate, endDate, outletId, extraSelect }) {
+  let q = supabase
+    .from('bookings')
+    .select(extraSelect)
+    .gte('created_at', wibDayUtc(startDate))
+    .lte('created_at', wibDayUtc(endDate, true))
+    .neq('status', 'batal')
+    .limit(20000);
+  if (outletId) q = q.eq('outlet_id', outletId);
+  return q;
 }
 
 // =====================================================================
@@ -112,12 +99,14 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
       .from('oil_inventory_logs')
       .select('outlet_id, oil_type, size, type, qty, stock_after, note, created_at')
       .gte('created_at', wibDayUtc(startDate))
-      .lte('created_at', wibDayUtc(endDate, true)),
+      .lte('created_at', wibDayUtc(endDate, true))
+      .limit(20000),
     supabase
       .from('inventory_logs')
       .select('outlet_id, item_id, type, qty, note, created_at')
       .gte('created_at', wibDayUtc(startDate))
-      .lte('created_at', wibDayUtc(endDate, true)),
+      .lte('created_at', wibDayUtc(endDate, true))
+      .limit(20000),
     supabase
       .from('bookings')
       .select('outlet_id, oil_type, oil_size, uses_oil, created_at')
@@ -125,6 +114,7 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
       .eq('uses_oil', true)
       .gte('created_at', wibDayUtc(startDate))
       .lte('created_at', wibDayUtc(endDate, true))
+      .limit(20000)
   ]);
 
   const inScope = (row) => !outletId || row.outlet_id === outletId;
@@ -207,10 +197,11 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
     itemUsage[d][r.outlet_id][r.item_id] = (itemUsage[d][r.outlet_id][r.item_id] || 0) + (r.qty || 0);
   });
 
-  // --- Estimasi pemakaian produk treatment (Laundry dicatat saat closing)
+  // --- Pemakaian barang konsumable dari ATURAN treatment
   //
-  // treatment_consumables menetapkan pemakaian produk per booking. Angka ini
-  // ESTIMASI sesuai aturan,
+  // treatment_consumables bilang "1 full body massage = 1 hole sheet".
+  // Jadi pemakaiannya bisa dihitung sendiri dari booking, walau tidak ada
+  // satu pun pencatatan stok manual. PENTING: ini ESTIMASI sesuai aturan,
   // bukan hasil hitung fisika di gudang. Kalau treatment Consumable punya
   // Treatment yang nyata memakai lebih sedikit, laporan ini akan
   // over-count — makanya kolomnya dilabeli "Estimasi", tidak "Tercatat".
@@ -241,7 +232,7 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
         const [nm, size] = k.split('|');
         usageRows.push({
           tanggal: d, outlet: outletName(oid), kategori: 'Minyak',
-          nama: nm, ukuran: size, satuan: 'botol', dipakai: qty, sumber: 'Dari transaksi booking'
+          nama: nm, ukuran: size, satuan: 'botol', dipakai: qty, sumber: 'Terhitung otomatis'
         });
       });
       const items = itemUsage[d]?.[oid] || {};
@@ -276,11 +267,8 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
       (itemLogRes.data || []).length === 0
         ? 'Barang non-minyak belum pernah mencatat movements masuk/keluar, jadi kolom In/Out kosong untuk periode ini.'
         : null,
-      (oilLogRes.data || []).length > 0
-        ? 'Setelah perubahan diterapkan, pergerakan saldo minyak hanya mencatat penyesuaian manual; log historis otomatis tetap ada. Pemakaian booking dihitung terpisah dan tidak memotong saldo.'
-        : null,
       consumableEstimated
-        ? 'Estimasi produk treatment di tabel "Pemakaian Harian" dihitung dari aturan treatment (treatment_consumables x booking), bukan dari pencatatan stok fisik. Laundry dan minyak dihitung terpisah.'
+        ? 'Pemakaian nonin-minyak di tabel "Pemakaian Harian" dihitung dari aturan treatment (treatment_consumables x booking), bukan dari pencatatan stok fisik. Kalau ada treatment yang memakai lebih sedikit dari aturan, angka ini terlalu besar.'
         : null
     ].filter(Boolean)
   };
@@ -296,12 +284,14 @@ export async function getAttendanceBook({ startDate, endDate, outletId }) {
       .from('attendance')
       .select('employee_id, employee_name, outlet_id, date, type, check_in_minutes, check_out_minutes, shift_code, late_minutes, source, note')
       .gte('date', startDate)
-      .lte('date', endDate),
+      .lte('date', endDate)
+      .limit(20000),
     supabase
       .from('attendance_overtime')
       .select('employee_id, date, minutes, verified, source, note')
       .gte('date', startDate)
-      .lte('date', endDate),
+      .lte('date', endDate)
+      .limit(20000),
     supabase.from('therapists').select('id, name, shift, home_outlet_id')
   ]);
 
@@ -438,43 +428,32 @@ function revenueAmount(row) {
 }
 
 export async function getRevenueCommissionBook({ startDate, endDate, outletId }) {
-  const rows = await bookingQuery({ startDate, endDate, outletId, extraSelect: BOOKING_FIELDS });
+  const { data, error } = await bookingQuery({ startDate, endDate, outletId, extraSelect: BOOKING_FIELDS });
+  if (error) throw error;
+  const rows = data || [];
   const paid = rows.filter((r) => r.paid);
 
   // ---------------------------------------------------------- REVENUE
-  const dayOutlet = {};   // date -> outlet -> { trx, omzet, cash, nonCash, unclassified }
+  const dayOutlet = {};   // date -> outlet -> { trx, omzet, cash, nonCash }
   paid.forEach((r) => {
     const d = wibDateOf(r.created_at);
     dayOutlet[d] = dayOutlet[d] || {};
     const cell = dayOutlet[d][r.outlet_id] = dayOutlet[d][r.outlet_id] || {
-      trx: 0, omzet: 0, cash: 0, nonCash: 0, unclassified: 0, unclassifiedTrx: 0, diskon: 0
+      trx: 0, omzet: 0, cash: 0, nonCash: 0, diskon: 0
     };
     const price = revenueAmount(r);
     cell.trx++;
     cell.omzet += price;
     if (Number(r.discount_pct) > 0) cell.diskon += price * (Number(r.discount_pct) / 100);
-    const category = classifyPaymentMethod(r.payment_method);
-    if (category === 'cash') cell.cash += price;
-    else if (category === 'nonCash') cell.nonCash += price;
-    else {
-      cell.unclassified += price;
-      cell.unclassifiedTrx += 1;
-    }
+    if (paymentLabel(r.payment_method) === 'cash') cell.cash += price;
+    else cell.nonCash += price;
   });
-
-  const knownOutletIds = OUTLETS.map((o) => o.id);
-  const discoveredOutletIds = [...new Set(
-    Object.values(dayOutlet).flatMap((outlets) => Object.keys(outlets))
-  )];
-  const outletIds = outletId
-    ? [outletId]
-    : [...knownOutletIds, ...discoveredOutletIds.filter((id) => !knownOutletIds.includes(id))];
 
   const dailyRows = [];
   const outletTotal = {};
   Object.keys(dayOutlet).sort().forEach((d) => {
-    let dTrx = 0, dOmzet = 0, dCash = 0, dNon = 0, dUnclassified = 0, dUnclassifiedTrx = 0, dDiskon = 0;
-    outletIds.forEach((oid) => {
+    let dTrx = 0, dOmzet = 0, dCash = 0, dNon = 0, dDiskon = 0;
+    (outletId ? [outletId] : OUTLETS.map((o) => o.id)).forEach((oid) => {
       const c = dayOutlet[d]?.[oid];
       if (!c) return;
       dailyRows.push({
@@ -484,29 +463,27 @@ export async function getRevenueCommissionBook({ startDate, endDate, outletId })
         omzet: c.omzet,
         cash: c.cash,
         nonCash: c.nonCash,
-        unclassified: c.unclassified,
-        unclassifiedTrx: c.unclassifiedTrx,
         diskon: Math.round(c.diskon)
       });
-      dTrx += c.trx; dOmzet += c.omzet; dCash += c.cash; dNon += c.nonCash; dUnclassified += c.unclassified; dUnclassifiedTrx += c.unclassifiedTrx; dDiskon += c.diskon;
-      const t = outletTotal[oid] = outletTotal[oid] || { trx: 0, omzet: 0, cash: 0, nonCash: 0, unclassified: 0, unclassifiedTrx: 0, diskon: 0 };
-      t.trx += c.trx; t.omzet += c.omzet; t.cash += c.cash; t.nonCash += c.nonCash; t.unclassified += c.unclassified; t.unclassifiedTrx += c.unclassifiedTrx; t.diskon += c.diskon;
+      dTrx += c.trx; dOmzet += c.omzet; dCash += c.cash; dNon += c.nonCash; dDiskon += c.diskon;
+      const t = outletTotal[oid] = outletTotal[oid] || { trx: 0, omzet: 0, cash: 0, nonCash: 0, diskon: 0 };
+      t.trx += c.trx; t.omzet += c.omzet; t.cash += c.cash; t.nonCash += c.nonCash; t.diskon += c.diskon;
     });
     // Baris total per tanggal.
     dailyRows.push({
       tanggal: d,
       outlet: 'TOTAL',
-      trx: dTrx, omzet: dOmzet, cash: dCash, nonCash: dNon, unclassified: dUnclassified, unclassifiedTrx: dUnclassifiedTrx, diskon: Math.round(dDiskon)
+      trx: dTrx, omzet: dOmzet, cash: dCash, nonCash: dNon, diskon: Math.round(dDiskon)
     });
   });
 
-  const grandByOutlet = outletIds
+  const grandByOutlet = (outletId ? [outletId] : OUTLETS.map((o) => o.id))
     .filter((oid) => outletTotal[oid])
     .map((oid) => ({ outlet: outletName(oid), ...outletTotal[oid], diskon: Math.round(outletTotal[oid].diskon) }));
 
   const grandTotal = grandByOutlet.reduce(
-    (s, o) => ({ trx: s.trx + o.trx, omzet: s.omzet + o.omzet, cash: s.cash + o.cash, nonCash: s.nonCash + o.nonCash, unclassified: s.unclassified + o.unclassified, unclassifiedTrx: s.unclassifiedTrx + o.unclassifiedTrx }),
-    { trx: 0, omzet: 0, cash: 0, nonCash: 0, unclassified: 0, unclassifiedTrx: 0 }
+    (s, o) => ({ trx: s.trx + o.trx, omzet: s.omzet + o.omzet, cash: s.cash + o.cash, nonCash: s.nonCash + o.nonCash }),
+    { trx: 0, omzet: 0, cash: 0, nonCash: 0 }
   );
 
   // ---------------------------------------------------------- KOMISI
@@ -638,9 +615,6 @@ export async function getRevenueCommissionBook({ startDate, endDate, outletId })
         : null,
       oncallCommission > 0
         ? `Oncall hotel ikut dihitung memakai komisi yang tercatat pada booking (total ${MONEY(oncallCommission).toLocaleString('id-ID')}). Kolom hotel_commission tidak dipakai sebagai komisi terapis.`
-        : null,
-      grandTotal.unclassifiedTrx > 0
-        ? `${grandTotal.unclassifiedTrx} transaksi lunas senilai ${MONEY(grandTotal.unclassified)} memiliki metode pembayaran yang tidak dikenali dan dipisahkan dari Cash/Non-Cash.`
         : null
     ].filter(Boolean)
   };
@@ -722,7 +696,7 @@ export function buildBookSheets({ range, outletLabel, inventory, attendance, rev
 
   // ---------------- Sheet 4: Revenue
   const revGrandRows = rc.grandByOutlet.map((g) => [
-    g.outlet, g.trx, MONEY(g.omzet), MONEY(g.cash), MONEY(g.nonCash), MONEY(g.unclassified),
+    g.outlet, g.trx, MONEY(g.omzet), MONEY(g.cash), MONEY(g.nonCash),
     g.trx ? Math.round(g.omzet / g.trx) : 0
   ]);
   if (rc.grandByOutlet.length) {
@@ -732,12 +706,11 @@ export function buildBookSheets({ range, outletLabel, inventory, attendance, rev
       rc.grandTotal.omzet,
       rc.grandTotal.cash,
       rc.grandTotal.nonCash,
-      rc.grandTotal.unclassified,
       rc.grandTotal.trx ? Math.round(rc.grandTotal.omzet / rc.grandTotal.trx) : 0
     ]);
   }
   const revDailyRows = rc.dailyRows.map((r) => [
-    r.tanggal, r.outlet, r.trx, MONEY(r.omzet), MONEY(r.cash), MONEY(r.nonCash), MONEY(r.unclassified), MONEY(r.diskon)
+    r.tanggal, r.outlet, r.trx, MONEY(r.omzet), MONEY(r.cash), MONEY(r.nonCash), MONEY(r.diskon)
   ]);
 
   const joinNotes = (...lists) => lists.flat().filter(Boolean).join(' · ');
@@ -846,25 +819,20 @@ export function buildBookSheets({ range, outletLabel, inventory, attendance, rev
       sections: [
         {
           title: '1. Grand Total per Outlet',
-          headers: ['Outlet', 'Transaksi', 'Omzet', 'Cash', 'Non-Cash', 'Metode tidak dikenali', 'Rata-rata per transaksi'],
+          headers: ['Outlet', 'Transaksi', 'Omzet', 'Cash', 'Non-Cash', 'Rata-rata per transaksi'],
           rows: revGrandRows,
-          currencyColumns: [2, 3, 4, 5, 6],
+          currencyColumns: [2, 3, 4, 5],
           totalRowIndex: rc.grandByOutlet.length ? revGrandRows.length - 1 : undefined
         },
         {
           title: '2. Income per Hari',
-          headers: ['Tanggal', 'Outlet', 'Transaksi', 'Omzet', 'Cash', 'Non-Cash', 'Metode tidak dikenali', 'Diskon'],
+          headers: ['Tanggal', 'Outlet', 'Transaksi', 'Omzet', 'Cash', 'Non-Cash', 'Diskon'],
           rows: revDailyRows,
-          currencyColumns: [3, 4, 5, 6, 7],
+          currencyColumns: [3, 4, 5, 6],
           note: 'Tanggal = tanggal transaksi dicatat menurut waktu Lombok (WITA). Baris TOTAL = total per hari.'
         }
       ],
-      note: joinNotes(
-        `GRAND TOTAL = seluruh outlet yang difilter · ${subtitle}`,
-        rc.grandTotal.unclassifiedTrx > 0
-          ? `${rc.grandTotal.unclassifiedTrx} transaksi lunas senilai ${MONEY(rc.grandTotal.unclassified)} memiliki metode pembayaran yang tidak dikenali; tidak dimasukkan ke Cash atau Non-Cash.`
-          : null
-      )
+      note: `GRAND TOTAL = seluruh outlet yang difilter · ${subtitle}`
     }
   ];
 }

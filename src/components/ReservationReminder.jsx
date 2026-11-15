@@ -3,11 +3,6 @@ import { listenReservations } from '../lib/reservationService';
 
 const WINDOW_MS = 15 * 60000;
 
-function minutesText(ms) {
-  const mins = Math.max(1, Math.ceil(ms / 60000));
-  return `Booking akan datang dalam ${mins} menit lagi`;
-}
-
 function fmtJam(ms) {
   const d = new Date(ms);
   const now = new Date();

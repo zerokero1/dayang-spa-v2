@@ -1,16 +1,23 @@
 import { supabase } from './supabase';
 import { OUTLETS, SHIFTS } from './constants';
 import { shiftEndMinutes } from './shiftService';
-import { businessDate, businessRangeBoundsUtc, shiftBusinessDate } from './businessDate';
+import {
+  businessDate,
+  businessRangeBoundsUtc,
+  shiftBusinessDate,
+  businessDayMinutesToMs
+} from './businessDate';
 
-// Jam selesai shift normal (menit sejak 00:00) — patokan overtime.
+// Jam selesai shift normal (menit sejak 00:00 WITA) — patokan overtime.
 // Diturunkan dari SHIFT_DEFS (shiftService.js) supaya definisi shift hanya
-// ada di satu tempat. Nilai:
-//  - Shift SP1 : 11:00-14:00 & 17:00-22:00   -> selesai 22:00
-//  - Shift SP2 : 12:00-15:00 & 18:00-23:00   -> selesai 23:00
-//  - Shift SP  : 11:00-15:00 & 18:00-23:00   -> selesai 23:00
+// ada di satu tempat. Nilai aktual:
+//  - Shift SP  : 11:00-15:00 & 18:00-23:00  -> selesai 23:00
+//  - Shift SP1 : 05:00-10:00 & 11:00-14:00  -> endMin 23:59 (lihat catatan)
+//  - Shift SP2 : 13:00-17:00 & 19:00-23:00  -> selesai 23:00
 //  - Shift Malam / AD / 11 : selesai 23:00
-//  - Shift ST / Short: 11:00-16:00            -> selesai 16:00
+//  - Shift ST  : 11:00-17:00               -> selesai 17:00
+// Catatan: SP1 memakai endMin 23:59, jadi lembur SP1 baru dihitung setelah
+// tengah malam. Ubah di SHIFT_DEFS bila aturan bisnisnya berbeda.
 export const SHIFT_END_MINUTES = Object.freeze(
   Object.fromEntries(Object.values(SHIFTS).map((code) => [code, shiftEndMinutes(code)]))
 );
@@ -90,9 +97,7 @@ export function overtimeMinutesFor(shift, dateStr, maxEndAt, nowMs = null) {
 
 // Jam selesai shift pada tanggal tertentu (waktu Lombok) dalam epoch ms.
 export function wibDayShiftEndMs(dateStr, shiftEndMin) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const endLocal = new Date(Date.UTC(y, m - 1, d, Math.floor(shiftEndMin / 60), shiftEndMin % 60, 0));
-  return endLocal.getTime() - 8 * 3600000;
+  return businessDayMinutesToMs(dateStr, shiftEndMin);
 }
 
 // Jam selesai shift hari ini di Lombok dalam epoch ms — untuk status lembur.
@@ -104,8 +109,6 @@ export function shiftEndMsForDate(shift, dateStr) {
 
 // Format tanggal kalender secara deterministik, tanpa timezone perangkat.
 function fmtLocalDate(d) {
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
   return businessDate(d);
 }
 
@@ -136,7 +139,8 @@ export async function getOvertimeReport(startDate, endDate) {
         .from('bookings')
         .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, commission_percent, start_at, end_at, status, booking_source')
         .gte('start_at', startUtc.getTime())
-        .lte('start_at', endUtc.getTime());
+        .lte('start_at', endUtc.getTime())
+        .limit(20000);
       if (error) throw error;
       allBookings.push(...(data || []).map((r) => ({ ...r, date: dateStr })));
     } catch (e) {

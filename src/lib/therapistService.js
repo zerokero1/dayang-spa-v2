@@ -212,7 +212,8 @@ export async function bebaskanTherapisYangSelesai() {
     .select('therapist_id')
     .in('therapist_id', ids)
     .eq('status', 'berjalan')
-    .gt('end_at', nowMs);
+    .gt('end_at', nowMs)
+    .limit(20000);
   if (bookErr) { console.warn('bebaskanTherapisYangSelesai: baca booking gagal', bookErr); return []; }
 
   const masihKerja = new Set((jalan || []).map((b) => b.therapist_id));

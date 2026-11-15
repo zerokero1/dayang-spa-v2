@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { OUTLETS, OIL_TYPES, OIL_SIZES, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor, sizesForProduct, isSingleSizeProduct } from '../lib/constants';
+import { useCallback, useEffect, useState } from 'react';
+import { OUTLETS, TREATMENT_CATEGORIES, treatmentUsesOil, oilChoicesFor, sizesForProduct, isSingleSizeProduct } from '../lib/constants';
 import { listenTreatments } from '../lib/treatmentService';
 import { getDailyBookingsRange } from '../lib/reportService';
 import { businessDate } from '../lib/businessDate';
@@ -13,7 +13,7 @@ function EditRow({ booking, treatments, onSave, onCancel }) {
   const [selTreatment, setSelTreatment] = useState(null);
   const [selOil, setSelOil] = useState(booking.oilType);
   const [selSize, setSelSize] = useState(booking.oilSize);
-  const [selUsesOil, setSelUsesOil] = useState(booking.usesOil !== undefined ? booking.usesOil : (booking.oilType != null));
+  const [selUsesOil] = useState(booking.usesOil !== undefined ? booking.usesOil : (booking.oilType != null));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -118,7 +118,7 @@ export default function RingkasanTransaksiPage({ active, profile }) {
     return () => unsub();
   }, []);
 
-  async function loadBookings() {
+  const loadBookings = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getDailyBookingsRange(outletId, startDate, endDate);
@@ -127,25 +127,37 @@ export default function RingkasanTransaksiPage({ active, profile }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [outletId, startDate, endDate]);
 
   useEffect(() => {
     if (!active) return;
     loadBookings();
-  }, [active, outletId, startDate, endDate]);
+  }, [active, loadBookings]);
 
   const totals = bookings.reduce((acc, b) => {
-    const charge = b.paid && b.paymentMethod !== 'cardless' ? b.treatmentPrice : 0;
-    const card = b.paid && b.paymentMethod === 'cardless' ? b.treatmentPrice : 0;
-    const noBill = !b.paid ? b.treatmentPrice : 0;
-    acc.charge += charge; acc.card += card; acc.noBill += noBill;
-    acc.revenue += b.treatmentPrice || 0; acc.komisi += b.commissionAmount || 0;
+    const isPaid = !!b.paid;
+    const isCardless = b.paymentMethod === 'cardless';
+    const isSpecialOncall = b.bookingSource === 'oncall';
+    const netPrice = isSpecialOncall
+      ? Math.max(0, (b.treatmentPrice || 0) - (b.hotelCommission || 0))
+      : (b.treatmentPrice || 0);
+
+    const charge = isPaid && !isCardless ? netPrice : 0;
+    const card = isPaid && isCardless ? netPrice : 0;
+    const noBill = !isPaid ? netPrice : 0;
+
+    acc.charge += charge;
+    acc.card += card;
+    acc.noBill += noBill;
+    acc.revenue += netPrice;
+    acc.grossRevenue += b.treatmentPrice || 0;
+    acc.komisi += b.commissionAmount || 0;
     acc.hotelKomisi += b.hotelCommission || 0;
     if (b.originalPrice != null && Number(b.originalPrice) > Number(b.treatmentPrice)) {
       acc.discount += Number(b.originalPrice) - Number(b.treatmentPrice);
     }
     return acc;
-  }, { charge: 0, card: 0, noBill: 0, revenue: 0, komisi: 0, discount: 0, hotelKomisi: 0 });
+  }, { charge: 0, card: 0, noBill: 0, revenue: 0, grossRevenue: 0, komisi: 0, discount: 0, hotelKomisi: 0 });
 
   return (
     <div className="kasir-page">
@@ -227,11 +239,16 @@ export default function RingkasanTransaksiPage({ active, profile }) {
         <div className="oil-card" style={{ marginTop: 12, background: 'var(--primary-light)' }}>
           <strong>GRAND TOTAL</strong>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 13, marginTop: 6 }}>
-            <div>Charge: {rp(totals.charge)}</div>
-            <div>Card: {rp(totals.card)}</div>
-            <div>No Bill: {rp(totals.noBill)}</div>
-            <div>Revenue: {rp(totals.revenue)}</div>
-            <div>Komisi: {rp(totals.komisi)}</div>
+            <div>Charge (Cash): {rp(totals.charge)}</div>
+            <div>Card (Cardless): {rp(totals.card)}</div>
+            <div style={{ fontWeight: 700, color: 'var(--primary-dark)' }}>
+              Total Lunas: {rp(totals.charge + totals.card)}
+            </div>
+            <div style={{ color: totals.noBill > 0 ? 'var(--busy)' : 'inherit', fontWeight: totals.noBill > 0 ? 600 : 400 }}>
+              No Bill (Belum Bayar): {rp(totals.noBill)}
+            </div>
+            <div style={{ fontWeight: 800 }}>Total Revenue Net: {rp(totals.revenue)}</div>
+            <div>Komisi Terapis: {rp(totals.komisi)}</div>
             {totals.discount > 0 && <div style={{ color: 'var(--busy)' }}>Total Diskon: {rp(totals.discount)}</div>}
             {totals.hotelKomisi > 0 && <div style={{ color: 'var(--busy)' }}>Komisi Hotel: {rp(totals.hotelKomisi)}</div>}
           </div>

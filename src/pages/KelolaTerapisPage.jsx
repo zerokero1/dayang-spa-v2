@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { OUTLETS, STAFF_ROLES, SHIFTS, SHIFT_LABEL } from '../lib/constants';
+import { OUTLETS, STAFF_ROLES, SHIFT_LABEL } from '../lib/constants';
 import { listenAllTherapists, addTherapist, setTherapistHomeOutlet, updateTherapistInfo, setTherapistShift, setTherapistStatusManual, removeTherapist, THERAPIST_STATUS_OPTIONS } from '../lib/therapistService';
 import { notifyError, notifySuccess } from '../lib/notifications';
 

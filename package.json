@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "lint": "eslint src",
+    "test": "node --test \"test/**/*.test.js\"",
     "cek:halaman": "node cek-halaman.mjs",
-    "cek": "npm run lint && npm run cek:halaman",
+    "cek": "npm run lint && npm run test && npm run cek:halaman",
     "build": "npm run cek && vite build",
     "preview": "vite preview",
     "android:sync": "npm run build && cap sync android",
@@ -19,14 +20,14 @@
     "@supabase/supabase-js": "^2.45.0",
     "exceljs": "^4.4.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.0"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.9",
     "@eslint/js": "^9.39.5",
     "@vitejs/plugin-react": "^4.3.1",
     "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
     "pg": "^8.23.1",

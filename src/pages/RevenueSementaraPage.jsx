@@ -13,7 +13,6 @@ const OUTLET_BARIS = [
 ];
 
 const rp = (n) => 'Rp' + Math.round(Number(n || 0)).toLocaleString('id-ID');
-const angkaRingkas = (n) => Number(n || 0).toLocaleString('id-ID');
 
 // Lombok (Kuta) memakai UTC+8 / WITA, bukan UTC+7 / WIB seperti di Jawa.
 // Selisihnya satu jam, jadi kalau salah pakai +7, jam yang tampil satu jam
@@ -43,8 +42,17 @@ export default function RevenueSementaraPage() {
   const [data, setData] = useState(null);
   const [sedangMuat, setSedangMuat] = useState(false);
   const [galat, setGalat] = useState('');
-  const [retailMinyak, setRetailMinyak] = useState('');
+  const tglHariIni = waktuLokal().tanggal;
+  const lsKey = `ds_retail_minyak_${tglHariIni}`;
+  const [retailMinyak, setRetailMinyak] = useState(() => {
+    try { return localStorage.getItem(lsKey) || ''; } catch { return ''; }
+  });
   const [tersalin, setTersalin] = useState(false);
+
+  const handleRetailChange = (val) => {
+    setRetailMinyak(val);
+    try { localStorage.setItem(lsKey, val); } catch { /* ignore */ }
+  };
 
   const muat = useCallback(async () => {
     setSedangMuat(true);
@@ -64,6 +72,7 @@ export default function RevenueSementaraPage() {
 
   const retail = Math.max(0, Number(retailMinyak) || 0);
   const grandTotal = (data ? data.total : 0) + retail;
+  const grandTotalLunas = (data ? (data.totalLunas || 0) : 0) + retail;
 
   // Teks untuk dikirim ke grup WhatsApp, urutannya sama dengan rekap manual.
   const teks = useMemo(() => {
@@ -76,8 +85,11 @@ export default function RevenueSementaraPage() {
     baris.push(`oncall : ${rp(data.oncall.omzet)}`);
     baris.push(`Retail minyak : ${retail ? rp(retail) : ''}`);
     baris.push(`Total : ${rp(grandTotal)}`);
+    if (data.totalBelumBayar > 0) {
+      baris.push(`(Lunas: ${rp(grandTotalLunas)} | Belum bayar: ${rp(data.totalBelumBayar)})`);
+    }
     return `Revenue sementara ${tanggalSlash()} ${jamLokal(data.waktu)}\n${baris.join('\n')}`;
-  }, [data, retail, grandTotal]);
+  }, [data, retail, grandTotal, grandTotalLunas]);
 
   // Sama seperti daftar terapis: buka WhatsApp dengan pesan yang sudah terisi,
   // jadi kasir tinggal menekan tombol kirim di WhatsApp.
@@ -134,13 +146,39 @@ export default function RevenueSementaraPage() {
 
       {data && (
         <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, margin: '14px 0' }}>
+            <div className="oil-card" style={{ padding: 12, textAlign: 'center' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Kas Lunas Masuk</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--primary-dark)', marginTop: 4 }}>
+                {rp(grandTotalLunas)}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Cash: {rp(data.totalCash)} · Non-cash: {rp(data.totalCardless)}</div>
+            </div>
+            <div className="oil-card" style={{ padding: 12, textAlign: 'center' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Belum Bayar (Gantung)</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: data.totalBelumBayar > 0 ? 'var(--busy)' : 'inherit', marginTop: 4 }}>
+                {rp(data.totalBelumBayar)}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Tamu masih treatment/belum lunas</div>
+            </div>
+            <div className="oil-card" style={{ padding: 12, textAlign: 'center' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Grand Total Keseluruhan</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--primary-dark)', marginTop: 4 }}>
+                {rp(grandTotal)}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Lunas + Belum Bayar + Retail</div>
+            </div>
+          </div>
+
           <section className="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>Outlet</th>
                   <th>Transaksi</th>
-                  <th>Omzet</th>
+                  <th>Lunas (Kas)</th>
+                  <th>Belum Bayar</th>
+                  <th>Total Omzet</th>
                 </tr>
               </thead>
               <tbody>
@@ -150,17 +188,27 @@ export default function RevenueSementaraPage() {
                     <tr key={id}>
                       <td>{nama}</td>
                       <td>{o ? o.transaksi : 0}</td>
-                      <td>{rp(o ? o.omzet : 0)}</td>
+                      <td style={{ color: 'var(--primary-dark)' }}>{rp(o ? o.lunas : 0)}</td>
+                      <td style={{ color: (o && o.belumBayar > 0) ? 'var(--busy)' : 'var(--text-secondary)' }}>
+                        {rp(o ? o.belumBayar : 0)}
+                      </td>
+                      <td><strong>{rp(o ? o.omzet : 0)}</strong></td>
                     </tr>
                   );
                 })}
                 <tr>
                   <td>oncall</td>
                   <td>{data.oncall.transaksi}</td>
-                  <td>{rp(data.oncall.omzet)}</td>
+                  <td style={{ color: 'var(--primary-dark)' }}>{rp(data.oncall.lunas)}</td>
+                  <td style={{ color: data.oncall.belumBayar > 0 ? 'var(--busy)' : 'var(--text-secondary)' }}>
+                    {rp(data.oncall.belumBayar)}
+                  </td>
+                  <td><strong>{rp(data.oncall.omzet)}</strong></td>
                 </tr>
                 <tr>
                   <td>Retail minyak</td>
+                  <td>-</td>
+                  <td style={{ color: 'var(--primary-dark)' }}>{rp(retail)}</td>
                   <td>-</td>
                   <td>
                     <input
@@ -169,8 +217,8 @@ export default function RevenueSementaraPage() {
                       step="10000"
                       value={retailMinyak}
                       placeholder="0"
-                      onChange={(e) => setRetailMinyak(e.target.value)}
-                      style={{ width: 120, textAlign: 'right' }}
+                      onChange={(e) => handleRetailChange(e.target.value)}
+                      style={{ width: 110, textAlign: 'right' }}
                     />
                   </td>
                 </tr>
@@ -179,6 +227,10 @@ export default function RevenueSementaraPage() {
                 <tr>
                   <th>Total</th>
                   <th />
+                  <th style={{ color: 'var(--primary-dark)' }}>{rp(grandTotalLunas)}</th>
+                  <th style={{ color: data.totalBelumBayar > 0 ? 'var(--busy)' : 'inherit' }}>
+                    {rp(data.totalBelumBayar)}
+                  </th>
                   <th>{rp(grandTotal)}</th>
                 </tr>
               </tfoot>

@@ -37,6 +37,9 @@ export default function LaporanPemakaianStokPage({ profile, outletId: outletIdPr
         getItemLedger(target, startDate, DAY_COUNT)
       ]);
       setData({ oil, item });
+      // Tanggal/outlet berubah: rincian lama tidak boleh tetap tampil.
+      setShowKonsum(false);
+      setKonsum(null);
     } catch (e) {
       setData(null);
       setKonsum({ ok: false, reason: e?.message || 'Gagal memuat data stok.' });
@@ -49,6 +52,9 @@ export default function LaporanPemakaianStokPage({ profile, outletId: outletIdPr
     setLoading(true);
     try {
       setKonsum(await getConsumableUsage(target, startDate, startDate));
+      setShowKonsum(true);
+    } catch (e) {
+      setKonsum({ ok: false, reason: e?.message || 'Gagal memuat rincian pemakaian.' });
     } finally {
       setLoading(false);
     }
@@ -280,6 +286,9 @@ export default function LaporanPemakaianStokPage({ profile, outletId: outletIdPr
         <p style={hint}>
           Estimasi produk treatment dihitung dari booking yang tidak dibatalkan pada tanggal {labelHari(startDate, true)}. Laundry tidak dihitung di sini karena dicatat dari hitungan fisik saat closing.
         </p>
+        {konsum && !konsum.ok && (
+          <p className="message warn">{konsum.reason || 'Gagal memuat rincian pemakaian.'}</p>
+        )}
 
         {konsum && konsum.ok && showKonsum && (
           <>

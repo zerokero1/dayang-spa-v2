@@ -1,7 +1,6 @@
-import { supabase } from './supabase';
-import { OUTLETS, SIZE_NONE } from './constants';
-import { businessDateFromTimestamp, businessRangeBoundsUtc, shiftBusinessDate } from './businessDate';
-import { classifyPaymentMethod } from './paymentMethod';
+import { supabase } from './supabase.js';
+import { OUTLETS, SIZE_NONE } from './constants.js';
+import { businessDateFromTimestamp, businessRangeBoundsUtc, shiftBusinessDate } from './businessDate.js';
 
 function mapBooking(row) {
   return {
@@ -40,18 +39,6 @@ function mapBooking(row) {
   };
 }
 
-function therapistIdentity(booking) {
-  const rawId = String(booking.therapistId ?? '').trim();
-  const name = String(booking.therapistName ?? '').trim();
-  const id = ['null', 'undefined'].includes(rawId.toLowerCase()) ? '' : rawId;
-  const validName = Boolean(name && !['null', 'undefined'].includes(name.toLowerCase()));
-
-  return {
-    key: id ? `id:${id}` : validName ? `name:${name.toLowerCase()}` : 'unknown',
-    name: validName ? name : id ? `Nama tidak tercatat (ID ${id.slice(0, 8)})` : 'Tanpa nama terapis'
-  };
-}
-
 // Batas UTC untuk satu hari lokal Lombok (WITA = UTC+8) agar konsisten,
 // tidak bergantung zona waktu mesin/browser.
 function wibDayBoundsUtc(dateStr) {
@@ -60,20 +47,27 @@ function wibDayBoundsUtc(dateStr) {
 
 export async function getDailyBookings(outletId, dateStr) {
   const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
-  const data = await fetchAllPages(() => supabase
+  const { data, error } = await supabase
     .from('bookings')
     .select('*')
     .eq('outlet_id', outletId)
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString())
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true }));
-  return data.map(mapBooking);
+    .limit(20000);
+  if (error) throw error;
+  return (data || []).map(mapBooking);
 }
 
+/**
+ * Nota hari ini dengan kolom ringkas untuk layar Struk.
+ *
+ * Hanya versi Android yang memakai ini (cetak Bluetooth). Kolomnya sengaja
+ * dipersempit: struk tidak butuh seluruh isi booking, dan tablet kasir
+ * menarik data ini berkali-kali sehari.
+ */
 export async function getDailyReceiptBookings(outletId, dateStr) {
   const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
-  const data = await fetchAllPages(() => supabase
+  const { data, error } = await supabase
     .from('bookings')
     .select(
       'id, therapist_id, therapist_name, treatment_name, treatment_price, uses_oil, ' +
@@ -83,7 +77,9 @@ export async function getDailyReceiptBookings(outletId, dateStr) {
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString())
     .order('created_at', { ascending: true })
-    .order('id', { ascending: true }));
+    .order('id', { ascending: true })
+    .limit(20000);
+  if (error) throw error;
   return (data || []).map((row) => ({
     id: row.id,
     therapistId: row.therapist_id,
@@ -106,19 +102,8 @@ export async function getDailyReceiptBookings(outletId, dateStr) {
 // hanya kolom yang dibutuhkan konsumen. Mengurangi request ke Supabase.
 const DAILY_COLUMNS = 'outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, commission_percent, commission_amount, status, paid, payment_method, original_price, booking_source, hotel_commission, created_at, oil_type, uses_oil, wib_date';
 
-const QUERY_PAGE_SIZE = 1000;
-
-async function fetchAllPages(buildQuery) {
-  const rows = [];
-  for (let offset = 0; ; offset += QUERY_PAGE_SIZE) {
-    const { data, error } = await buildQuery()
-      .range(offset, offset + QUERY_PAGE_SIZE - 1);
-    if (error) throw error;
-    const page = data || [];
-    rows.push(...page);
-    if (page.length < QUERY_PAGE_SIZE) return rows;
-  }
-}
+// Batas baris untuk satu query rentang. Satu bulan penuh masih di bawah ini.
+const RANGE_LIMIT = 20000;
 
 /**
  * Semua transaksi milik SATU terapis dalam rentang tanggal.
@@ -138,7 +123,7 @@ export async function getTherapistTransactionsRange(
   endDate
 ) {
   const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
-  const data = await fetchAllPages(() => supabase
+  const { data, error } = await supabase
     .from('bookings')
     .select(
       'id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, ' +
@@ -150,9 +135,10 @@ export async function getTherapistTransactionsRange(
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString())
     .order('created_at', { ascending: false })
-    .order('id', { ascending: true }));
+    .limit(RANGE_LIMIT);
+  if (error) throw error;
 
-  const semua = data.map(mapBooking);
+  const semua = (data || []).map(mapBooking);
 
   const valid = semua.filter((b) => b.status !== 'batal');
   const batal = semua.filter((b) => b.status === 'batal');
@@ -183,13 +169,13 @@ export async function getTherapistTransactionsRange(
 
 async function getAllDailyBookings(dateStr) {
   const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
-  const data = await fetchAllPages(() => supabase
+  const { data, error } = await supabase
     .from('bookings')
     .select(DAILY_COLUMNS)
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString())
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true }));
+    .limit(20000);
+  if (error) throw error;
   return (data || []).map(mapBooking);
 }
 
@@ -203,22 +189,29 @@ export async function getAllBookingsRange(startDate, endDate) {
   // yang lama. Konsumen fungsi ini hanya mengagregasi/filter, tidak bergantung
   // urutan baris, jadi menggabungkan sekaligus tidak mengubah hasil.
   const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
-  const data = await fetchAllPages(() => supabase
+  const { data, error } = await supabase
     .from('bookings')
     .select(DAILY_COLUMNS)
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString())
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true }));
-  return data.map(mapBooking);
+    .limit(RANGE_LIMIT);
+  if (error) throw error;
+  if ((data || []).length >= RANGE_LIMIT) {
+    console.warn('getAllBookingsRange: data kena batas ' + RANGE_LIMIT + ' baris, rentang kemungkinan terlalu panjang dan angka bisa kurang');
+  }
+  return (data || []).map(mapBooking);
 }
 
 // Booking satu outlet dalam rentang tanggal (untuk mode "Outlet ini saja").
 export async function getDailyBookingsRange(outletId, startDate, endDate) {
   const all = [];
   for (let dateStr = startDate; dateStr <= endDate; dateStr = shiftBusinessDate(dateStr, 1)) {
-    const rows = await getDailyBookings(outletId, dateStr);
-    all.push(...rows);
+    try {
+      const rows = await getDailyBookings(outletId, dateStr);
+      all.push(...rows);
+    } catch (e) {
+      console.warn('getDailyBookingsRange error', dateStr, e);
+    }
   }
   return all;
 }
@@ -239,17 +232,17 @@ export async function getUnpaidRange(startDate, endDate, outletId) {
   const all = [];
   for (let dateStr = startDate; dateStr <= endDate; dateStr = shiftBusinessDate(dateStr, 1)) {
     const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
-    const data = await fetchAllPages(() => {
-      let q = supabase
+    let q = supabase
       .from('bookings')
       .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, original_price, discount_pct, discount_reason, commission_percent, commission_amount, hotel_commission, paid, payment_method, status, customer_name, booking_source, created_at')
       .eq('paid', false)
       .gte('created_at', startUtc.toISOString())
-      .lte('created_at', endUtc.toISOString());
-      if (outletId) q = q.eq('outlet_id', outletId);
-      return q.order('created_at', { ascending: true }).order('id', { ascending: true });
-    });
-    all.push(...data.map(mapBooking));
+      .lte('created_at', endUtc.toISOString())
+      .limit(20000);
+    if (outletId) q = q.eq('outlet_id', outletId);
+    const { data, error } = await q;
+    if (error) { console.warn('getUnpaidRange error', dateStr, error); continue; }
+    all.push(...(data || []).map(mapBooking));
   }
   return all.filter((b) => b.status !== 'batal');
 }
@@ -263,71 +256,90 @@ export function summarizeDailyBookings(bookings) {
     totalTreatment: 0,
     totalCommission: 0,
     totalHotelCommission: 0,
-    totalRevenue: 0,
+    totalRevenue: 0,          // Omzet reguler
     totalDiscount: 0,
     totalBatal: bookings.length - counted.length,
-    cashRevenue: 0,
-    cardlessRevenue: 0,
-    unknownPaymentRevenue: 0,
-    unknownPaymentCount: 0,
-    unpaidRevenue: 0,
+    cashRevenue: 0,           // Kas masuk tunai lunas (reguler + oncall net)
+    cardlessRevenue: 0,       // Kas masuk non-tunai lunas (reguler + oncall net)
+    paidRevenue: 0,           // Total lunas masuk kas (cash + cardless)
+    unpaidRevenue: 0,         // Belum bayar (reguler + oncall net)
     unpaidCount: 0,
     oncallCount: 0,
-    oncallRevenue: 0,
+    oncallRevenue: 0,         // Omzet bersih oncall setelah komisi hotel
+    oncallGrossRevenue: 0,    // Omzet kotor oncall
     oncallCommission: 0,
+    totalRevenueNet: 0,       // Total omzet bersih: reguler + oncall net
     byTherapist: {}
   };
 
-  const addTherapistBooking = (booking) => {
-    const identity = therapistIdentity(booking);
-    if (!summary.byTherapist[identity.key]) {
-      summary.byTherapist[identity.key] = {
-        therapistName: identity.name,
+  // Omzet REGULER (selain oncall)
+  regularRows.forEach((b) => {
+    const price = Number(b.treatmentPrice) || 0;
+    const comm = Number(b.commissionAmount) || 0;
+    summary.totalTreatment += 1;
+    summary.totalCommission += comm;
+    summary.totalRevenue += price;
+
+    if (b.originalPrice != null && Number(b.originalPrice) > price) {
+      summary.totalDiscount += Number(b.originalPrice) - price;
+    }
+
+    if (b.paid) {
+      if (b.paymentMethod === 'cardless') summary.cardlessRevenue += price;
+      else summary.cashRevenue += price;
+    } else {
+      summary.unpaidRevenue += price;
+      summary.unpaidCount += 1;
+    }
+
+    if (!summary.byTherapist[b.therapistId]) {
+      summary.byTherapist[b.therapistId] = {
+        therapistName: b.therapistName,
         treatmentCount: 0,
         commissionTotal: 0
       };
     }
-    const therapist = summary.byTherapist[identity.key];
-    therapist.treatmentCount += 1;
-    therapist.commissionTotal += booking.commissionAmount || 0;
-  };
-
-  // Omzet REGULER (selain oncall) — oncall dihitung terpisah.
-  regularRows.forEach((b) => {
-    summary.totalTreatment += 1;
-    summary.totalCommission += b.commissionAmount || 0;
-    summary.totalRevenue += b.treatmentPrice || 0;
-
-    if (b.originalPrice != null && Number(b.originalPrice) > Number(b.treatmentPrice)) {
-      summary.totalDiscount += Number(b.originalPrice) - Number(b.treatmentPrice);
-    }
-
-    if (b.paid) {
-      const method = classifyPaymentMethod(b.paymentMethod);
-      if (method === 'cash') summary.cashRevenue += b.treatmentPrice || 0;
-      else if (method === 'nonCash') summary.cardlessRevenue += b.treatmentPrice || 0;
-      else {
-        summary.unknownPaymentRevenue += b.treatmentPrice || 0;
-        summary.unknownPaymentCount += 1;
-      }
-    } else {
-      summary.unpaidRevenue += b.treatmentPrice || 0;
-      summary.unpaidCount += 1;
-    }
-
-    addTherapistBooking(b);
+    const t = summary.byTherapist[b.therapistId];
+    t.treatmentCount += 1;
+    t.commissionTotal += comm;
   });
 
   // Oncall ditampilkan terpisah sebagai omzet bersih setelah komisi hotel;
-  // komisi terapis & byTherapist tetap ikut dihitung agar gaji staff lengkap.
+  // Pembayaran oncall juga dialokasikan ke cash/cardless bila lunas, atau unpaid bila belum lunas.
   oncallRows.forEach((b) => {
-    summary.oncallCount += 1;
-    summary.oncallRevenue += (b.treatmentPrice || 0) - (b.hotelCommission || 0);
-    summary.oncallCommission += b.commissionAmount || 0;
-    summary.totalHotelCommission += b.hotelCommission || 0;
+    const gross = Number(b.treatmentPrice) || 0;
+    const hotel = Number(b.hotelCommission) || 0;
+    const net = Math.max(0, gross - hotel);
+    const comm = Number(b.commissionAmount) || 0;
 
-    addTherapistBooking(b);
+    summary.oncallCount += 1;
+    summary.oncallGrossRevenue += gross;
+    summary.oncallRevenue += net;
+    summary.oncallCommission += comm;
+    summary.totalHotelCommission += hotel;
+
+    if (b.paid) {
+      if (b.paymentMethod === 'cardless') summary.cardlessRevenue += net;
+      else summary.cashRevenue += net;
+    } else {
+      summary.unpaidRevenue += net;
+      summary.unpaidCount += 1;
+    }
+
+    if (!summary.byTherapist[b.therapistId]) {
+      summary.byTherapist[b.therapistId] = {
+        therapistName: b.therapistName,
+        treatmentCount: 0,
+        commissionTotal: 0
+      };
+    }
+    const t = summary.byTherapist[b.therapistId];
+    t.treatmentCount += 1;
+    t.commissionTotal += comm;
   });
+
+  summary.paidRevenue = summary.cashRevenue + summary.cardlessRevenue;
+  summary.totalRevenueNet = summary.totalRevenue + summary.oncallRevenue;
 
   return summary;
 }
@@ -473,14 +485,20 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
   // Kolom wib_date sengaja TIDAK dipakai: di database banyak baris meleset
   // +1 hari, jadi kalau ikut dipakai sebaran per harinya jadi salah.
   const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
-  const rows = await fetchAllPages(() => supabase
+  let rows = [];
+  try {
+    const { data, error } = await supabase
       .from('bookings')
       .select(DAILY_COLUMNS)
       .gte('created_at', startUtc.toISOString())
       .lte('created_at', endUtc.toISOString())
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true }));
-  const bookings = rows.map(mapBooking);
+      .limit(RANGE_LIMIT);
+    if (error) throw error;
+    rows = (data || []).map(mapBooking);
+  } catch (e) {
+    console.warn('getDailyRevenueCommissionReport error', e);
+    return { sheets, grand: { treatmentCount: 0, charge: 0, commission: 0, hotelCommission: 0, net: 0 } };
+  }
 
   // Kelompokkan per hari Lombok. Semua tanggal dalam rentang selalu punya blok,
   // walau kosong, supaya urutan hari di file tidak bolong-kosong.
@@ -490,7 +508,7 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
     perTanggal[k] = [];
     tanggalUrut.push(k);
   }
-  bookings.forEach((b) => {
+  rows.forEach((b) => {
     const k = b.wibDate && perTanggal[b.wibDate] ? b.wibDate : wibDateStr(b.createdAt);
     if (!perTanggal[k]) return;
     perTanggal[k].push(b);
@@ -570,11 +588,12 @@ export async function getCombinedDailyReport(startDate, endDate) {
   let grandTotalHotelCommission = 0;
   let grandTotalRevenue = 0;
   let grandTotalDiscount = 0;
-  let grandUnknownPaymentRevenue = 0;
-  let grandUnknownPaymentCount = 0;
   let grandOncallRevenue = 0;
   let grandOncallCount = 0;
   let grandOncallCommission = 0;
+  let grandCashRevenue = 0;
+  let grandCardlessRevenue = 0;
+  let grandPaidRevenue = 0;
   let grandUnpaidRevenue = 0;
   let grandUnpaidCount = 0;
   const therapistCommissions = {};
@@ -589,13 +608,12 @@ export async function getCombinedDailyReport(startDate, endDate) {
     grandTotalHotelCommission += summary.totalHotelCommission;
     grandTotalRevenue += summary.totalRevenue;
     grandTotalDiscount += summary.totalDiscount;
-    grandUnknownPaymentRevenue += summary.unknownPaymentRevenue;
-    grandUnknownPaymentCount += summary.unknownPaymentCount;
     grandOncallRevenue += summary.oncallRevenue || 0;
     grandOncallCount += summary.oncallCount || 0;
     grandOncallCommission += summary.oncallCommission || 0;
-    // Dipakai supaya Laporan Keuangan bisa menunjukkan berapa omzet yang
-    // sudah lunas saja — itulah angka yang dipakai Laporan Keseluruhan.
+    grandCashRevenue += summary.cashRevenue || 0;
+    grandCardlessRevenue += summary.cardlessRevenue || 0;
+    grandPaidRevenue += summary.paidRevenue || 0;
     grandUnpaidRevenue += summary.unpaidRevenue || 0;
     grandUnpaidCount += summary.unpaidCount || 0;
 
@@ -610,6 +628,8 @@ export async function getCombinedDailyReport(startDate, endDate) {
     }
   }
 
+  const grandTotalRevenueNet = grandTotalRevenue + grandOncallRevenue;
+
   return {
     perOutlet,
     grandTotalTreatment,
@@ -617,11 +637,13 @@ export async function getCombinedDailyReport(startDate, endDate) {
     grandTotalHotelCommission,
     grandTotalRevenue,
     grandTotalDiscount,
-    grandUnknownPaymentRevenue,
-    grandUnknownPaymentCount,
     grandOncallRevenue,
     grandOncallCount,
     grandOncallCommission,
+    grandCashRevenue,
+    grandCardlessRevenue,
+    grandPaidRevenue,
+    grandTotalRevenueNet,
     grandUnpaidRevenue,
     grandUnpaidCount,
     therapistCommissions
@@ -668,14 +690,13 @@ export async function getCommissionStaffReport(startDate, endDate) {
   const staff = {};
   bookingsAll.forEach((b) => {
     if (b.status === 'batal') return;
-    const identity = therapistIdentity(b);
-    const key = identity.key;
+    const key = b.therapistName || String(b.therapistId);
     if (!staff[key]) {
       // Umzet dan tunggakan ikut dikumpulkan supaya daftar gaji bisa langsung
       // dipakai: komisi yang benar tapi omzetnya belum masuk kas adalah dua
       // masalah berbeda, dan kasir biasanya hanya melihat yang kedua.
       staff[key] = {
-        therapistName: identity.name,
+        therapistName: key,
         treatmentCount: 0,
         commissionTotal: 0,
         revenueTotal: 0,
@@ -723,13 +744,13 @@ export const OIL_BOTTLE_ML = { Kecil: 10, Besar: 30, [SIZE_NONE]: 1 };
 export async function getProductionBookings(startDate, endDate) {
   const { startUtc, endUtc } = businessRangeBoundsUtc(startDate, endDate);
 
-  const data = await fetchAllPages(() => supabase
+  const { data, error } = await supabase
     .from('bookings')
     .select('outlet_id, treatment_name, oil_type, oil_size, uses_oil, status, created_at')
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString())
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true }));
+    .limit(20000);
+  if (error) throw error;
 
   return (data || [])
     .filter((b) => b.status !== 'batal')
@@ -824,16 +845,15 @@ export function buildProductionReport(rows, outletIds) {
  */
 export async function getDiscountRange(startDate, endDate, outletId) {
   const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
-  const data = await fetchAllPages(() => {
-    let q = supabase
+  let q = supabase
     .from('bookings')
     .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, original_price, discount_pct, discount_reason, commission_percent, commission_amount, hotel_commission, paid, status, customer_name, booking_source, created_at')
     .eq('booking_source', 'in_house')
     .gte('created_at', startUtc.toISOString())
     .lte('created_at', endUtc.toISOString());
-    if (outletId) q = q.eq('outlet_id', outletId);
-    return q.order('created_at', { ascending: true }).order('id', { ascending: true });
-  });
+  if (outletId) q = q.eq('outlet_id', outletId);
+  const { data, error } = await q.limit(RANGE_LIMIT);
+  if (error) throw error;
 
   // Harga katalog dipakai sebagai pembanding.
   const { data: treat } = await supabase.from('treatments').select('name, price');
@@ -913,18 +933,17 @@ export async function getPayslip(periode, outletId) {
     throw new Error('Slip gaji butuh tanggal awal dan tanggal akhir.');
   }
   const { startUtc, endUtc } = wibRangeBounds(periode.startDate, periode.endDate);
-  const data = await fetchAllPages(() => {
-    let q = supabase
-      .from('bookings')
-      .select('id, therapist_id, therapist_name, commission_amount, status, created_at, outlet_id')
-      .gte('created_at', startUtc.toISOString())
-      .lte('created_at', endUtc.toISOString());
-    if (outletId) q = q.eq('outlet_id', outletId);
-    return q.order('created_at', { ascending: true }).order('id', { ascending: true });
-  });
+  let q = supabase
+    .from('bookings')
+    .select('therapist_id, therapist_name, commission_amount, status, created_at, outlet_id')
+    .gte('created_at', startUtc.toISOString())
+    .lte('created_at', endUtc.toISOString());
+  if (outletId) q = q.eq('outlet_id', outletId);
+  const { data, error } = await q.limit(RANGE_LIMIT);
+  if (error) throw error;
 
   const peta = {};
-  data.forEach((b) => {
+  (data || []).forEach((b) => {
     if (b.status === 'batal') return;
     const key = b.therapist_id || b.therapist_name;
     if (!key) return;
@@ -1018,62 +1037,118 @@ function fmtDate(d = new Date()) {
 export async function getRevenueSementara(outletId) {
   const hariIni = fmtDate();
   const { startUtc, endUtc } = wibRangeBounds(hariIni, hariIni);
-  const data = await fetchAllPages(() => {
-    let q = supabase
+  let q = supabase
     .from('bookings')
-    .select('outlet_id, treatment_price, hotel_commission, commission_amount, status, booking_source, therapist_name, treatment_name, created_at')
+    .select('outlet_id, treatment_price, hotel_commission, commission_amount, status, booking_source, therapist_name, treatment_name, created_at, paid, payment_method')
     .gte('created_at', startUtc.toISOString())
-    .lte('created_at', endUtc.toISOString());
-    if (outletId) q = q.eq('outlet_id', outletId);
-    return q.order('created_at', { ascending: true }).order('id', { ascending: true });
-  });
+    .lte('created_at', endUtc.toISOString())
+    .limit(RANGE_LIMIT);
+  if (outletId) q = q.eq('outlet_id', outletId);
+  const { data, error } = await q;
+  if (error) throw error;
   const waktuAmbil = new Date();
 
   const perOutlet = {};
   OUTLETS.forEach((o) => {
-    perOutlet[o.id] = { id: o.id, nama: o.name, omzet: 0, transaksi: 0 };
+    perOutlet[o.id] = {
+      id: o.id,
+      nama: o.name,
+      omzet: 0,
+      transaksi: 0,
+      lunas: 0,
+      belumBayar: 0,
+      cash: 0,
+      cardless: 0
+    };
   });
   // Oncall dihitung setelah komisi hotel dipotong. Uangnya tidak seluruhnya
   // sampai ke spa, jadi kalau masih pakai harga penuh, rekap ini menjadi
   // terlalu besar dan tidak bisa dibandingkan dengan uang yang diterima.
   // Komisi hotel disimpan terpisah supaya tetap kelihatan di rincian.
-  const oncall = { omzet: 0, transaksi: 0, komisiHotel: 0, komisiTerapis: 0, hargaPenuh: 0, rincian: [] };
+  const oncall = {
+    omzet: 0,
+    transaksi: 0,
+    komisiHotel: 0,
+    komisiTerapis: 0,
+    hargaPenuh: 0,
+    lunas: 0,
+    belumBayar: 0,
+    cash: 0,
+    cardless: 0,
+    rincian: []
+  };
 
-    data.forEach((b) => {
-      if (b.status === 'batal') return;
-      const harga = Number(b.treatment_price || 0);
-      if (b.booking_source === 'oncall') {
-        const hotel = Number(b.hotel_commission || 0);
-        oncall.hargaPenuh += harga;
-        oncall.komisiHotel += hotel;
-        oncall.omzet += harga - hotel;
-        oncall.transaksi += 1;
-        oncall.komisiTerapis += Number(b.commission_amount || 0);
-        oncall.rincian.push({
-          outletId: b.outlet_id,
-          outlet: OUTLETS.find((o) => o.id === b.outlet_id)?.name || b.outlet_id,
-          therapistName: b.therapist_name || '-',
-          treatmentName: b.treatment_name || '-',
-          treatmentPrice: harga,
-          hotelCommission: hotel,
-          netSpa: harga - hotel,
-          commissionAmount: Number(b.commission_amount || 0)
-        });
-      } else if (perOutlet[b.outlet_id]) {
-        perOutlet[b.outlet_id].omzet += harga;
-        perOutlet[b.outlet_id].transaksi += 1;
+  (data || []).forEach((b) => {
+    if (b.status === 'batal') return;
+    const harga = Number(b.treatment_price || 0);
+    const isPaid = !!b.paid;
+    const isCardless = b.payment_method === 'cardless';
+
+    if (b.booking_source === 'oncall') {
+      const hotel = Number(b.hotel_commission || 0);
+      const net = Math.max(0, harga - hotel);
+      oncall.hargaPenuh += harga;
+      oncall.komisiHotel += hotel;
+      oncall.omzet += net;
+      oncall.transaksi += 1;
+      oncall.komisiTerapis += Number(b.commission_amount || 0);
+
+      if (isPaid) {
+        oncall.lunas += net;
+        if (isCardless) oncall.cardless += net;
+        else oncall.cash += net;
+      } else {
+        oncall.belumBayar += net;
       }
-    });
+
+      oncall.rincian.push({
+        outletId: b.outlet_id,
+        outlet: OUTLETS.find((o) => o.id === b.outlet_id)?.name || b.outlet_id,
+        therapistName: b.therapist_name || '-',
+        treatmentName: b.treatment_name || '-',
+        treatmentPrice: harga,
+        hotelCommission: hotel,
+        netSpa: net,
+        commissionAmount: Number(b.commission_amount || 0),
+        paid: isPaid,
+        paymentMethod: b.payment_method
+      });
+    } else if (perOutlet[b.outlet_id]) {
+      const o = perOutlet[b.outlet_id];
+      o.omzet += harga;
+      o.transaksi += 1;
+      if (isPaid) {
+        o.lunas += harga;
+        if (isCardless) o.cardless += harga;
+        else o.cash += harga;
+      } else {
+        o.belumBayar += harga;
+      }
+    }
+  });
 
   const daftarOutlet = Object.values(perOutlet);
   const totalOutlet = daftarOutlet.reduce((s, o) => s + o.omzet, 0);
+  const totalLunasOutlet = daftarOutlet.reduce((s, o) => s + o.lunas, 0);
+  const totalBelumBayarOutlet = daftarOutlet.reduce((s, o) => s + o.belumBayar, 0);
+  const totalCash = daftarOutlet.reduce((s, o) => s + o.cash, 0) + oncall.cash;
+  const totalCardless = daftarOutlet.reduce((s, o) => s + o.cardless, 0) + oncall.cardless;
+  const totalLunas = totalLunasOutlet + oncall.lunas;
+  const totalBelumBayar = totalBelumBayarOutlet + oncall.belumBayar;
+
   return {
-      daftarOutlet,
-      oncall,
-      totalOutlet,
-      total: totalOutlet + oncall.omzet,
-      waktu: waktuAmbil.toISOString(),
-      catatan: outletId
+    daftarOutlet,
+    oncall,
+    totalOutlet,
+    totalLunasOutlet,
+    totalBelumBayarOutlet,
+    totalCash,
+    totalCardless,
+    totalLunas,
+    totalBelumBayar,
+    total: totalOutlet + oncall.omzet,
+    waktu: waktuAmbil.toISOString(),
+    catatan: outletId
       ? `Hanya outlet ${OUTLETS.find((o) => o.id === outletId)?.name || outletId}`
       : null
   };

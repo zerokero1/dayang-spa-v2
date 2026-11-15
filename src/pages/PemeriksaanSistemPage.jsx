@@ -43,6 +43,17 @@ export default function PemeriksaanSistemPage() {
 
   useEffect(() => { muat(); }, [muat]);
 
+  // Riwayat baru dimuat saat panelnya dibuka — tidak perlu query setiap kali
+  // halaman dibuka kalau office hanya ingin melihat hasil pemeriksaan terbaru.
+  useEffect(() => {
+    if (!bukaRiwayat) return;
+    let dibatalkan = false;
+    getRiwayatPemeriksaan(14)
+      .then((rows) => { if (!dibatalkan) setRiwayat(rows); })
+      .catch((e) => { if (!dibatalkan) setGalat('Gagal memuat riwayat: ' + (e.message || e)); });
+    return () => { dibatalkan = true; };
+  }, [bukaRiwayat]);
+
   const jalankanSekarang = async () => {
     setSedangJalan(true);
     setGalat('');
@@ -74,7 +85,7 @@ export default function PemeriksaanSistemPage() {
       </p>
       <p className="muted">
         Pemeriksaan berjalan sendiri setiap hari pada pukul 15:00, 18:00, dan
-        23:00 WIB. Tidak perlu ada yang membuka aplikasi.
+        23:00 WITA. Tidak perlu ada yang membuka aplikasi.
       </p>
 
       <section>

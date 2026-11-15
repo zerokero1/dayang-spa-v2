@@ -277,16 +277,19 @@ export default function LaporanPage({ outletId, profile }) {
           {outletSummary.oncallCount > 0 && (
             <p>Omzet oncall (setelah komisi hotel): {rp(outletSummary.oncallRevenue)} ({outletSummary.oncallCount} transaksi)</p>
           )}
-          <p style={{ fontWeight: 700 }}>Total revenue (komisi hotel sudah dikurangi): {rp(outletSummary.totalRevenue + outletSummary.oncallRevenue)}</p>
+          <p style={{ fontWeight: 700 }}>Total revenue (komisi hotel sudah dikurangi): {rp(outletSummary.totalRevenueNet || (outletSummary.totalRevenue + outletSummary.oncallRevenue))}</p>
           <p>Total komisi: {rp(outletSummary.totalCommission)}</p>
           {outletSummary.totalHotelCommission > 0 && (
             <p>Total komisi hotel (oncall): {rp(outletSummary.totalHotelCommission)}</p>
           )}
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '8px 0' }}>
-            <div>Cash: {rp(outletSummary.cashRevenue)}</div>
-            <div>Cardless: {rp(outletSummary.cardlessRevenue)}</div>
+            <div>Cash (Kas Lunas): {rp(outletSummary.cashRevenue)}</div>
+            <div>Cardless (Non-tunai Lunas): {rp(outletSummary.cardlessRevenue)}</div>
+            <div style={{ fontWeight: 600, color: 'var(--primary-dark)', marginTop: 2 }}>
+              Total Lunas Masuk Kas: {rp(outletSummary.paidRevenue || (outletSummary.cashRevenue + outletSummary.cardlessRevenue))}
+            </div>
             {outletSummary.unpaidCount > 0 && (
-              <div style={{ color: 'var(--busy)', fontWeight: 600 }}>
+              <div style={{ color: 'var(--busy)', fontWeight: 600, marginTop: 2 }}>
                 Belum dibayar: {rp(outletSummary.unpaidRevenue)} ({outletSummary.unpaidCount} treatment)
               </div>
             )}
@@ -321,12 +324,20 @@ export default function LaporanPage({ outletId, profile }) {
           {combined.grandOncallCount > 0 && (
             <p>Omzet oncall (setelah komisi hotel): {rp(combined.grandOncallRevenue)} ({combined.grandOncallCount} transaksi)</p>
           )}
-          <p style={{ fontWeight: 700 }}>Total revenue (komisi hotel sudah dikurangi): {rp(combined.grandTotalRevenue + combined.grandOncallRevenue)}</p>
-          <p>Belum dibayar: {rp(combined.grandUnpaidRevenue)} ({combined.grandUnpaidCount} transaksi)</p>
-          <p style={{ fontWeight: 600, color: 'var(--primary-dark)' }}>
-            Omzet lunas saja (= Laporan Keseluruhan):{' '}
-            {rp(combined.grandTotalRevenue - combined.grandUnpaidRevenue)}
-          </p>
+          <p style={{ fontWeight: 700 }}>Total revenue (komisi hotel sudah dikurangi): {rp(combined.grandTotalRevenueNet || (combined.grandTotalRevenue + combined.grandOncallRevenue))}</p>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '8px 0' }}>
+            <div>Cash (Kas): {rp(combined.grandCashRevenue || 0)}</div>
+            <div>Cardless (Non-tunai): {rp(combined.grandCardlessRevenue || 0)}</div>
+            <div style={{ fontWeight: 600, color: 'var(--primary-dark)', marginTop: 2 }}>
+              Omzet lunas saja (= Laporan Keseluruhan):{' '}
+              {rp(combined.grandPaidRevenue || (combined.grandTotalRevenueNet - combined.grandUnpaidRevenue))}
+            </div>
+            {combined.grandUnpaidCount > 0 && (
+              <div style={{ color: 'var(--busy)', fontWeight: 600, marginTop: 2 }}>
+                Belum dibayar: {rp(combined.grandUnpaidRevenue)} ({combined.grandUnpaidCount} transaksi)
+              </div>
+            )}
+          </div>
           <p>Total komisi: {rp(combined.grandTotalCommission)}</p>
           {combined.grandTotalHotelCommission > 0 && (
             <p>Total komisi hotel (oncall): {rp(combined.grandTotalHotelCommission)}</p>

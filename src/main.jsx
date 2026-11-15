@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
+import PwaUpdatePrompt from './components/PwaUpdatePrompt';
 
 window.addEventListener('vite:preloadError', (event) => {
   const failedModule = event.payload?.message || String(event.payload || 'unknown');
@@ -19,8 +20,9 @@ window.addEventListener('vite:preloadError', (event) => {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ErrorBoundary>
+    <ErrorBoundary title="Aplikasi gagal dibuka">
       <App />
     </ErrorBoundary>
+    <PwaUpdatePrompt />
   </React.StrictMode>
 );

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { OUTLETS, PAYMENT_METHOD_LABEL, DEFAULT_ONCALL_COMMISSION_PCT, parseRupiah, sanitizeNominal } from '../lib/constants';
+import { businessDate, businessDateDaysAgo, businessDateFromTimestamp, businessTimeParts } from '../lib/businessDate';
 import { listenAllTherapists } from '../lib/therapistService';
 import { editOncallBooking, getOncallRange } from '../lib/oncallService';
 import { notifyError, notifySuccess } from '../lib/notifications';
@@ -12,21 +13,12 @@ const OUTLET_NAME = Object.fromEntries(OUTLETS.map((o) => [o.id, o.name]));
 // menarik ribuan baris hanya untuk mengoreksi satu transaksi.
 const MAX_DAYS = 92;
 
-function todayId() {
-  return new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
-}
-
-function daysAgoId(n) {
-  return new Date(Date.now() + 7 * 3600000 - n * 24 * 3600000).toISOString().slice(0, 10);
-}
-
-/** Tanggal + jam WIB dari kolom timestamptz. */
-function fmtWib(iso) {
+/** Tanggal + jam WITA (Asia/Makassar) dari kolom timestamptz. */
+function fmtWita(iso) {
   if (!iso) return '-';
-  const d = new Date(new Date(iso).getTime() + 7 * 3600000);
-  const tgl = d.toISOString().slice(0, 10);
-  const jam = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
-  return `${tgl} ${jam}`;
+  const date = new Date(iso);
+  const { hour, minute } = businessTimeParts(date);
+  return `${businessDateFromTimestamp(iso)} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 // Mirip RPC edit_oncall_booking:
@@ -108,7 +100,7 @@ function EditOncallForm({ booking, therapists, onSaved, onCancel }) {
     <div className="oil-card koreksi-item">
       <div className="koreksi-item-name">Koreksi oncall</div>
       <div className="koreksi-item-meta">
-        Dibuat {fmtWib(booking.createdAt)} WIB · {OUTLET_NAME[booking.outletId] || booking.outletId || '-'}
+        Dibuat {fmtWita(booking.createdAt)} WITA · {OUTLET_NAME[booking.outletId] || booking.outletId || '-'}
       </div>
 
       {booking.status === 'batal' && (
@@ -214,8 +206,8 @@ function EditOncallForm({ booking, therapists, onSaved, onCancel }) {
 }
 
 export default function EditOncallPage({ active, isOffice }) {
-  const [startDate, setStartDate] = useState(daysAgoId(30));
-  const [endDate, setEndDate] = useState(todayId());
+  const [startDate, setStartDate] = useState(businessDateDaysAgo(30));
+  const [endDate, setEndDate] = useState(businessDate());
   const [outletId, setOutletId] = useState('semua');
   const [list, setList] = useState([]);
   const [therapists, setTherapists] = useState([]);
@@ -304,13 +296,13 @@ export default function EditOncallPage({ active, isOffice }) {
           </label>
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-          <button onClick={() => { setStartDate(daysAgoId(7)); setEndDate(todayId()); }}>
+          <button onClick={() => { setStartDate(businessDateDaysAgo(7)); setEndDate(businessDate()); }}>
             7 hari
           </button>
-          <button onClick={() => { setStartDate(daysAgoId(30)); setEndDate(todayId()); }}>
+          <button onClick={() => { setStartDate(businessDateDaysAgo(30)); setEndDate(businessDate()); }}>
             30 hari
           </button>
-          <button onClick={() => { setStartDate(daysAgoId(90)); setEndDate(todayId()); }}>
+          <button onClick={() => { setStartDate(businessDateDaysAgo(90)); setEndDate(businessDate()); }}>
             90 hari
           </button>
         </div>
@@ -342,7 +334,7 @@ export default function EditOncallPage({ active, isOffice }) {
               onCancel={() => setEditingId(null)}
               onSaved={async () => {
                 setEditingId(null);
-                setMessage(`Oncall ${b.therapistName} (${fmtWib(b.createdAt)}) berhasil dikoreksi.`);
+                setMessage(`Oncall ${b.therapistName} (${fmtWita(b.createdAt)}) berhasil dikoreksi.`);
                 notifySuccess(`Oncall ${b.therapistName} berhasil dikoreksi.`);
                 await load();
                 setTimeout(() => setMessage(''), 4000);
@@ -357,7 +349,7 @@ export default function EditOncallPage({ active, isOffice }) {
                 ({OUTLET_NAME[b.outletId] || b.outletId || '-'})
               </span>
               <div className="koreksi-item-meta">
-                {fmtWib(b.createdAt)} WIB · {b.therapistName} · {b.customerName || '-'} ·{' '}
+                {fmtWita(b.createdAt)} WITA · {b.therapistName} · {b.customerName || '-'} ·{' '}
                 {PAYMENT_METHOD_LABEL[b.paymentMethod] || '-'} · {b.durationMinutes || 0} mnt
               </div>
               <div className="koreksi-item-meta">

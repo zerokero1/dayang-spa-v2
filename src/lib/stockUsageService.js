@@ -342,6 +342,7 @@ export async function getConsumableUsage(outletId, startDate, endDate) {
       .neq('status', 'batal')
       .gte('created_at', fromIso)
       .lte('created_at', toIso)
+      .limit(20000)
   ]);
 
   const allRules = rulesRes.data || [];

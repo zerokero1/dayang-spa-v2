@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { listenAllTherapists } from '../lib/therapistService';
 import {
-  HARI, OFF, PILIHAN_SHIFT, labelShift, jamShift,
+  HARI, OFF, PILIHAN_SHIFT, labelShift,
   getWeeklySchedules, setWeeklySchedule, seedFromTherapistShift,
   applyToAllDays, isTabelBelumAda
 } from '../lib/weeklyScheduleService';
