@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { businessRangeBoundsUtc, shiftBusinessDate } from './businessDate';
+import { fetchAllRows } from './supabasePaging';
 import {
   buildItemLedgerDays,
   buildOilLedgerDays,
@@ -41,14 +42,20 @@ export async function getOilLedger(outletId, startDate, dayCount = 7) {
   const days = eachDayCount(startDate, dayCount);
   const { fromIso, toIso } = rangeIso(startDate, days);
 
-  const [stockRes, logRes] = await Promise.all([
+  const [stockRes, oilLogs] = await Promise.all([
     supabase.from('oil_inventory').select('oil_type, size, stock').eq('outlet_id', outletId),
-    supabase
-      .from('oil_inventory_logs')
-      .select('oil_type, size, type, qty, created_at')
-      .eq('outlet_id', outletId)
-      .gte('created_at', fromIso)
-      .lte('created_at', toIso)
+    fetchAllRows(
+      () =>
+        supabase
+          .from('oil_inventory_logs')
+          .select('oil_type, size, type, qty, created_at')
+          .eq('outlet_id', outletId)
+          .gte('created_at', fromIso)
+          .lte('created_at', toIso)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true }),
+      { label: `getOilLedger ${outletId} ${startDate}+${dayCount}h` }
+    )
   ]);
 
   const variants = (stockRes.data || []).map((r) => ({
@@ -57,7 +64,7 @@ export async function getOilLedger(outletId, startDate, dayCount = 7) {
     stock: Number(r.stock) || 0
   }));
 
-  const logs = (logRes.data || []).map((r) => ({
+  const logs = oilLogs.map((r) => ({
     key: r.oil_type, sub: r.size, type: r.type, qty: r.qty, created_at: r.created_at
   }));
   const coverageFrom = firstLogDay(logs);
@@ -83,14 +90,20 @@ export async function getItemLedger(outletId, startDate, dayCount = 7) {
   const days = eachDayCount(startDate, dayCount);
   const { fromIso, toIso } = rangeIso(startDate, days);
 
-  const [itemRes, logRes] = await Promise.all([
+  const [itemRes, itemLogs] = await Promise.all([
     supabase.from('inventory').select('id, name, unit, stock, category').eq('outlet_id', outletId),
-    supabase
-      .from('inventory_logs')
-      .select('item_id, type, qty, created_at')
-      .eq('outlet_id', outletId)
-      .gte('created_at', fromIso)
-      .lte('created_at', toIso)
+    fetchAllRows(
+      () =>
+        supabase
+          .from('inventory_logs')
+          .select('item_id, type, qty, created_at')
+          .eq('outlet_id', outletId)
+          .gte('created_at', fromIso)
+          .lte('created_at', toIso)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true }),
+      { label: `getItemLedger ${outletId} ${startDate}+${dayCount}h` }
+    )
   ]);
 
   const items = (itemRes.data || []).map((r) => ({
@@ -103,7 +116,7 @@ export async function getItemLedger(outletId, startDate, dayCount = 7) {
   const byId = {};
   items.forEach((it) => { byId[it.id] = it; });
 
-  const logs = (logRes.data || [])
+  const logs = itemLogs
     .filter((r) => byId[r.item_id])
     .map((r) => {
       const it = byId[r.item_id];
@@ -230,14 +243,20 @@ export async function getOilLedgerRange(outletId, startDate, endDate) {
   const fromIso = new Date(from).toISOString();
   const toIso = new Date(to).toISOString();
 
-  const [stockRes, logRes] = await Promise.all([
+  const [stockRes, oilLogs] = await Promise.all([
     supabase.from('oil_inventory').select('oil_type, size, stock').eq('outlet_id', outletId),
-    supabase
-      .from('oil_inventory_logs')
-      .select('oil_type, size, type, qty, created_at')
-      .eq('outlet_id', outletId)
-      .gte('created_at', fromIso)
-      .lte('created_at', toIso)
+    fetchAllRows(
+      () =>
+        supabase
+          .from('oil_inventory_logs')
+          .select('oil_type, size, type, qty, created_at')
+          .eq('outlet_id', outletId)
+          .gte('created_at', fromIso)
+          .lte('created_at', toIso)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true }),
+      { label: `getOilLedgerRange ${outletId} ${startDate}..${endDate}` }
+    )
   ]);
 
   const variants = (stockRes.data || []).map((r) => ({
@@ -245,7 +264,7 @@ export async function getOilLedgerRange(outletId, startDate, endDate) {
     size: r.size,
     stock: Number(r.stock) || 0
   }));
-  const logs = (logRes.data || []).map((r) => ({
+  const logs = oilLogs.map((r) => ({
     key: r.oil_type, sub: r.size, type: r.type, qty: r.qty, created_at: r.created_at
   }));
   const coverageFrom = firstLogDay(logs);
@@ -265,14 +284,20 @@ export async function getItemLedgerRange(outletId, startDate, endDate) {
   const fromIso = new Date(from).toISOString();
   const toIso = new Date(to).toISOString();
 
-  const [itemRes, logRes] = await Promise.all([
+  const [itemRes, itemLogs] = await Promise.all([
     supabase.from('inventory').select('id, name, unit, stock, category').eq('outlet_id', outletId),
-    supabase
-      .from('inventory_logs')
-      .select('item_id, type, qty, created_at')
-      .eq('outlet_id', outletId)
-      .gte('created_at', fromIso)
-      .lte('created_at', toIso)
+    fetchAllRows(
+      () =>
+        supabase
+          .from('inventory_logs')
+          .select('item_id, type, qty, created_at')
+          .eq('outlet_id', outletId)
+          .gte('created_at', fromIso)
+          .lte('created_at', toIso)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true }),
+      { label: `getItemLedgerRange ${outletId} ${startDate}..${endDate}` }
+    )
   ]);
 
   const items = (itemRes.data || []).map((r) => ({
@@ -285,7 +310,7 @@ export async function getItemLedgerRange(outletId, startDate, endDate) {
   const byId = {};
   items.forEach((it) => { byId[it.id] = it; });
 
-  const logs = (logRes.data || [])
+  const logs = itemLogs
     .filter((r) => byId[r.item_id])
     .map((r) => {
       const it = byId[r.item_id];
@@ -316,17 +341,22 @@ export async function getConsumableUsage(outletId, startDate, endDate) {
   const fromIso = new Date(from).toISOString();
   const toIso = new Date(to).toISOString();
 
-  const [rulesRes, invRes, bookingRes] = await Promise.all([
+  const [rulesRes, invRes, bookingRows] = await Promise.all([
     supabase.from('treatment_consumables').select('treatment_id, item_name, qty'),
     supabase.from('inventory').select('id, name, unit, stock').eq('outlet_id', outletId),
-    supabase
-      .from('bookings')
-      .select('treatment_id, treatment_name, created_at')
-      .eq('outlet_id', outletId)
-      .neq('status', 'batal')
-      .gte('created_at', fromIso)
-      .lte('created_at', toIso)
-      .limit(20000)
+    fetchAllRows(
+      () =>
+        supabase
+          .from('bookings')
+          .select('treatment_id, treatment_name, created_at')
+          .eq('outlet_id', outletId)
+          .neq('status', 'batal')
+          .gte('created_at', fromIso)
+          .lte('created_at', toIso)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true }),
+      { label: `getConsumableUsage ${outletId} ${startDate}..${endDate}` }
+    )
   ]);
 
   const rules = rulesRes.data || [];
@@ -351,7 +381,7 @@ export async function getConsumableUsage(outletId, startDate, endDate) {
   // Jumlah booking per treatment per hari.
   const cntTreatment = {};
   const cntDay = {};
-  (bookingRes.data || []).forEach((b) => {
+  bookingRows.forEach((b) => {
     if (!b.treatment_id || !ruleByTreatment[b.treatment_id]) return;
     const d = witaDate(b.created_at);
     const t = b.treatment_id;
@@ -362,7 +392,7 @@ export async function getConsumableUsage(outletId, startDate, endDate) {
 
   // Agregasi per treatment.
   const nameOfTreatment = {};
-  (bookingRes.data || []).forEach((b) => { if (b.treatment_id) nameOfTreatment[b.treatment_id] = b.treatment_name; });
+  bookingRows.forEach((b) => { if (b.treatment_id) nameOfTreatment[b.treatment_id] = b.treatment_name; });
 
   const byTreatment = Object.entries(cntTreatment)
     .map(([tid, count]) => ({

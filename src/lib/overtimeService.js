@@ -7,6 +7,7 @@ import {
   shiftBusinessDate,
   businessDayMinutesToMs
 } from './businessDate';
+import { fetchAllRows } from './supabasePaging';
 
 // Jam selesai shift normal (menit sejak 00:00 WITA) — patokan overtime.
 // Diturunkan dari SHIFT_DEFS (shiftService.js) supaya definisi shift hanya
@@ -135,14 +136,17 @@ export async function getOvertimeReport(startDate, endDate) {
   for (let dateStr = startDate; dateStr <= endDate; dateStr = shiftBusinessDate(dateStr, 1)) {
     try {
       const { startUtc, endUtc } = witaDayBoundsUtc(dateStr);
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, commission_percent, start_at, end_at, status, booking_source')
-        .gte('start_at', startUtc.getTime())
-        .lte('start_at', endUtc.getTime())
-        .limit(20000);
-      if (error) throw error;
-      allBookings.push(...(data || []).map((r) => ({ ...r, date: dateStr })));
+      const data = await fetchAllRows(
+        () =>
+          supabase
+            .from('bookings')
+            .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, commission_percent, start_at, end_at, status, booking_source')
+            .gte('start_at', startUtc.getTime())
+            .lte('start_at', endUtc.getTime())
+            .order('id', { ascending: true }),
+        { label: `getOvertimeReport ${dateStr}` }
+      );
+      allBookings.push(...data.map((r) => ({ ...r, date: dateStr })));
     } catch (e) {
       // lewati hari error, lanjut hari berikutnya
       console.warn('overtime fetch error', dateStr, e);

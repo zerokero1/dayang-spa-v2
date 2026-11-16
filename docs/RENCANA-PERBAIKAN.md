@@ -1,6 +1,6 @@
 # Rencana perbaikan
 
-Diperbarui: 15 November 2026
+Diperbarui: 16 November 2026
 
 Prinsip kerja: perubahan yang menyentuh alur kasir (buat pesanan, bayar, struk)
 diuji di salinan lebih dulu dan dipasang di jam sepi. PWA memakai prompt update,
@@ -13,10 +13,11 @@ bukan reload otomatis, supaya transaksi tidak terputus saat kasir bekerja.
 | Zona waktu | Semua tanggal bisnis memakai WITA lewat `src/lib/businessDate.js`. Simbol `wib*` sudah diganti `wita*`; kolom database `wib_date` sengaja tidak diubah. |
 | Shift | `SHIFT_DEFS` + `shiftJamLabel` menjadi satu sumber; label jam di grid jadwal diturunkan otomatis. |
 | Laporan | Perbaikan `rangeIso`, detail pemakaian stok, riwayat Pemeriksaan Sistem, serta ringkasan kas lunas dan belum bayar. |
+| Ekspor Excel | `fetchAllRows` (`src/lib/supabasePaging.js`) mengambil semua baris bertahap. Sebelumnya server memotong tiap query di 1.000 baris, jadi laporan rentang tanggal kehilangan transaksi (Sep 4.159 → hanya 1.000) dan totalnya tidak balance, walau per tanggal benar. |
 | Update PWA | `registerType: 'prompt'` + `PwaUpdatePrompt`: banner "Versi baru tersedia", cek tiap 30 menit, tidak ada reload diam-diam. |
 | Offline | `OfflineBanner` menyatakan jujur bahwa transaksi belum bisa disimpan; login saat offline tidak lagi dibilang "password salah". |
 | Ketahanan UI | `ErrorBoundary` per halaman di shell admin dan shell kasir. |
-| Kualitas | 26 tes unit, cek render 35 halaman, lint tanpa warning, dan GitHub Actions (`.github/workflows/ci.yml`). |
+| Kualitas | 32 tes unit, cek render 35 halaman, lint tanpa warning, dan GitHub Actions (`.github/workflows/ci.yml`). |
 | Android | APK 1.1 (`versionCode 2`) dibangun dari cabang `nothinggoodinheree-droid-android-receipt-printing`, berisi perbaikan di atas plus cetak Bluetooth, toast, dan tautan WhatsApp. |
 
 ## Menunggu keputusan atau tindakan owner

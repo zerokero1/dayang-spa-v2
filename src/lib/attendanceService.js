@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { ATTENDANCE_TYPES } from './constants';
 import { lateMinutesFor, shiftEndMinutes } from './shiftService';
 import { businessDate } from './businessDate';
+import { fetchAllRows } from './supabasePaging';
 
 function todayId(date = new Date()) {
   return businessDate(date);
@@ -145,32 +146,43 @@ export async function deleteAttendance(employeeId, date) {
  * supaya pemanggil lama (summarizeAttendance, LaporanAbsensiPage) tetap jalan.
  */
 export async function getAttendanceRange(startDate, endDate, outletId) {
-  let query = supabase
-    .from('attendance')
-    .select('*')
-    .gte('date', startDate)
-    .lte('date', endDate);
-  if (outletId) query = query.eq('outlet_id', outletId);
-  const [{ data, error }, { data: otData, error: otError }] = await Promise.all([
-    query,
-    (() => {
-      let q = supabase
-        .from('attendance_overtime')
-        .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate);
-      return outletId ? q.eq('outlet_id', outletId) : q;
-    })()
+  const [data, otData] = await Promise.all([
+    fetchAllRows(
+      () => {
+        let query = supabase
+          .from('attendance')
+          .select('*')
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .order('date', { ascending: true })
+          .order('employee_id', { ascending: true });
+        if (outletId) query = query.eq('outlet_id', outletId);
+        return query;
+      },
+      { label: `getAttendanceRange ${startDate}..${endDate}` }
+    ),
+    fetchAllRows(
+      () => {
+        let q = supabase
+          .from('attendance_overtime')
+          .select('*')
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .order('date', { ascending: true })
+          .order('employee_id', { ascending: true });
+        if (outletId) q = q.eq('outlet_id', outletId);
+        return q;
+      },
+      { label: `getAttendanceRange lembur ${startDate}..${endDate}` }
+    )
   ]);
-  if (error) throw error;
-  if (otError) throw otError;
 
   const otByKey = {};
-  (otData || []).forEach((o) => {
+  otData.forEach((o) => {
     otByKey[`${o.employee_id}_${o.date}`] = o;
   });
 
-  return (data || []).map((r) => {
+  return data.map((r) => {
     const mapped = mapAttendance(r);
     const ot = otByKey[mapped.id];
     return {
@@ -190,15 +202,20 @@ export async function getAttendanceRange(startDate, endDate, outletId) {
 }
 /** Ambil lembur saja (untuk halaman Overtime / audit). */
 export async function getOvertimeRange(startDate, endDate, outletId) {
-  let q = supabase
-    .from('attendance_overtime')
-    .select('*')
-    .gte('date', startDate)
-    .lte('date', endDate);
-  if (outletId) q = q.eq('outlet_id', outletId);
-  const { data, error } = await q;
-  if (error) throw error;
-  return data || [];
+  return fetchAllRows(
+    () => {
+      let q = supabase
+        .from('attendance_overtime')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: true })
+        .order('employee_id', { ascending: true });
+      if (outletId) q = q.eq('outlet_id', outletId);
+      return q;
+    },
+    { label: `getOvertimeRange ${startDate}..${endDate}` }
+  );
 }
 
 /**
