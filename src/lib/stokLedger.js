@@ -33,7 +33,7 @@ import { businessDateFromTimestamp, businessRangeIso, shiftBusinessDate } from '
 // ============================================================
 
 /** Konversi created_at (UTC) ke tanggal lokal Lombok (YYYY-MM-DD). */
-export function wibDate(iso) {
+export function witaDate(iso) {
   return businessDateFromTimestamp(iso);
 }
 
@@ -88,7 +88,7 @@ function movementsByDay(logs) {
   const move = {};
   logs.forEach((r) => {
     const k = keyOf(r.key, r.sub);
-    const day = wibDate(r.created_at);
+    const day = witaDate(r.created_at);
     const bucket = move[k] || (move[k] = {});
     const cell = bucket[day] || (bucket[day] = { in: 0, out: 0 });
     const q = Number(r.qty) || 0;
@@ -102,7 +102,7 @@ function movementsByDay(logs) {
 export function firstLogDay(logs) {
   if (!logs.length) return null;
   return logs.reduce((m, r) => {
-    const d = wibDate(r.created_at);
+    const d = witaDate(r.created_at);
     return d < m ? d : m;
   }, '9999-99-99');
 }

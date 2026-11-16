@@ -89,3 +89,7 @@ docs/jadwal-kasir*.html
 backup/
 .vercel
 .env.local
+
+# SQL diagnostik sekali pakai (hasil query data asli, jangan di-commit)
+supabase/cek_booking_berjalan_*.sql
+supabase/*_temp.sql

@@ -7,6 +7,7 @@ import {
   shiftBusinessDate,
   businessDayMinutesToMs
 } from './businessDate';
+import { fetchAllRows } from './supabasePaging';
 
 // Jam selesai shift normal (menit sejak 00:00 WITA) — patokan overtime.
 // Diturunkan dari SHIFT_DEFS (shiftService.js) supaya definisi shift hanya
@@ -73,11 +74,11 @@ function toMinutes(ms) {
 }
 
 // Batas UTC untuk satu hari lokal Lombok (WITA = UTC+8)
-function wibDayBoundsUtc(dateStr) {
+function witaDayBoundsUtc(dateStr) {
   return businessRangeBoundsUtc(dateStr, dateStr);
 }
 
-export { wibDayBoundsUtc, fmtLocalDate };
+export { witaDayBoundsUtc, fmtLocalDate };
 
 /**
  * Menit lembur seorang terapis pada satu tanggal, berdasarkan jam selesai
@@ -92,11 +93,11 @@ export function overtimeMinutesFor(shift, dateStr, maxEndAt, nowMs = null) {
   if (shiftEndMin == null) return 0;
   const basis = nowMs != null ? Math.max(nowMs, 0) : maxEndAt;
   if (basis == null) return 0;
-  return toMinutes(basis - wibDayShiftEndMs(dateStr, shiftEndMin));
+  return toMinutes(basis - witaDayShiftEndMs(dateStr, shiftEndMin));
 }
 
 // Jam selesai shift pada tanggal tertentu (waktu Lombok) dalam epoch ms.
-export function wibDayShiftEndMs(dateStr, shiftEndMin) {
+export function witaDayShiftEndMs(dateStr, shiftEndMin) {
   return businessDayMinutesToMs(dateStr, shiftEndMin);
 }
 
@@ -104,7 +105,7 @@ export function wibDayShiftEndMs(dateStr, shiftEndMin) {
 export function shiftEndMsForDate(shift, dateStr) {
   const shiftEndMin = shift ? SHIFT_END_MINUTES[shift] : null;
   if (shiftEndMin == null) return null;
-  return wibDayShiftEndMs(dateStr, shiftEndMin);
+  return witaDayShiftEndMs(dateStr, shiftEndMin);
 }
 
 // Format tanggal kalender secara deterministik, tanpa timezone perangkat.
@@ -134,15 +135,18 @@ export async function getOvertimeReport(startDate, endDate) {
   const allBookings = [];
   for (let dateStr = startDate; dateStr <= endDate; dateStr = shiftBusinessDate(dateStr, 1)) {
     try {
-      const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, commission_percent, start_at, end_at, status, booking_source')
-        .gte('start_at', startUtc.getTime())
-        .lte('start_at', endUtc.getTime())
-        .limit(20000);
-      if (error) throw error;
-      allBookings.push(...(data || []).map((r) => ({ ...r, date: dateStr })));
+      const { startUtc, endUtc } = witaDayBoundsUtc(dateStr);
+      const data = await fetchAllRows(
+        () =>
+          supabase
+            .from('bookings')
+            .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, commission_percent, start_at, end_at, status, booking_source')
+            .gte('start_at', startUtc.getTime())
+            .lte('start_at', endUtc.getTime())
+            .order('id', { ascending: true }),
+        { label: `getOvertimeReport ${dateStr}` }
+      );
+      allBookings.push(...data.map((r) => ({ ...r, date: dateStr })));
     } catch (e) {
       // lewati hari error, lanjut hari berikutnya
       console.warn('overtime fetch error', dateStr, e);
@@ -183,7 +187,7 @@ export async function getOvertimeReport(startDate, endDate) {
 
     let overtimeMinutes = 0;
     if (shiftEndMin != null && row.maxEndAt != null) {
-      const shiftEndMs = wibDayShiftEndMs(row.date, shiftEndMin);
+      const shiftEndMs = witaDayShiftEndMs(row.date, shiftEndMin);
       overtimeMinutes = Math.max(0, toMinutes(row.maxEndAt - shiftEndMs));
     }
 

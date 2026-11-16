@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { OUTLETS } from './constants';
 import { businessRangeBoundsUtc } from './businessDate';
+import { fetchAllRows } from './supabasePaging';
 
 export async function createOncallBooking({
   outletId, therapistId, packageName, durationMinutes, price,
@@ -206,18 +207,23 @@ function mapOncall(r) {
 
 export async function getTodayOncall(outletId, dateStr) {
   const { startUtc, endUtc } = dayBoundsUtc(dateStr);
-  let query = supabase
-    .from('bookings')
-    .select('*')
-    .eq('booking_source', 'oncall')
-    .gte('created_at', startUtc.toISOString())
-    .lte('created_at', endUtc.toISOString())
-    .limit(20000);
-  // outletId = null -> semua outlet (dipakai office/admin pusat).
-  if (outletId) query = query.eq('outlet_id', outletId);
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data || []).map(mapOncall);
+  const rows = await fetchAllRows(
+    () => {
+      let query = supabase
+        .from('bookings')
+        .select('*')
+        .eq('booking_source', 'oncall')
+        .gte('created_at', startUtc.toISOString())
+        .lte('created_at', endUtc.toISOString())
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false });
+      // outletId = null -> semua outlet (dipakai office/admin pusat).
+      if (outletId) query = query.eq('outlet_id', outletId);
+      return query;
+    },
+    { label: `getTodayOncall ${dateStr}` }
+  );
+  return rows.map(mapOncall);
 }
 
 /**
@@ -229,17 +235,22 @@ export async function getTodayOncall(outletId, dateStr) {
  */
 export async function getOncallRange(outletId, startDate, endDate) {
   const { startUtc, endUtc } = businessRangeBoundsUtc(startDate, endDate);
-  let query = supabase
-    .from('bookings')
-    .select('*')
-    .eq('booking_source', 'oncall')
-    .gte('created_at', startUtc.toISOString())
-    .lte('created_at', endUtc.toISOString())
-    .limit(20000);
-  if (outletId) query = query.eq('outlet_id', outletId);
-  const { data, error } = await query.order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data || []).map(mapOncall);
+  const rows = await fetchAllRows(
+    () => {
+      let query = supabase
+        .from('bookings')
+        .select('*')
+        .eq('booking_source', 'oncall')
+        .gte('created_at', startUtc.toISOString())
+        .lte('created_at', endUtc.toISOString())
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false });
+      if (outletId) query = query.eq('outlet_id', outletId);
+      return query;
+    },
+    { label: `getOncallRange ${startDate}..${endDate}` }
+  );
+  return rows.map(mapOncall);
 }
 
 export function outletNames() {

@@ -3,6 +3,7 @@ import { OUTLETS, SHIFT_LABEL } from './constants';
 import { lateMinutesFor } from './shiftService';
 import { getConsumableUsage } from './stockUsageService';
 import { businessDateFromTimestamp, businessRangeIso } from './businessDate';
+import { fetchAllRows } from './supabasePaging';
 
 /**
  * ==========================================================================
@@ -22,12 +23,12 @@ import { businessDateFromTimestamp, businessRangeIso } from './businessDate';
 // ---------------------------------------------------------------- utils
 
 /** Tanggal Lombok (YYYY-MM-DD) dari kolom timestamptz. */
-export function wibDateOf(iso) {
+export function witaDateOf(iso) {
   return businessDateFromTimestamp(iso);
 }
 
 /** Batas UTC untuk satu hari Lombok. */
-function wibDayUtc(dateStr, endOfDay = false) {
+function witaDayUtc(dateStr, endOfDay = false) {
   const { startIso, endIso } = businessRangeIso(dateStr, dateStr);
   return endOfDay ? endIso : startIso;
 }
@@ -68,10 +69,11 @@ function bookingQuery({ startDate, endDate, outletId, extraSelect }) {
   let q = supabase
     .from('bookings')
     .select(extraSelect)
-    .gte('created_at', wibDayUtc(startDate))
-    .lte('created_at', wibDayUtc(endDate, true))
+    .gte('created_at', witaDayUtc(startDate))
+    .lte('created_at', witaDayUtc(endDate, true))
     .neq('status', 'batal')
-    .limit(20000);
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
   if (outletId) q = q.eq('outlet_id', outletId);
   return q;
 }
@@ -92,29 +94,44 @@ function bookingQuery({ startDate, endDate, outletId, extraSelect }) {
  * persis.
  */
 export async function getInventoryBook({ startDate, endDate, outletId }) {
-  const [oilRes, itemRes, oilLogRes, itemLogRes, bookingRes] = await Promise.all([
+  const [oilRes, itemRes, oilLogs, itemLogs, oilBookings] = await Promise.all([
     supabase.from('oil_inventory').select('outlet_id, oil_type, size, stock, unit'),
     supabase.from('inventory').select('id, outlet_id, name, unit, stock, unit_cost'),
-    supabase
-      .from('oil_inventory_logs')
-      .select('outlet_id, oil_type, size, type, qty, stock_after, note, created_at')
-      .gte('created_at', wibDayUtc(startDate))
-      .lte('created_at', wibDayUtc(endDate, true))
-      .limit(20000),
-    supabase
-      .from('inventory_logs')
-      .select('outlet_id, item_id, type, qty, note, created_at')
-      .gte('created_at', wibDayUtc(startDate))
-      .lte('created_at', wibDayUtc(endDate, true))
-      .limit(20000),
-    supabase
-      .from('bookings')
-      .select('outlet_id, oil_type, oil_size, uses_oil, created_at')
-      .neq('status', 'batal')
-      .eq('uses_oil', true)
-      .gte('created_at', wibDayUtc(startDate))
-      .lte('created_at', wibDayUtc(endDate, true))
-      .limit(20000)
+    fetchAllRows(
+      () =>
+        supabase
+          .from('oil_inventory_logs')
+          .select('outlet_id, oil_type, size, type, qty, stock_after, note, created_at')
+          .gte('created_at', witaDayUtc(startDate))
+          .lte('created_at', witaDayUtc(endDate, true))
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true }),
+      { label: `getInventoryBook minyak ${startDate}..${endDate}` }
+    ),
+    fetchAllRows(
+      () =>
+        supabase
+          .from('inventory_logs')
+          .select('outlet_id, item_id, type, qty, note, created_at')
+          .gte('created_at', witaDayUtc(startDate))
+          .lte('created_at', witaDayUtc(endDate, true))
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true }),
+      { label: `getInventoryBook barang ${startDate}..${endDate}` }
+    ),
+    fetchAllRows(
+      () =>
+        supabase
+          .from('bookings')
+          .select('outlet_id, oil_type, oil_size, uses_oil, created_at')
+          .neq('status', 'batal')
+          .eq('uses_oil', true)
+          .gte('created_at', witaDayUtc(startDate))
+          .lte('created_at', witaDayUtc(endDate, true))
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true }),
+      { label: `getInventoryBook pemakaian ${startDate}..${endDate}` }
+    )
   ]);
 
   const inScope = (row) => !outletId || row.outlet_id === outletId;
@@ -150,9 +167,9 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
   (itemRes.data || []).forEach((r) => { unitByItemId[r.id] = r.unit || 'pcs'; });
 
   const movementRows = [];
-  (oilLogRes.data || []).filter(inScope).forEach((r) => {
+  oilLogs.filter(inScope).forEach((r) => {
     movementRows.push({
-      tanggal: wibDateOf(r.created_at),
+      tanggal: witaDateOf(r.created_at),
       outlet: outletName(r.outlet_id),
       kategori: 'Minyak',
       nama: r.oil_type,
@@ -163,10 +180,10 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
       catatan: r.note || ''
     });
   });
-  (itemLogRes.data || []).filter(inScope).forEach((r) => {
+  itemLogs.filter(inScope).forEach((r) => {
     const nm = itemNameById[r.item_id] || '(item terhapus)';
     movementRows.push({
-      tanggal: wibDateOf(r.created_at),
+      tanggal: witaDateOf(r.created_at),
       outlet: outletName(r.outlet_id),
       kategori: 'Barang',
       nama: nm,
@@ -181,17 +198,17 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
 
   // --- Pemakaian harian
   const oilUsage = {};   // date -> outlet -> "type|size" -> qty
-  (bookingRes.data || []).forEach((r) => {
+  oilBookings.forEach((r) => {
     if (!r.oil_type) return;
-    const d = wibDateOf(r.created_at);
+    const d = witaDateOf(r.created_at);
     oilUsage[d] = oilUsage[d] || {};
     oilUsage[d][r.outlet_id] = oilUsage[d][r.outlet_id] || {};
     const k = `${r.oil_type}|${r.oil_size}`;
     oilUsage[d][r.outlet_id][k] = (oilUsage[d][r.outlet_id][k] || 0) + 1;
   });
   const itemUsage = {};  // date -> outlet -> itemId -> qty (barang keluar)
-  (itemLogRes.data || []).filter((r) => r.type === 'out').forEach((r) => {
-    const d = wibDateOf(r.created_at);
+  itemLogs.filter((r) => r.type === 'out').forEach((r) => {
+    const d = witaDateOf(r.created_at);
     itemUsage[d] = itemUsage[d] || {};
     itemUsage[d][r.outlet_id] = itemUsage[d][r.outlet_id] || {};
     itemUsage[d][r.outlet_id][r.item_id] = (itemUsage[d][r.outlet_id][r.item_id] || 0) + (r.qty || 0);
@@ -261,10 +278,10 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
     usageRows,
     // empezio Honest: dari mana angka ini berasal dan apa yang tidak ada.
     caveats: [
-      (oilLogRes.data || []).length === 0
+      oilLogs.length === 0
         ? 'Riwayat masuk/keluar minyak baru mulai tercatat setelah pencatatan diaktifkan (2 Okt 2026).'
         : null,
-      (itemLogRes.data || []).length === 0
+      itemLogs.length === 0
         ? 'Barang non-minyak belum pernah mencatat movements masuk/keluar, jadi kolom In/Out kosong untuk periode ini.'
         : null,
       consumableEstimated
@@ -279,19 +296,29 @@ export async function getInventoryBook({ startDate, endDate, outletId }) {
 // =====================================================================
 
 export async function getAttendanceBook({ startDate, endDate, outletId }) {
-  const [attRes, otRes, therapistRes] = await Promise.all([
-    supabase
-      .from('attendance')
-      .select('employee_id, employee_name, outlet_id, date, type, check_in_minutes, check_out_minutes, shift_code, late_minutes, source, note')
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .limit(20000),
-    supabase
-      .from('attendance_overtime')
-      .select('employee_id, date, minutes, verified, source, note')
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .limit(20000),
+  const [attendanceRows, overtimeRows, therapistRes] = await Promise.all([
+    fetchAllRows(
+      () =>
+        supabase
+          .from('attendance')
+          .select('employee_id, employee_name, outlet_id, date, type, check_in_minutes, check_out_minutes, shift_code, late_minutes, source, note')
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .order('date', { ascending: true })
+          .order('employee_id', { ascending: true }),
+      { label: `getAttendanceBook ${startDate}..${endDate}` }
+    ),
+    fetchAllRows(
+      () =>
+        supabase
+          .from('attendance_overtime')
+          .select('employee_id, date, minutes, verified, source, note')
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .order('date', { ascending: true })
+          .order('employee_id', { ascending: true }),
+      { label: `getAttendanceBook lembur ${startDate}..${endDate}` }
+    ),
     supabase.from('therapists').select('id, name, shift, home_outlet_id')
   ]);
 
@@ -304,10 +331,10 @@ export async function getAttendanceBook({ startDate, endDate, outletId }) {
     therapistOutletById[t.id] = t.home_outlet_id;
   });
   const otByKey = {};
-  (otRes.data || []).forEach((o) => { otByKey[`${o.employee_id}_${o.date}`] = o; });
+  overtimeRows.forEach((o) => { otByKey[`${o.employee_id}_${o.date}`] = o; });
 
   const detail = [];
-  (attRes.data || []).forEach((r) => {
+  attendanceRows.forEach((r) => {
     if (outletId && r.outlet_id !== outletId) return;
     const shift = r.shift_code || shiftById[r.employee_id] || null;
     // Tanpa jam datang, keterlambatan TIDAK bisa dinilai. Nilai null
@@ -375,7 +402,7 @@ export async function getAttendanceBook({ startDate, endDate, outletId }) {
     });
     reviewKeys.add(`${d.employeeId}_${d.tanggal}`);
   });
-  const orphans = (otRes.data || []).filter(
+  const orphans = overtimeRows.filter(
     (o) => o.verified === false && !reviewKeys.has(`${o.employee_id}_${o.date}`)
   );
   orphans.forEach((o) => {
@@ -428,15 +455,16 @@ function revenueAmount(row) {
 }
 
 export async function getRevenueCommissionBook({ startDate, endDate, outletId }) {
-  const { data, error } = await bookingQuery({ startDate, endDate, outletId, extraSelect: BOOKING_FIELDS });
-  if (error) throw error;
-  const rows = data || [];
+  const rows = await fetchAllRows(
+    () => bookingQuery({ startDate, endDate, outletId, extraSelect: BOOKING_FIELDS }),
+    { label: `getRevenueCommissionBook ${startDate}..${endDate}` }
+  );
   const paid = rows.filter((r) => r.paid);
 
   // ---------------------------------------------------------- REVENUE
   const dayOutlet = {};   // date -> outlet -> { trx, omzet, cash, nonCash }
   paid.forEach((r) => {
-    const d = wibDateOf(r.created_at);
+    const d = witaDateOf(r.created_at);
     dayOutlet[d] = dayOutlet[d] || {};
     const cell = dayOutlet[d][r.outlet_id] = dayOutlet[d][r.outlet_id] || {
       trx: 0, omzet: 0, cash: 0, nonCash: 0, diskon: 0
@@ -495,7 +523,7 @@ export async function getRevenueCommissionBook({ startDate, endDate, outletId })
   // supaya tidak ada angka yang disembunyikan.
   const byTherapistDay = {};
   paid.forEach((r) => {
-    const d = wibDateOf(r.created_at);
+    const d = witaDateOf(r.created_at);
     const key = `${r.therapist_name}|${d}|${r.outlet_id}`;
     const c = byTherapistDay[key] = byTherapistDay[key] || {
       nama: r.therapist_name, tanggal: d, outlet: outletName(r.outlet_id),

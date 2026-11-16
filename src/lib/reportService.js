@@ -1,6 +1,7 @@
 import { supabase } from './supabase.js';
 import { OUTLETS, SIZE_NONE } from './constants.js';
 import { businessDateFromTimestamp, businessRangeBoundsUtc, shiftBusinessDate } from './businessDate.js';
+import { fetchAllRows } from './supabasePaging.js';
 
 function mapBooking(row) {
   return {
@@ -29,10 +30,10 @@ function mapBooking(row) {
     discountReason: row.discount_reason,
     bookingSource: row.booking_source,
     hotelCommission: row.hotel_commission != null ? Number(row.hotel_commission) : 0,
-    // Tanggal Lombok dihitung dari created_at, bukan kolom wib_date.
-    // Di database banyak baris wib_date meleset +1 hari, jadi kolom itu
-    // tidak boleh dipercaya untuk pengelompokan tanggal.
-    wibDate: businessDateFromTimestamp(row.created_at),
+    // Tanggal bisnis (WITA) dihitung ulang dari created_at, bukan dari kolom
+    // database `wib_date`. Nama kolom itu warisan lama dan isinya sering
+    // meleset +1 hari, jadi tidak boleh dipakai untuk pengelompokan tanggal.
+    witaDate: businessDateFromTimestamp(row.created_at),
     createdAt: row.created_at,
     completedAt: row.completed_at,
     cancelledAt: row.cancelled_at
@@ -41,21 +42,25 @@ function mapBooking(row) {
 
 // Batas UTC untuk satu hari lokal Lombok (WITA = UTC+8) agar konsisten,
 // tidak bergantung zona waktu mesin/browser.
-function wibDayBoundsUtc(dateStr) {
+function witaDayBoundsUtc(dateStr) {
   return businessRangeBoundsUtc(dateStr, dateStr);
 }
 
 export async function getDailyBookings(outletId, dateStr) {
-  const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
-  const { data, error } = await supabase
-    .from('bookings')
-    .select('*')
-    .eq('outlet_id', outletId)
-    .gte('created_at', startUtc.toISOString())
-    .lte('created_at', endUtc.toISOString())
-    .limit(20000);
-  if (error) throw error;
-  return (data || []).map(mapBooking);
+  const { startUtc, endUtc } = witaDayBoundsUtc(dateStr);
+  const data = await fetchAllRows(
+    () =>
+      supabase
+        .from('bookings')
+        .select('*')
+        .eq('outlet_id', outletId)
+        .gte('created_at', startUtc.toISOString())
+        .lte('created_at', endUtc.toISOString())
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true }),
+    { label: `getDailyBookings ${dateStr}` }
+  );
+  return data.map(mapBooking);
 }
 
 /**
@@ -66,7 +71,7 @@ export async function getDailyBookings(outletId, dateStr) {
  * menarik data ini berkali-kali sehari.
  */
 export async function getDailyReceiptBookings(outletId, dateStr) {
-  const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
+  const { startUtc, endUtc } = witaDayBoundsUtc(dateStr);
   const { data, error } = await supabase
     .from('bookings')
     .select(
@@ -93,7 +98,7 @@ export async function getDailyReceiptBookings(outletId, dateStr) {
     paymentMethod: row.payment_method,
     startAt: row.start_at,
     originalPrice: row.original_price != null ? Number(row.original_price) : null,
-    wibDate: businessDateFromTimestamp(row.created_at),
+    witaDate: businessDateFromTimestamp(row.created_at),
     createdAt: row.created_at
   }));
 }
@@ -101,9 +106,6 @@ export async function getDailyReceiptBookings(outletId, dateStr) {
 // Optimasi: ambil semua booking hari itu dalam SATU query (semua outlet),
 // hanya kolom yang dibutuhkan konsumen. Mengurangi request ke Supabase.
 const DAILY_COLUMNS = 'outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, commission_percent, commission_amount, status, paid, payment_method, original_price, booking_source, hotel_commission, created_at, oil_type, uses_oil, wib_date';
-
-// Batas baris untuk satu query rentang. Satu bulan penuh masih di bawah ini.
-const RANGE_LIMIT = 20000;
 
 /**
  * Semua transaksi milik SATU terapis dalam rentang tanggal.
@@ -122,23 +124,26 @@ export async function getTherapistTransactionsRange(
   startDate,
   endDate
 ) {
-  const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
-  const { data, error } = await supabase
-    .from('bookings')
-    .select(
-      'id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, ' +
-      'commission_percent, commission_amount, status, paid, payment_method, ' +
-      'original_price, booking_source, hotel_commission, created_at, start_at, ' +
-      'oil_type, uses_oil, customer_name, duration_minutes'
-    )
-    .eq('therapist_id', therapistId)
-    .gte('created_at', startUtc.toISOString())
-    .lte('created_at', endUtc.toISOString())
-    .order('created_at', { ascending: false })
-    .limit(RANGE_LIMIT);
-  if (error) throw error;
+  const { startUtc, endUtc } = witaRangeBounds(startDate, endDate);
+  const data = await fetchAllRows(
+    () =>
+      supabase
+        .from('bookings')
+        .select(
+          'id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, ' +
+          'commission_percent, commission_amount, status, paid, payment_method, ' +
+          'original_price, booking_source, hotel_commission, created_at, start_at, ' +
+          'oil_type, uses_oil, customer_name, duration_minutes'
+        )
+        .eq('therapist_id', therapistId)
+        .gte('created_at', startUtc.toISOString())
+        .lte('created_at', endUtc.toISOString())
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false }),
+    { label: `getTherapistTransactionsRange ${startDate}..${endDate}` }
+  );
 
-  const semua = (data || []).map(mapBooking);
+  const semua = data.map(mapBooking);
 
   const valid = semua.filter((b) => b.status !== 'batal');
   const batal = semua.filter((b) => b.status === 'batal');
@@ -168,15 +173,19 @@ export async function getTherapistTransactionsRange(
 }
 
 async function getAllDailyBookings(dateStr) {
-  const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
-  const { data, error } = await supabase
-    .from('bookings')
-    .select(DAILY_COLUMNS)
-    .gte('created_at', startUtc.toISOString())
-    .lte('created_at', endUtc.toISOString())
-    .limit(20000);
-  if (error) throw error;
-  return (data || []).map(mapBooking);
+  const { startUtc, endUtc } = witaDayBoundsUtc(dateStr);
+  const data = await fetchAllRows(
+    () =>
+      supabase
+        .from('bookings')
+        .select(DAILY_COLUMNS)
+        .gte('created_at', startUtc.toISOString())
+        .lte('created_at', endUtc.toISOString())
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true }),
+    { label: `getAllDailyBookings ${dateStr}` }
+  );
+  return data.map(mapBooking);
 }
 
 // Ambil semua booking dalam rentang tanggal (semua outlet) — di-loop per hari
@@ -188,18 +197,19 @@ export async function getAllBookingsRange(startDate, endDate) {
   // jadi baris yang dikembalikan persis sama dengan gabungan query per tanggal
   // yang lama. Konsumen fungsi ini hanya mengagregasi/filter, tidak bergantung
   // urutan baris, jadi menggabungkan sekaligus tidak mengubah hasil.
-  const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
-  const { data, error } = await supabase
-    .from('bookings')
-    .select(DAILY_COLUMNS)
-    .gte('created_at', startUtc.toISOString())
-    .lte('created_at', endUtc.toISOString())
-    .limit(RANGE_LIMIT);
-  if (error) throw error;
-  if ((data || []).length >= RANGE_LIMIT) {
-    console.warn('getAllBookingsRange: data kena batas ' + RANGE_LIMIT + ' baris, rentang kemungkinan terlalu panjang dan angka bisa kurang');
-  }
-  return (data || []).map(mapBooking);
+  const { startUtc, endUtc } = witaRangeBounds(startDate, endDate);
+  const data = await fetchAllRows(
+    () =>
+      supabase
+        .from('bookings')
+        .select(DAILY_COLUMNS)
+        .gte('created_at', startUtc.toISOString())
+        .lte('created_at', endUtc.toISOString())
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true }),
+    { label: `getAllBookingsRange ${startDate}..${endDate}` }
+  );
+  return data.map(mapBooking);
 }
 
 // Booking satu outlet dalam rentang tanggal (untuk mode "Outlet ini saja").
@@ -231,18 +241,26 @@ export async function getDailyBookingsRange(outletId, startDate, endDate) {
 export async function getUnpaidRange(startDate, endDate, outletId) {
   const all = [];
   for (let dateStr = startDate; dateStr <= endDate; dateStr = shiftBusinessDate(dateStr, 1)) {
-    const { startUtc, endUtc } = wibDayBoundsUtc(dateStr);
-    let q = supabase
-      .from('bookings')
-      .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, original_price, discount_pct, discount_reason, commission_percent, commission_amount, hotel_commission, paid, payment_method, status, customer_name, booking_source, created_at')
-      .eq('paid', false)
-      .gte('created_at', startUtc.toISOString())
-      .lte('created_at', endUtc.toISOString())
-      .limit(20000);
-    if (outletId) q = q.eq('outlet_id', outletId);
-    const { data, error } = await q;
-    if (error) { console.warn('getUnpaidRange error', dateStr, error); continue; }
-    all.push(...(data || []).map(mapBooking));
+    const { startUtc, endUtc } = witaDayBoundsUtc(dateStr);
+    const data = await fetchAllRows(
+      () => {
+        let q = supabase
+          .from('bookings')
+          .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, original_price, discount_pct, discount_reason, commission_percent, commission_amount, hotel_commission, paid, payment_method, status, customer_name, booking_source, created_at')
+          .eq('paid', false)
+          .gte('created_at', startUtc.toISOString())
+          .lte('created_at', endUtc.toISOString())
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true });
+        if (outletId) q = q.eq('outlet_id', outletId);
+        return q;
+      },
+      { label: `getUnpaidRange ${dateStr}` }
+    ).catch((error) => {
+      console.warn('getUnpaidRange error', dateStr, error);
+      return [];
+    });
+    all.push(...data.map(mapBooking));
   }
   return all.filter((b) => b.status !== 'batal');
 }
@@ -484,17 +502,21 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
   //
   // Kolom wib_date sengaja TIDAK dipakai: di database banyak baris meleset
   // +1 hari, jadi kalau ikut dipakai sebaran per harinya jadi salah.
-  const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
+  const { startUtc, endUtc } = witaRangeBounds(startDate, endDate);
   let rows = [];
   try {
-    const { data, error } = await supabase
-      .from('bookings')
-      .select(DAILY_COLUMNS)
-      .gte('created_at', startUtc.toISOString())
-      .lte('created_at', endUtc.toISOString())
-      .limit(RANGE_LIMIT);
-    if (error) throw error;
-    rows = (data || []).map(mapBooking);
+    const data = await fetchAllRows(
+      () =>
+        supabase
+          .from('bookings')
+          .select(DAILY_COLUMNS)
+          .gte('created_at', startUtc.toISOString())
+          .lte('created_at', endUtc.toISOString())
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true }),
+      { label: `getDailyRevenueCommissionReport ${startDate}..${endDate}` }
+    );
+    rows = data.map(mapBooking);
   } catch (e) {
     console.warn('getDailyRevenueCommissionReport error', e);
     return { sheets, grand: { treatmentCount: 0, charge: 0, commission: 0, hotelCommission: 0, net: 0 } };
@@ -509,7 +531,7 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
     tanggalUrut.push(k);
   }
   rows.forEach((b) => {
-    const k = b.wibDate && perTanggal[b.wibDate] ? b.wibDate : wibDateStr(b.createdAt);
+    const k = b.witaDate && perTanggal[b.witaDate] ? b.witaDate : witaDateStr(b.createdAt);
     if (!perTanggal[k]) return;
     perTanggal[k].push(b);
   });
@@ -674,7 +696,7 @@ export async function getCommissionAudit(startDate, endDate) {
         therapistId: b.therapistId,
         therapistName: b.therapistName || '-',
         treatmentName: b.treatmentName || '-',
-        date: wibDateStr(b.createdAt),
+        date: witaDateStr(b.createdAt),
         status: b.status,
         commissionPercent: percent,
         treatmentPrice: price,
@@ -744,32 +766,36 @@ export const OIL_BOTTLE_ML = { Kecil: 10, Besar: 30, [SIZE_NONE]: 1 };
 export async function getProductionBookings(startDate, endDate) {
   const { startUtc, endUtc } = businessRangeBoundsUtc(startDate, endDate);
 
-  const { data, error } = await supabase
-    .from('bookings')
-    .select('outlet_id, treatment_name, oil_type, oil_size, uses_oil, status, created_at')
-    .gte('created_at', startUtc.toISOString())
-    .lte('created_at', endUtc.toISOString())
-    .limit(20000);
-  if (error) throw error;
+  const data = await fetchAllRows(
+    () =>
+      supabase
+        .from('bookings')
+        .select('outlet_id, treatment_name, oil_type, oil_size, uses_oil, status, created_at')
+        .gte('created_at', startUtc.toISOString())
+        .lte('created_at', endUtc.toISOString())
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true }),
+    { label: `getProductionBookings ${startDate}..${endDate}` }
+  );
 
-  return (data || [])
+  return data
     .filter((b) => b.status !== 'batal')
     .map((b) => ({
       outletId: b.outlet_id,
       treatmentName: b.treatment_name || '-',
       oilType: b.uses_oil ? b.oil_type || null : null,
       oilSize: b.uses_oil ? b.oil_size || null : null,
-      date: wibDateStr(b.created_at)
+      date: witaDateStr(b.created_at)
     }));
 }
 
 // Tanggal lokal Lombok dari timestamp DB, tak bergantung zona waktu perangkat.
-function wibDateStr(iso) {
+function witaDateStr(iso) {
   return businessDateFromTimestamp(iso);
 }
 
 // Batas UTC untuk rentang tanggal bisnis Lombok inklusif.
-function wibRangeBounds(startDate, endDate) {
+function witaRangeBounds(startDate, endDate) {
   return businessRangeBoundsUtc(startDate, endDate);
 }
 
@@ -844,16 +870,22 @@ export function buildProductionReport(rows, outletIds) {
  *   - treatment yang katalognya naik, sehingga booking lamanya terlihat murah
  */
 export async function getDiscountRange(startDate, endDate, outletId) {
-  const { startUtc, endUtc } = wibRangeBounds(startDate, endDate);
-  let q = supabase
-    .from('bookings')
-    .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, original_price, discount_pct, discount_reason, commission_percent, commission_amount, hotel_commission, paid, status, customer_name, booking_source, created_at')
-    .eq('booking_source', 'in_house')
-    .gte('created_at', startUtc.toISOString())
-    .lte('created_at', endUtc.toISOString());
-  if (outletId) q = q.eq('outlet_id', outletId);
-  const { data, error } = await q.limit(RANGE_LIMIT);
-  if (error) throw error;
+  const { startUtc, endUtc } = witaRangeBounds(startDate, endDate);
+  const data = await fetchAllRows(
+    () => {
+      let q = supabase
+        .from('bookings')
+        .select('id, outlet_id, therapist_id, therapist_name, treatment_name, treatment_price, original_price, discount_pct, discount_reason, commission_percent, commission_amount, hotel_commission, paid, status, customer_name, booking_source, created_at')
+        .eq('booking_source', 'in_house')
+        .gte('created_at', startUtc.toISOString())
+        .lte('created_at', endUtc.toISOString())
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true });
+      if (outletId) q = q.eq('outlet_id', outletId);
+      return q;
+    },
+    { label: `getDiscountRange ${startDate}..${endDate}` }
+  );
 
   // Harga katalog dipakai sebagai pembanding.
   const { data: treat } = await supabase.from('treatments').select('name, price');
@@ -863,7 +895,7 @@ export async function getDiscountRange(startDate, endDate, outletId) {
     if (k && katalog[k] == null) katalog[k] = Number(t.price || 0);
   });
 
-  return (data || [])
+  return data
     .map(mapBooking)
     .filter((b) => b.status !== 'batal')
     .filter((b) => (Number(b.discountPct) || 0) > 0 || (b.originalPrice != null && Number(b.originalPrice) !== Number(b.treatmentPrice || 0)))
@@ -932,18 +964,24 @@ export async function getPayslip(periode, outletId) {
   if (!periode || !periode.startDate || !periode.endDate) {
     throw new Error('Slip gaji butuh tanggal awal dan tanggal akhir.');
   }
-  const { startUtc, endUtc } = wibRangeBounds(periode.startDate, periode.endDate);
-  let q = supabase
-    .from('bookings')
-    .select('therapist_id, therapist_name, commission_amount, status, created_at, outlet_id')
-    .gte('created_at', startUtc.toISOString())
-    .lte('created_at', endUtc.toISOString());
-  if (outletId) q = q.eq('outlet_id', outletId);
-  const { data, error } = await q.limit(RANGE_LIMIT);
-  if (error) throw error;
+  const { startUtc, endUtc } = witaRangeBounds(periode.startDate, periode.endDate);
+  const data = await fetchAllRows(
+    () => {
+      let q = supabase
+        .from('bookings')
+        .select('therapist_id, therapist_name, commission_amount, status, created_at, outlet_id')
+        .gte('created_at', startUtc.toISOString())
+        .lte('created_at', endUtc.toISOString())
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true });
+      if (outletId) q = q.eq('outlet_id', outletId);
+      return q;
+    },
+    { label: `getPayslip ${periode.startDate}..${periode.endDate}` }
+  );
 
   const peta = {};
-  (data || []).forEach((b) => {
+  data.forEach((b) => {
     if (b.status === 'batal') return;
     const key = b.therapist_id || b.therapist_name;
     if (!key) return;
@@ -1036,16 +1074,21 @@ function fmtDate(d = new Date()) {
  */
 export async function getRevenueSementara(outletId) {
   const hariIni = fmtDate();
-  const { startUtc, endUtc } = wibRangeBounds(hariIni, hariIni);
-  let q = supabase
-    .from('bookings')
-    .select('outlet_id, treatment_price, hotel_commission, commission_amount, status, booking_source, therapist_name, treatment_name, created_at, paid, payment_method')
-    .gte('created_at', startUtc.toISOString())
-    .lte('created_at', endUtc.toISOString())
-    .limit(RANGE_LIMIT);
-  if (outletId) q = q.eq('outlet_id', outletId);
-  const { data, error } = await q;
-  if (error) throw error;
+  const { startUtc, endUtc } = witaRangeBounds(hariIni, hariIni);
+  const data = await fetchAllRows(
+    () => {
+      let q = supabase
+        .from('bookings')
+        .select('outlet_id, treatment_price, hotel_commission, commission_amount, status, booking_source, therapist_name, treatment_name, created_at, paid, payment_method')
+        .gte('created_at', startUtc.toISOString())
+        .lte('created_at', endUtc.toISOString())
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true });
+      if (outletId) q = q.eq('outlet_id', outletId);
+      return q;
+    },
+    { label: `getRevenueSementara ${hariIni}` }
+  );
   const waktuAmbil = new Date();
 
   const perOutlet = {};
