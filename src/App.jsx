@@ -214,6 +214,9 @@ export default function App() {
     const morePages = visiblePageEntries
       .filter(([key]) => !homeKeys.includes(key))
       .map(([key, p]) => ({ key, icon: p.icon, label: p.label }));
+    // Saat halaman dibuka dari "Lainnya", tab Lainnya harus tetap terlihat aktif
+    // supaya pengguna tahu sedang di mana.
+    const moreActive = morePages.some((p) => p.key === activePage);
 
     const openPage = (key) => {
       setActivePage(key);
@@ -223,20 +226,22 @@ export default function App() {
 
     return (
       <div className="kasir-shell">
-        <OfflineBanner />
-        <header className="kasir-top">
-          <div className="kasir-top-left">
-            <span className="kasir-top-logo">🫧</span>
-            <span className="kasir-top-text">
-              <strong>Dayang Spa</strong>
-              <small>Mode Kasir · {activeOutletName}</small>
-            </span>
-          </div>
-          <div className="kasir-top-right">
-            <span className="kasir-user">{userName}</span>
-            <button className="kasir-logout" onClick={logout} title="Keluar">⎋</button>
-          </div>
-        </header>
+        <div className="shell-top">
+          <OfflineBanner />
+          <header className="kasir-top">
+            <div className="kasir-top-left">
+              <span className="kasir-top-logo">🫧</span>
+              <span className="kasir-top-text">
+                <strong>Dayang Spa</strong>
+                <small>Mode Kasir · {activeOutletName}</small>
+              </span>
+            </div>
+            <div className="kasir-top-right">
+              <span className="kasir-user">{userName}</span>
+              <button className="kasir-logout" onClick={logout} title="Keluar">⎋</button>
+            </div>
+          </header>
+        </div>
 
         <main className={overdueCount > 0 ? 'kasir-content has-banner' : 'kasir-content'}>
           {activePage === 'beranda' ? (
@@ -268,19 +273,36 @@ export default function App() {
         </main>
 
         <nav className="kasir-nav">
-          <button className={activePage === 'beranda' ? 'active' : ''} onClick={() => openPage('beranda')}>
+          <button
+            className={activePage === 'beranda' ? 'active' : ''}
+            aria-current={activePage === 'beranda' ? 'page' : undefined}
+            onClick={() => openPage('beranda')}
+          >
             <span className="ni">🏠</span>Beranda
           </button>
-          <button className={activePage === 'kasir' ? 'active' : ''} onClick={() => openPage('kasir')}>
+          <button
+            className={activePage === 'kasir' ? 'active' : ''}
+            aria-current={activePage === 'kasir' ? 'page' : undefined}
+            onClick={() => openPage('kasir')}
+          >
             <span className="ni">➕</span>Pesanan
           </button>
-          <button className={activePage === 'status' ? 'active' : ''} onClick={() => openPage('status')}>
+          <button
+            className={activePage === 'status' ? 'active' : ''}
+            aria-current={activePage === 'status' ? 'page' : undefined}
+            onClick={() => openPage('status')}
+          >
             <span className="ni">💳</span>Bayar
             {unpaidCount > 0 && (
               <span className={overdueCount > 0 ? 'dot overdue' : 'dot'}>{unpaidCount}</span>
             )}
           </button>
-          <button className={moreOpen ? 'active' : ''} onClick={() => setMoreOpen(!moreOpen)}>
+          <button
+            className={(moreOpen || moreActive) ? 'active' : ''}
+            aria-current={moreActive ? 'page' : undefined}
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen(!moreOpen)}
+          >
             <span className="ni">☰</span>Lainnya
           </button>
         </nav>
@@ -327,6 +349,7 @@ export default function App() {
                 <button
                   key={key}
                   className={activePage === key ? 'nav-item active' : 'nav-item'}
+                  aria-current={activePage === key ? 'page' : undefined}
                   onClick={() => setActivePage(key)}
                 >
                   <span className="nav-icon">{p.icon}</span>
@@ -353,28 +376,30 @@ export default function App() {
 
       {/* ===== Area utama ===== */}
       <div className="main-area">
-        <OfflineBanner />
-        <header className="topbar">
-          <div className="topbar-title">
-            <h1>{currentPage.label}</h1>
-            {!currentPage.global && visibleOutlets.length > 1 && (
-              <span className="outlet-switch">
-                {visibleOutlets.map((o) => (
-                  <button
-                    key={o.id}
-                    className={activeOutlet === o.id ? 'chip active' : 'chip'}
-                    onClick={() => setActiveOutlet(o.id)}
-                  >
-                    {o.name}
-                  </button>
-                ))}
-              </span>
+        <div className="shell-top">
+          <OfflineBanner />
+          <header className="topbar">
+            <div className="topbar-title">
+              <h1>{currentPage.label}</h1>
+              {!currentPage.global && visibleOutlets.length > 1 && (
+                <span className="outlet-switch">
+                  {visibleOutlets.map((o) => (
+                    <button
+                      key={o.id}
+                      className={activeOutlet === o.id ? 'chip active' : 'chip'}
+                      onClick={() => setActiveOutlet(o.id)}
+                    >
+                      {o.name}
+                    </button>
+                  ))}
+                </span>
+              )}
+            </div>
+            {!currentPage.global && (
+              <span className="topbar-outlet-label">Outlet: {activeOutletName}</span>
             )}
-          </div>
-          {!currentPage.global && (
-            <span className="topbar-outlet-label">Outlet: {activeOutletName}</span>
-          )}
-        </header>
+          </header>
+        </div>
 
         <main className={overdueCount > 0 ? 'content has-banner' : 'content'}>
           <Suspense fallback={<div className="page-loading">Memuat halaman…</div>}>

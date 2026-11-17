@@ -5,13 +5,7 @@ import {
 } from '../lib/reportBookService';
 import { exportExcelWorkbook } from '../lib/excelExport';
 import { businessDateDaysAgo } from '../lib/businessDate';
-
-const PRESETS = [
-  { label: 'Hari ini', from: () => todayWib(), to: () => todayWib() },
-  { label: '7 hari', from: () => businessDateDaysAgo(6), to: () => todayWib() },
-  { label: '30 hari', from: () => businessDateDaysAgo(29), to: () => todayWib() },
-  { label: 'Bulan ini', from: () => todayWib().slice(0, 8) + '01', to: () => todayWib() }
-];
+import RentangTanggal from '../components/RentangTanggal';
 
 function rupiah(n) {
   return 'Rp ' + (Number(n) || 0).toLocaleString('id-ID');
@@ -96,15 +90,12 @@ export default function LaporanKeseluruhanPage({ active }) {
         Seluruh angka dihitung dari data yang benar-benar tercatat.
       </p>
 
-      <section className="filters">
-        <label>
-          Dari
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-        </label>
-        <label>
-          Sampai
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-        </label>
+      <RentangTanggal
+        startDate={startDate}
+        endDate={endDate}
+        onChange={(start, end) => { setStartDate(start); setEndDate(end); }}
+        hint={`Periode ${startDate} s/d ${endDate}. Seluruh angka di bawah dihitung dari rentang ini.`}
+      >
         <label>
           Outlet
           <select value={outletId} onChange={(e) => setOutletId(e.target.value)}>
@@ -114,18 +105,7 @@ export default function LaporanKeseluruhanPage({ active }) {
             ))}
           </select>
         </label>
-        <div className="preset-buttons">
-          {PRESETS.map((p) => (
-            <button
-              key={p.label}
-              type="button"
-              onClick={() => { setStartDate(p.from()); setEndDate(p.to()); }}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </section>
+      </RentangTanggal>
 
       <section className="actions">
         <button type="button" onClick={load} disabled={loading}>

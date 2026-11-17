@@ -55,6 +55,7 @@ export default function LaporanAbsensiPage({ active, user }) {
   const [records, setRecords] = useState([]);
   const [autoOt, setAutoOt] = useState({});
   const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
 
   useEffect(() => {
     if (!active) return undefined;
@@ -109,6 +110,7 @@ export default function LaporanAbsensiPage({ active, user }) {
 
   async function handleDownload() {
     if (!gridRows.length) return;
+    setDownloadError('');
     const recMap = buildRecMap(records);
 
     // Satu sel = teks yang sama persis dengan yang dirender layar (token
@@ -147,7 +149,8 @@ export default function LaporanAbsensiPage({ active, user }) {
           + 'Baris TOTAL: angka per tanggal = jumlah orang yang hadir hari itu.'
       });
     } catch (e) {
-      alert('Gagal membuat file Excel: ' + e.message);
+      console.error('gagal membuat file Excel absensi', e);
+      setDownloadError('Gagal membuat file Excel. Coba lagi beberapa saat.');
     } finally {
       setDownloading(false);
     }
@@ -225,6 +228,8 @@ export default function LaporanAbsensiPage({ active, user }) {
           </>
         )}
       />
+
+      {downloadError && <p className="message error" style={{ marginTop: 10 }}>{downloadError}</p>}
     </div>
   );
 }

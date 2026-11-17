@@ -3,6 +3,7 @@ import { OUTLETS } from '../lib/constants';
 import { getDiscountRange, groupDiscountReasons, flagDiscountIssues } from '../lib/reportService';
 import { exportExcelReport } from '../lib/excelExport';
 import { businessDate, businessDateDaysAgo, businessDateFromTimestamp } from '../lib/businessDate';
+import RentangTanggal from '../components/RentangTanggal';
 
 const ALL_OUTLETS = '__all__';
 
@@ -11,7 +12,6 @@ const daysAgo = businessDateDaysAgo;
 
 const rp = (n) => 'Rp' + (Number(n) || 0).toLocaleString('id-ID');
 const OUTLET_NAME = Object.fromEntries(OUTLETS.map((o) => [o.id, o.name]));
-const navBtn = { width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' };
 const hint = { fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0' };
 
 function witaStamp(iso) {
@@ -49,6 +49,8 @@ export default function LaporanDiskonPage({ active, profile }) {
   const [rows, setRows] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
 
   const target = isKasir ? myOutletId : outletId;
   const outletLabel = target === ALL_OUTLETS ? 'Semua Outlet' : (OUTLET_NAME[target] || target);
@@ -104,7 +106,9 @@ export default function LaporanDiskonPage({ active, profile }) {
   }, [shown]);
 
   async function handleDownload() {
-    if (!shown.length) return;
+    if (!shown.length || downloading) return;
+    setDownloadError('');
+    setDownloading(true);
     const headers = [
       'Tanggal', 'Jam', 'Outlet', 'Terapis', 'Treatment', 'Harga Katalog',
       'Harga Dibayar', 'Potongan', 'Diskon %', 'Komisi', 'Komisi Kurang',
@@ -132,14 +136,21 @@ export default function LaporanDiskonPage({ active, profile }) {
       totalDiskon, '', '', totalKomisiKurang, '', ''
     ]);
 
-    await exportExcelReport({
-      filename: `Laporan-Diskon-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${startDate}_${endDate}`,
-      title: 'Laporan Diskon / Potongan Harga — Dayang Spa',
-      subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
-      headers,
-      rows: body,
-      currencyColumns: [5, 6, 7, 9, 10]
-    });
+    try {
+      await exportExcelReport({
+        filename: `Laporan-Diskon-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${startDate}_${endDate}`,
+        title: 'Laporan Diskon / Potongan Harga — Dayang Spa',
+        subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
+        headers,
+        rows: body,
+        currencyColumns: [5, 6, 7, 9, 10]
+      });
+    } catch (e) {
+      console.error('gagal mengunduh laporan diskon', e);
+      setDownloadError('Gagal membuat file Excel. Coba lagi beberapa saat.');
+    } finally {
+      setDownloading(false);
+    }
   }
 
   return (
@@ -178,28 +189,26 @@ export default function LaporanDiskonPage({ active, profile }) {
         )}
       </section>
 
-      <section>
-        <p>Rentang tanggal</p>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button style={navBtn} onClick={() => { setStartDate(daysAgo(9)); setEndDate(todayId()); }}>
-            10 hari
-          </button>
-          <button style={navBtn} onClick={() => { setStartDate(daysAgo(29)); setEndDate(todayId()); }}>
-            30 hari
-          </button>
-          <button style={navBtn} onClick={() => { setStartDate(daysAgo(89)); setEndDate(todayId()); }}>
-            90 hari
-          </button>
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>s/d</span>
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          <button style={navBtn} onClick={load} disabled={loading}>
+      <RentangTanggal
+        startDate={startDate}
+        endDate={endDate}
+        onChange={(start, end) => { setStartDate(start); setEndDate(end); }}
+        presets={[
+          { label: '10 hari', start: daysAgo(9), end: todayId() },
+          { label: '30 hari', start: daysAgo(29), end: todayId() },
+          { label: '90 hari', start: daysAgo(89), end: todayId() }
+        ]}
+      >
+        <div className="rentang-actions">
+          <button className="btn btn-outline btn-sm" onClick={load} disabled={loading}>
             {loading ? 'Memuat...' : 'Muat ulang'}
           </button>
         </div>
-      </section>
+      </RentangTanggal>
 
       {error && <p className="message warn">{error}</p>}
+
+      {loading && !rows && <p className="report-loading" aria-live="polite">Memuat data diskon…</p>}
 
       {rows && (
         <>
@@ -292,10 +301,12 @@ export default function LaporanDiskonPage({ active, profile }) {
             >
               Perlu ditinjau ({bermasalah.length})
             </button>
-            <button style={navBtn} onClick={handleDownload} disabled={!shown.length}>
-              ⬇ Download Excel
+            <button className="btn btn-outline btn-sm" onClick={handleDownload} disabled={!shown.length || downloading}>
+              {downloading ? 'Menyiapkan...' : '⬇ Download Excel'}
             </button>
           </div>
+
+          {downloadError && <p className="message error" style={{ marginBottom: 10 }}>{downloadError}</p>}
 
           {shown.length === 0 ? (
             <p className="muted">

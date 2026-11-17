@@ -173,7 +173,7 @@
 .kasir-page .table-wrap table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
 }
 .kasir-page .table-wrap th,
 .kasir-page .table-wrap td {
@@ -188,9 +188,14 @@
   background: var(--primary-light);
   color: var(--primary-dark);
   font-weight: 700;
-  font-size: 11px;
+  font-size: 11.5px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+/* Tabel laporan panjang: header tetap terlihat saat isi digulir. */
+.kasir-page .table-wrap--report {
+  max-height: min(70vh, 640px);
+  overflow: auto;
 }
 .kasir-page .table-wrap tbody tr:last-child td { border-bottom: none; }
 .kasir-page .table-wrap tfoot td {
@@ -429,4 +434,106 @@
   .kasir-page section.summary-cards { grid-template-columns: repeat(2, 1fr); }
   .kasir-page section.filters > button,
   .kasir-page section.actions > button { flex: 1 1 100%; }
+}
+
+/* ===== Status memuat laporan ===== */
+.report-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.report-loading::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 2px solid var(--primary-light);
+  border-top-color: var(--primary);
+  animation: reportSpin 0.8s linear infinite;
+}
+@keyframes reportSpin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .report-loading::before { animation: none; }
+}
+
+/* ===== Pemilih rentang tanggal standar ===== */
+.kasir-page section.rentang-tanggal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.kasir-page section.rentang-tanggal > p.section-title {
+  margin: 0;
+}
+.rentang-tanggal .preset-buttons {
+  gap: 8px;
+}
+.rentang-tanggal .preset-buttons button {
+  min-height: 38px;
+}
+.rentang-tanggal .preset-buttons button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.date-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+.date-range label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.date-range input[type="date"] {
+  min-height: 42px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+.date-range select {
+  min-height: 42px;
+  min-width: 150px;
+  padding: 8px 34px 8px 10px;
+  font-size: 14px;
+}
+.date-range-sep {
+  padding-bottom: 11px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.rentang-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.rentang-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 520px) {
+  .date-range label { flex: 1 1 140px; }
+  .date-range input[type="date"],
+  .date-range select { width: 100%; }
+  .date-range-sep { display: none; }
 }

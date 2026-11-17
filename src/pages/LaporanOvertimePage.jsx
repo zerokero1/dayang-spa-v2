@@ -4,6 +4,7 @@ import { getAttendanceRange } from '../lib/attendanceService';
 import { listenAllTherapists } from '../lib/therapistService';
 import { exportExcelReport } from '../lib/excelExport';
 import { businessDate, businessDateDaysAgo, businessMonth } from '../lib/businessDate';
+import RentangTanggal, { rentangBulanLalu } from '../components/RentangTanggal';
 
 const ALL_OUTLETS = '__all__';
 
@@ -22,7 +23,6 @@ function durasi(menit) {
   return `${j}j ${sisa}m`;
 }
 
-const navBtn = { width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' };
 const hint = { fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0' };
 
 const OUTLET_NAME = Object.fromEntries(OUTLETS.map((o) => [o.id, o.name]));
@@ -48,9 +48,12 @@ export default function LaporanOvertimePage({ active, profile }) {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
 
   const target = isKasir ? myOutletId : outletId;
   const outletLabel = target === ALL_OUTLETS ? 'Semua Outlet' : (OUTLET_NAME[target] || target);
+  const bulanLalu = rentangBulanLalu();
 
   useEffect(() => {
     if (!active) return undefined;
@@ -120,7 +123,9 @@ export default function LaporanOvertimePage({ active, profile }) {
   }, { total: 0, catatan: 0, belumDitinjau: 0 }), [perTherapist]);
 
   async function handleDownload() {
-    if (!perTherapist.length) return;
+    if (!perTherapist.length || downloading) return;
+    setDownloadError('');
+    setDownloading(true);
     const headers = ['Nama', 'Shift', 'Jumlah catatan', 'Total menit', 'Total', 'Perlu ditinjau'];
     const body = perTherapist.map((t) => [
       t.name,
@@ -134,15 +139,22 @@ export default function LaporanOvertimePage({ active, profile }) {
     body.push([]);
     body.push(['TOTAL', '', totals.catatan, totals.total, durasi(totals.total), totals.belumDitinjau || '']);
 
-    await exportExcelReport({
-      filename: `Laporan-Overtime-Absensi-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${startDate}_${endDate}`,
-      title: 'Laporan Overtime (dari Absensi) — Dayang Spa',
-      subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
-      headers,
-      rows: body,
-      currencyColumns: [3],
-      totalRowIndex: body.length - 1
-    });
+    try {
+      await exportExcelReport({
+        filename: `Laporan-Overtime-Absensi-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${startDate}_${endDate}`,
+        title: 'Laporan Overtime (dari Absensi) — Dayang Spa',
+        subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
+        headers,
+        rows: body,
+        currencyColumns: [3],
+        totalRowIndex: body.length - 1
+      });
+    } catch (e) {
+      console.error('gagal mengunduh laporan overtime', e);
+      setDownloadError('Gagal membuat file Excel. Coba lagi beberapa saat.');
+    } finally {
+      setDownloading(false);
+    }
   }
 
   return (
@@ -180,39 +192,27 @@ export default function LaporanOvertimePage({ active, profile }) {
         )}
       </section>
 
-      <section>
-        <p>Rentang tanggal</p>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button
-            style={navBtn}
-            onClick={() => { const b = thisBusinessMonth(); setStartDate(`${b}-01`); setEndDate(todayBusinessDate()); }}
-          >
-            Bulan ini
-          </button>
-          <button
-            style={navBtn}
-            onClick={() => { setStartDate(daysAgo(29)); setEndDate(todayBusinessDate()); }}
-          >
-            30 hari
-          </button>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>s/d</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
-          <button style={navBtn} onClick={load} disabled={loading}>
-            {loading ? 'Memuat...' : 'Muat'}
+      <RentangTanggal
+        startDate={startDate}
+        endDate={endDate}
+        onChange={(start, end) => { setStartDate(start); setEndDate(end); }}
+        presets={[
+          { label: 'Bulan ini', start: `${thisBusinessMonth()}-01`, end: todayBusinessDate() },
+          { label: '30 hari', start: daysAgo(29), end: todayBusinessDate() },
+          { label: 'Bulan lalu', start: bulanLalu.start, end: bulanLalu.end }
+        ]}
+        hint={`Menampilkan lembur ${startDate} s/d ${endDate} (${outletLabel}). Angka mengikuti catatan lembur manual di halaman Absensi.`}
+      >
+        <div className="rentang-actions">
+          <button className="btn btn-outline btn-sm" onClick={load} disabled={loading}>
+            {loading ? 'Memuat...' : 'Muat ulang'}
           </button>
         </div>
-      </section>
+      </RentangTanggal>
 
       {error && <p className="message warn">{error}</p>}
+
+      {loading && !records && <p className="report-loading" aria-live="polite">Memuat catatan lembur…</p>}
 
       {records && (
         <>
@@ -233,10 +233,12 @@ export default function LaporanOvertimePage({ active, profile }) {
           )}
 
           <div style={{ marginBottom: 10 }}>
-            <button style={navBtn} onClick={handleDownload} disabled={!perTherapist.length}>
-              ⬇ Download Excel
+            <button className="btn btn-outline btn-sm" onClick={handleDownload} disabled={!perTherapist.length || downloading}>
+              {downloading ? 'Menyiapkan...' : '⬇ Download Excel'}
             </button>
           </div>
+
+          {downloadError && <p className="message error" style={{ marginBottom: 10 }}>{downloadError}</p>}
 
           {perTherapist.length === 0 ? (
             <p className="muted">Tidak ada lembur tercatat pada rentang ini.</p>

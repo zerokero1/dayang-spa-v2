@@ -3,6 +3,7 @@ import { OUTLETS } from '../lib/constants';
 import { getUnpaidRange } from '../lib/reportService';
 import { exportExcelReport } from '../lib/excelExport';
 import { businessDate, businessDateDaysAgo, businessDateFromTimestamp } from '../lib/businessDate';
+import RentangTanggal from '../components/RentangTanggal';
 
 const ALL_OUTLETS = '__all__';
 
@@ -31,7 +32,6 @@ function witaStamp(iso) {
   return `${businessDateFromTimestamp(iso)} ${time}`;
 }
 
-const navBtn = { width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' };
 const hint = { fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0' };
 
 /**
@@ -53,6 +53,8 @@ export default function LaporanBelumDitandaiPage({ active, profile }) {
   const [rows, setRows] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
 
   const target = isKasir ? myOutletId : outletId;
   const outletLabel = target === ALL_OUTLETS ? 'Semua Outlet' : (OUTLET_NAME[target] || target);
@@ -95,7 +97,9 @@ export default function LaporanBelumDitandaiPage({ active, profile }) {
   const totalKomisi = selesai.reduce((s, b) => s + (b.commissionAmount || 0), 0);
 
   async function handleDownload() {
-    if (!shown.length) return;
+    if (!shown.length || downloading) return;
+    setDownloadError('');
+    setDownloading(true);
     const headers = [
       'Tanggal', 'Jam', 'Outlet', 'Terapis', 'Treatment', 'Harga',
       'Komisi', 'Status', 'Umur (hari)', 'Pelanggan', 'Catatan'
@@ -116,14 +120,21 @@ export default function LaporanBelumDitandaiPage({ active, profile }) {
     body.push([]);
     body.push(['SUBTOTAL', '', '', '', `${shown.length} transaksi belum ditandai`, shown.reduce((s, b) => s + (b.treatmentPrice || 0), 0), shown.reduce((s, b) => s + (b.commissionAmount || 0), 0)]);
 
-    await exportExcelReport({
-      filename: `Belum-Ditandai-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${startDate}_${endDate}`,
-      title: 'Laporan Belum Ditandai (Belum Lunas) — Dayang Spa',
-      subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
-      headers,
-      rows: body,
-      currencyColumns: [5, 6]
-    });
+    try {
+      await exportExcelReport({
+        filename: `Belum-Ditandai-${target === ALL_OUTLETS ? 'Semua-Outlet' : target}-${startDate}_${endDate}`,
+        title: 'Laporan Belum Ditandai (Belum Lunas) — Dayang Spa',
+        subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
+        headers,
+        rows: body,
+        currencyColumns: [5, 6]
+      });
+    } catch (e) {
+      console.error('gagal mengunduh laporan belum ditandai', e);
+      setDownloadError('Gagal membuat file Excel. Coba lagi beberapa saat.');
+    } finally {
+      setDownloading(false);
+    }
   }
 
   return (
@@ -161,39 +172,27 @@ export default function LaporanBelumDitandaiPage({ active, profile }) {
         )}
       </section>
 
-      <section>
-        <p>Rentang tanggal</p>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button
-            style={navBtn}
-            onClick={() => { setStartDate(daysAgo(9)); setEndDate(todayId()); }}
-          >
-            10 hari
-          </button>
-          <button
-            style={navBtn}
-            onClick={() => { setStartDate(daysAgo(29)); setEndDate(todayId()); }}
-          >
-            30 hari
-          </button>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>s/d</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
-          <button style={navBtn} onClick={load} disabled={loading}>
+      <RentangTanggal
+        startDate={startDate}
+        endDate={endDate}
+        onChange={(start, end) => { setStartDate(start); setEndDate(end); }}
+        presets={[
+          { label: '10 hari', start: daysAgo(9), end: todayId() },
+          { label: '30 hari', start: daysAgo(29), end: todayId() },
+          { label: '90 hari', start: daysAgo(89), end: todayId() }
+        ]}
+        hint={`Menampilkan transaksi ${startDate} s/d ${endDate} (${outletLabel}). Muat ulang untuk mengambil data terbaru dari kasir.`}
+      >
+        <div className="rentang-actions">
+          <button className="btn btn-outline btn-sm" onClick={load} disabled={loading}>
             {loading ? 'Memuat...' : 'Muat ulang'}
           </button>
         </div>
-      </section>
+      </RentangTanggal>
 
       {error && <p className="message warn">{error}</p>}
+
+      {loading && !rows && <p className="report-loading" aria-live="polite">Memuat transaksi belum ditandai…</p>}
 
       {rows && (
         <>
@@ -262,13 +261,15 @@ export default function LaporanBelumDitandaiPage({ active, profile }) {
               Selesai saja ({selesai.length})
             </button>
             <button
-              style={navBtn}
+              className="btn btn-outline btn-sm"
               onClick={handleDownload}
-              disabled={!shown.length}
+              disabled={!shown.length || downloading}
             >
-              ⬇ Download Excel
+              {downloading ? 'Menyiapkan...' : '⬇ Download Excel'}
             </button>
           </div>
+
+          {downloadError && <p className="message error" style={{ marginBottom: 10 }}>{downloadError}</p>}
 
           {shown.length === 0 ? (
             <p className="muted">

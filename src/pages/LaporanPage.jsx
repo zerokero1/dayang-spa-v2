@@ -4,23 +4,8 @@ import {
   getDailyRevenueCommissionReport
 } from '../lib/reportService';
 import { exportExcelReport, exportDailyRevenueCommission } from '../lib/excelExport';
-import { businessDate, shiftBusinessDate } from '../lib/businessDate';
-
-/** Senin sebagai awal minggu, sama seperti halaman stok/inventory. */
-function startOfWeek(dateStr) {
-  const day = new Date(`${dateStr}T00:00:00Z`).getUTCDay();
-  return shiftBusinessDate(dateStr, -((day + 6) % 7));
-}
-
-function previousMonthRange(dateStr) {
-  const [year, month] = dateStr.split('-').map(Number);
-  const first = new Date(Date.UTC(year, month - 2, 1));
-  const last = new Date(Date.UTC(year, month - 1, 0));
-  return {
-    start: first.toISOString().slice(0, 10),
-    end: last.toISOString().slice(0, 10)
-  };
-}
+import { businessDate } from '../lib/businessDate';
+import RentangTanggal from '../components/RentangTanggal';
 
 function countDays(startDate, endDate) {
   if (!startDate || !endDate || endDate < startDate) return 0;
@@ -236,16 +221,6 @@ export default function LaporanPage({ outletId, profile }) {
 
   const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
 
-  const prevMonth = previousMonthRange(today);
-  const presets = [
-    { label: 'Hari ini', start: today, end: today },
-    { label: '7 hari', start: shiftBusinessDate(today, -6), end: today },
-    { label: '30 hari', start: shiftBusinessDate(today, -29), end: today },
-    { label: 'Minggu ini', start: startOfWeek(today), end: today },
-    { label: 'Bulan ini', start: `${today.slice(0, 7)}-01`, end: today },
-    { label: 'Bulan lalu', start: prevMonth.start, end: prevMonth.end }
-  ];
-
   return (
     <div className="kasir-page">
       <h2>Laporan Keuangan</h2>
@@ -256,44 +231,14 @@ export default function LaporanPage({ outletId, profile }) {
         bagian "Belum dibayar" di Laporan Keuangan ini.
       </p>
 
-      <section>
-        <p>Rentang tanggal</p>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-          {presets.map((p) => (
-            <button
-              key={p.label}
-              style={{ width: 'auto', padding: '6px 12px', fontSize: 12, boxShadow: 'none' }}
-              className={startDate === p.start && endDate === p.end ? 'active' : ''}
-              onClick={() => { setStartDate(p.start); setEndDate(p.end); }}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => {
-              const value = e.target.value;
-              setStartDate(value);
-              if (value && endDate && value > endDate) setEndDate(value);
-            }}
-          />
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>s/d</span>
-          <input
-            type="date"
-            value={endDate}
-            min={startDate || undefined}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
-        </div>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0' }}>
-          {rangeDays > 0
-            ? `Periode aktif: ${rangeLabel} (${rangeDays} hari). Pilih cepat 7 hari / 30 hari / satu bulan, atau atur tanggal sendiri.`
-            : 'Tanggal akhir tidak boleh lebih awal dari tanggal awal.'}
-        </p>
-      </section>
+      <RentangTanggal
+        startDate={startDate}
+        endDate={endDate}
+        onChange={(start, end) => { setStartDate(start); setEndDate(end); }}
+        hint={rangeDays > 0
+          ? `Periode aktif: ${rangeLabel} (${rangeDays} hari). Pilih cepat 7 hari / 30 hari / satu bulan, atau atur tanggal sendiri.`
+          : 'Tanggal akhir tidak boleh lebih awal dari tanggal awal.'}
+      />
 
       <section>
         <p>Tampilan</p>
@@ -324,6 +269,10 @@ export default function LaporanPage({ outletId, profile }) {
       </button>
 
       {loadError && <p className="message warn" style={{ marginTop: 10 }}>{loadError}</p>}
+
+      {loading && !outletSummary && !combined && !staffCommissions && (
+        <p className="report-loading" aria-live="polite">Memuat laporan…</p>
+      )}
 
       {mode === 'outlet' && outletSummary && (
         <section style={{ marginTop: 16 }}>
