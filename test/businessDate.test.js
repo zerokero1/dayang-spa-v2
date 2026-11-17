@@ -8,6 +8,7 @@ import {
   businessRangeBoundsUtc,
   businessRangeIso,
   businessTimeParts,
+  businessTimeStr,
   businessDayMinutesToMs,
   shiftBusinessDate
 } from '../src/lib/businessDate.js';
@@ -49,6 +50,9 @@ test('businessTimeParts dan businessMinutesOfDay memakai jam Lombok', () => {
   assert.equal(businessMinutesOfDay(date), 11 * 60 + 30);
   // 16:00 UTC = 00:00 WITA tanggal berikutnya.
   assert.deepEqual(businessTimeParts(new Date('2026-10-15T16:00:00Z')), { hour: 0, minute: 0 });
+  assert.equal(businessTimeStr(date), '11:30');
+  assert.equal(businessTimeStr(new Date('2026-10-15T16:00:00Z')), '00:00');
+  assert.equal(businessTimeStr(new Date('2026-10-15T01:05:00Z')), '09:05');
 });
 
 test('businessDayMinutesToMs mengembalikan jam lokal yang benar', () => {

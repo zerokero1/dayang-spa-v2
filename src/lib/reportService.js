@@ -1,6 +1,11 @@
 import { supabase } from './supabase.js';
 import { OUTLETS, SIZE_NONE } from './constants.js';
-import { businessDateFromTimestamp, businessRangeBoundsUtc, shiftBusinessDate } from './businessDate.js';
+import {
+  businessDateFromTimestamp,
+  businessRangeBoundsUtc,
+  businessTimeStr,
+  shiftBusinessDate
+} from './businessDate.js';
 import { fetchAllRows } from './supabasePaging.js';
 
 function mapBooking(row) {
@@ -34,6 +39,7 @@ function mapBooking(row) {
     // database `wib_date`. Nama kolom itu warisan lama dan isinya sering
     // meleset +1 hari, jadi tidak boleh dipakai untuk pengelompokan tanggal.
     witaDate: businessDateFromTimestamp(row.created_at),
+    witaTime: witaTimeStr(row.created_at),
     createdAt: row.created_at,
     completedAt: row.completed_at,
     cancelledAt: row.cancelled_at
@@ -370,6 +376,7 @@ function stripDuration(name) {
 // TOTAL, `money` menandai kolom yang diformat ribuan.
 const DAILY_OUTLET_COLUMNS = [
   { key: 'date', header: 'Tanggal', width: 14 },
+  { key: 'time', header: 'Jam', width: 8, center: true },
   { key: 'treatmentName', header: 'Treatment', width: 30 },
   { key: 'oilType', header: 'Minyak', width: 16 },
   { key: 'qty', header: 'Qty', width: 6, center: true },
@@ -383,6 +390,7 @@ const DAILY_OUTLET_COLUMNS = [
 // charge - komisi terapis - komisi hotel, jadi yang benar-benar diterima spa.
 const DAILY_ONCALL_COLUMNS = [
   { key: 'date', header: 'Tanggal', width: 14 },
+  { key: 'time', header: 'Jam', width: 8, center: true },
   { key: 'treatmentName', header: 'Treatment', width: 28 },
   { key: 'oilType', header: 'Minyak', width: 16 },
   { key: 'qty', header: 'Qty', width: 6, center: true },
@@ -511,6 +519,8 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
       const commission = b.commissionAmount || 0;
       const hotelCommission = b.hotelCommission || 0;
       return {
+        time: witaTimeStr(b.createdAt),
+        createdAt: b.createdAt,
         treatmentName: stripDuration(b.treatmentName),
         oilType: b.oilType || '',
         qty: 1,
@@ -532,14 +542,14 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
       const own = items
         .filter((b) => b.outletId === o.id && b.bookingSource !== 'oncall')
         // Urut dari harga tertinggi supaya baris paling mudah dicocokkan dengan buku.
-        .sort((a, b) => b.charge - a.charge || a.treatmentName.localeCompare(b.treatmentName))
+        .sort((a, b) => b.charge - a.charge || a.time.localeCompare(b.time) || a.treatmentName.localeCompare(b.treatmentName))
         .map((x) => ({ ...x, date: dateStr, outletId: o.id }));
       byKey[o.id].days.push(buildDailyDay(dateStr, own));
     });
 
     const oncall = items
       .filter((b) => b.bookingSource === 'oncall')
-      .sort((a, b) => b.charge - a.charge || a.treatmentName.localeCompare(b.treatmentName))
+      .sort((a, b) => b.charge - a.charge || a.time.localeCompare(b.time) || a.treatmentName.localeCompare(b.treatmentName))
       .map((x) => ({ ...x, date: dateStr }));
     byKey.oncall.days.push(buildDailyDay(dateStr, oncall));
 
@@ -553,9 +563,9 @@ export async function getDailyRevenueCommissionReport(startDate, endDate) {
       sheetName: 'Lainnya',
       title: 'Laporan Outlet Lainnya',
       columns: [
-        ...DAILY_OUTLET_COLUMNS.slice(0, 5),
+        ...DAILY_OUTLET_COLUMNS.slice(0, 6),
         { key: 'outletId', header: 'Outlet', width: 10, center: true },
-        ...DAILY_OUTLET_COLUMNS.slice(5)
+        ...DAILY_OUTLET_COLUMNS.slice(6)
       ],
       days: [buildDailyDay('(tidak ada tanggal outlet)', others)]
     });
@@ -679,11 +689,36 @@ export async function getCommissionAudit(startDate, endDate) {
 export async function getCommissionStaffReport(startDate, endDate) {
   const bookingsAll = endDate ? await getAllBookingsRange(startDate, endDate) : await getAllDailyBookings(startDate);
   const staff = {};
+  const transactions = [];
+
   bookingsAll.forEach((b) => {
     if (b.status === 'batal') return;
     const key = b.therapistName || String(b.therapistId);
+    const tanggal = witaDateStr(b.createdAt);
+    const jam = witaTimeStr(b.createdAt);
+    const ts = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    const outletName = OUTLETS.find((o) => o.id === b.outletId)?.name || b.outletId || '-';
+
+    // Rincian transaksi dipakai panel "per jam" di halaman komisi. Sudah
+    // diambil dari query yang sama dengan rekap, jadi tidak ada request baru.
+    transactions.push({
+      id: b.id,
+      date: tanggal,
+      time: jam,
+      createdAt: b.createdAt,
+      therapistName: b.therapistName || '-',
+      treatmentName: b.treatmentName || '-',
+      treatmentPrice: b.treatmentPrice || 0,
+      commissionAmount: b.commissionAmount || 0,
+      hotelCommission: b.hotelCommission || 0,
+      outletId: b.outletId || '',
+      outletName,
+      bookingSource: b.bookingSource || 'in_house',
+      paid: !!b.paid
+    });
+
     if (!staff[key]) {
-      // Umzet dan tunggakan ikut dikumpulkan supaya daftar gaji bisa langsung
+      // Omzet dan tunggakan ikut dikumpulkan supaya daftar gaji bisa langsung
       // dipakai: komisi yang benar tapi omzetnya belum masuk kas adalah dua
       // masalah berbeda, dan kasir biasanya hanya melihat yang kedua.
       staff[key] = {
@@ -694,7 +729,9 @@ export async function getCommissionStaffReport(startDate, endDate) {
         hotelCommissionTotal: 0,
         unpaidCount: 0,
         unpaidTotal: 0,
-        outlets: {}
+        outlets: {},
+        first: null,
+        last: null
       };
     }
     const s = staff[key];
@@ -707,21 +744,37 @@ export async function getCommissionStaffReport(startDate, endDate) {
       s.unpaidTotal += b.treatmentPrice || 0;
     }
     s.outlets[b.outletId] = true;
+
+    if (ts && (!s.first || ts < s.first.ts)) s.first = { ts, date: tanggal, time: jam };
+    if (ts && (!s.last || ts > s.last.ts)) s.last = { ts, date: tanggal, time: jam };
   });
-  return Object.values(staff)
-    .map((s) => ({
-      therapistName: s.therapistName,
-      treatmentCount: s.treatmentCount,
-      commissionTotal: s.commissionTotal,
-      revenueTotal: s.revenueTotal,
-      hotelCommissionTotal: s.hotelCommissionTotal,
-      unpaidCount: s.unpaidCount,
-      unpaidTotal: s.unpaidTotal,
-      outlets: Object.keys(s.outlets)
-        .map((oid) => OUTLETS.find((o) => o.id === oid)?.name || oid)
-        .sort()
-    }))
-    .sort((a, b) => b.commissionTotal - a.commissionTotal);
+
+  const labelJam = (s) => {
+    if (!s.first || !s.last) return '-';
+    if (s.first.date === s.last.date) return `${s.first.time}–${s.last.time}`;
+    return `${s.first.date} ${s.first.time} – ${s.last.date} ${s.last.time}`;
+  };
+
+  return {
+    staff: Object.values(staff)
+      .map((s) => ({
+        therapistName: s.therapistName,
+        treatmentCount: s.treatmentCount,
+        commissionTotal: s.commissionTotal,
+        revenueTotal: s.revenueTotal,
+        hotelCommissionTotal: s.hotelCommissionTotal,
+        unpaidCount: s.unpaidCount,
+        unpaidTotal: s.unpaidTotal,
+        jam: labelJam(s),
+        outlets: Object.keys(s.outlets)
+          .map((oid) => OUTLETS.find((o) => o.id === oid)?.name || oid)
+          .sort()
+      }))
+      .sort((a, b) => b.commissionTotal - a.commissionTotal),
+    transactions: transactions.sort(
+      (a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+    )
+  };
 }
 
 // Ukuran botol: Kecil = 10ml, Besar = 30ml (keterangan saja; dipakai laporan
@@ -761,6 +814,12 @@ export async function getProductionBookings(startDate, endDate) {
 // Tanggal lokal Lombok dari timestamp DB, tak bergantung zona waktu perangkat.
 function witaDateStr(iso) {
   return businessDateFromTimestamp(iso);
+}
+
+// Jam lokal Lombok (HH:mm) dari timestamp DB. Dipakai laporan komisi supaya
+// kasir bisa mencocokkan transaksi dengan jadwal/Shift terapis.
+function witaTimeStr(iso) {
+  return iso ? businessTimeStr(new Date(iso)) : '';
 }
 
 // Batas UTC untuk rentang tanggal bisnis Lombok inklusif.

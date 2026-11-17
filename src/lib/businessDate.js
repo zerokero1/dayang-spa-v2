@@ -51,6 +51,12 @@ export function businessMinutesOfDay(date = new Date()) {
   return hour * 60 + minute;
 }
 
+/** Jam WITA dengan format HH:mm (00:00–23:59), aman untuk ditampilkan. */
+export function businessTimeStr(date = new Date()) {
+  const { hour, minute } = businessTimeParts(date);
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
 /** Epoch ms untuk jam tertentu (menit sejak 00:00) pada tanggal Lombok. */
 export function businessDayMinutesToMs(dateString, minutes) {
   return startOfBusinessDayUtc(dateString).getTime() + Math.round(minutes) * 60000;
