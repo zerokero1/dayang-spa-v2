@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ExcelJS from 'exceljs';
 import { OUTLETS } from '../lib/constants';
 import { getProductionBookings, buildProductionReport } from '../lib/reportService';
 import { businessDate } from '../lib/businessDate';
 import { notifyError, notifySuccess } from '../lib/notifications';
+import RentangTanggal from '../components/RentangTanggal';
 
 export default function LaporanProduksiPage({ profile }) {
   const isKasir = profile?.role === 'kasir';
@@ -14,27 +15,36 @@ export default function LaporanProduksiPage({ profile }) {
   const [endDate, setEndDate] = useState(businessDate());
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState(null);
+  const [error, setError] = useState('');
 
   const rangeLabel = startDate === endDate ? startDate : `${startDate} s/d ${endDate}`;
 
   async function load() {
     setLoading(true);
+    setError('');
     try {
       const rows = await getProductionBookings(startDate, endDate);
       setReport(buildProductionReport(rows, colIds));
     } catch (e) {
-      alert('Gagal memuat laporan: ' + e.message);
+      console.error('gagal memuat laporan produksi', e);
+      setError('Gagal memuat laporan produksi. Periksa koneksi lalu coba lagi.');
     } finally {
       setLoading(false);
     }
   }
 
+  // Interval 60 detik harus memakai rentang yang sedang dipilih, bukan rentang
+  // saat halaman pertama dibuka.
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
   useEffect(() => {
-    if (loading) return;
-    load();
-    const timer = setInterval(load, 60000);
+    loadRef.current();
+  }, [startDate, endDate]);
+
+  useEffect(() => {
+    const timer = setInterval(() => loadRef.current(), 60000);
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const headers = ['Ket.', ...cols.map((o) => o.name), 'TOTAL'];
@@ -62,34 +72,39 @@ export default function LaporanProduksiPage({ profile }) {
 
   function renderTable(title, h, rows, totalIdx) {
     return (
-      <section style={{ marginTop: 18, overflow: 'auto' }}>
+      <section style={{ marginTop: 18 }}>
         <h3 style={{ margin: 0 }}>{title}</h3>
-        <table className="summary-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 8 }}>
-          <thead>
-            <tr>
-              {h.map((c, i) => (
-                <th key={i} style={{ textAlign: 'left', padding: 8, whiteSpace: 'nowrap' }}>{c}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr><td colSpan={h.length} style={{ padding: 10, color: 'var(--text-secondary)' }}>Tidak ada data untuk rentang ini.</td></tr>
-            ) : rows.map((r, i) => (
-              <tr key={i} style={totalIdx === i ? { fontWeight: 800 } : {}}>
-                {r.map((c, j) => (
-                  <td key={j} style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>{c}</td>
+        <div className="table-wrap table-wrap--report" style={{ marginTop: 8 }}>
+          <table className="summary-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                {h.map((c, i) => (
+                  <th key={i} style={{ textAlign: 'left', padding: 8, whiteSpace: 'nowrap' }}>{c}</th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr><td colSpan={h.length} style={{ padding: 10, color: 'var(--text-secondary)' }}>Tidak ada data untuk rentang ini.</td></tr>
+              ) : rows.map((r, i) => (
+                <tr key={i} style={totalIdx === i ? { fontWeight: 800 } : {}}>
+                  {r.map((c, j) => (
+                    <td key={j} style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>{c}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     );
   }
 
   async function handleDownload() {
-    if (!report) { alert('Tampilkan laporan dulu.'); return; }
+    if (!report) {
+      setError('Tampilkan laporan dulu sebelum mengunduh.');
+      return;
+    }
 
     try {
       const wb = new ExcelJS.Workbook();
@@ -149,27 +164,23 @@ export default function LaporanProduksiPage({ profile }) {
     <div className="kasir-page">
       <h2>Laporan Produksi</h2>
 
-      <section>
-        <p>Rentang tanggal</p>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+      <RentangTanggal
+        startDate={startDate}
+        endDate={endDate}
+        onChange={(start, end) => { setStartDate(start); setEndDate(end); }}
+        hint={`Periode ${rangeLabel}${isKasir ? ' · kasir hanya melihat outlet sendiri' : ''}`}
+      >
+        <div className="rentang-actions">
+          <button className="btn btn-primary btn-sm" onClick={load} disabled={loading}>
+            {loading ? 'Memuat...' : 'Muat ulang'}
+          </button>
+          <button className="btn btn-outline btn-sm" onClick={handleDownload}>
+            ⬇ Ekspor Excel
+          </button>
         </div>
-        {isKasir && (
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-            Kasir hanya melihat laporan outlet sendiri.
-          </p>
-        )}
-      </section>
+      </RentangTanggal>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        <button onClick={load} disabled={loading}>
-          {loading ? 'Memuat...' : 'Tampilkan'}
-        </button>
-        <button className="btn btn-outline btn-sm" onClick={handleDownload}>
-          ⬇ Ekspor Excel
-        </button>
-      </div>
+      {error && <p className="message warn">{error}</p>}
 
       {report && (
         <>
