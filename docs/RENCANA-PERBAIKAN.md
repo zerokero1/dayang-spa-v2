@@ -1,6 +1,6 @@
 # Rencana perbaikan
 
-Diperbarui: 16 November 2026
+Diperbarui: 17 November 2026
 
 Prinsip kerja: perubahan yang menyentuh alur kasir (buat pesanan, bayar, struk)
 diuji di salinan lebih dulu dan dipasang di jam sepi. PWA memakai prompt update,
@@ -14,6 +14,7 @@ bukan reload otomatis, supaya transaksi tidak terputus saat kasir bekerja.
 | Shift | `SHIFT_DEFS` + `shiftJamLabel` menjadi satu sumber; label jam di grid jadwal diturunkan otomatis. |
 | Laporan | Perbaikan `rangeIso`, detail pemakaian stok, riwayat Pemeriksaan Sistem, serta ringkasan kas lunas dan belum bayar. |
 | Ekspor Excel | `fetchAllRows` (`src/lib/supabasePaging.js`) mengambil semua baris bertahap. Sebelumnya server memotong tiap query di 1.000 baris, jadi laporan rentang tanggal kehilangan transaksi (Sep 4.159 → hanya 1.000) dan totalnya tidak balance, walau per tanggal benar. |
+| Rekap mingguan/bulanan | Laporan Keuangan punya pilihan cepat 7 hari, 30 hari, minggu ini, bulan ini, dan bulan lalu. Satu query rentang menggantikan puluhan request per hari, dan refresh 60 detik tidak lagi mengembalikan rentang ke tanggal hari ini. |
 | Update PWA | `registerType: 'prompt'` + `PwaUpdatePrompt`: banner "Versi baru tersedia", cek tiap 30 menit, tidak ada reload diam-diam. |
 | Offline | `OfflineBanner` menyatakan jujur bahwa transaksi belum bisa disimpan; login saat offline tidak lagi dibilang "password salah". |
 | Ketahanan UI | `ErrorBoundary` per halaman di shell admin dan shell kasir. |

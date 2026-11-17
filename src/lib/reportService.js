@@ -213,17 +213,26 @@ export async function getAllBookingsRange(startDate, endDate) {
 }
 
 // Booking satu outlet dalam rentang tanggal (untuk mode "Outlet ini saja").
+//
+// Satu query untuk seluruh rentang, bukan satu query per tanggal. Batasnya
+// 00:00 WITA hari pertama sampai 23:59:59 WITA hari terakhir, jadi hasilnya
+// persis gabungan query per hari — hanya jauh lebih cepat untuk rekap
+// mingguan/bulanan (31 request menjadi 1 request berpaginasi).
 export async function getDailyBookingsRange(outletId, startDate, endDate) {
-  const all = [];
-  for (let dateStr = startDate; dateStr <= endDate; dateStr = shiftBusinessDate(dateStr, 1)) {
-    try {
-      const rows = await getDailyBookings(outletId, dateStr);
-      all.push(...rows);
-    } catch (e) {
-      console.warn('getDailyBookingsRange error', dateStr, e);
-    }
-  }
-  return all;
+  const { startUtc, endUtc } = witaRangeBounds(startDate, endDate);
+  const data = await fetchAllRows(
+    () =>
+      supabase
+        .from('bookings')
+        .select('*')
+        .eq('outlet_id', outletId)
+        .gte('created_at', startUtc.toISOString())
+        .lte('created_at', endUtc.toISOString())
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true }),
+    { label: `getDailyBookingsRange ${outletId} ${startDate}..${endDate}` }
+  );
+  return data.map(mapBooking);
 }
 
 /**
