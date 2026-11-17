@@ -26,6 +26,9 @@ export default function LaporanPage({ outletId, profile }) {
   const [rawBookings, setRawBookings] = useState([]);
   const [combined, setCombined] = useState(null);
   const [staffCommissions, setStaffCommissions] = useState(null);
+  const [commissionTransactions, setCommissionTransactions] = useState([]);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [showAllTransactions, setShowAllTransactions] = useState(false);
 
   const rangeLabel = startDate === endDate ? startDate : `${startDate} s/d ${endDate}`;
   const rangeDays = countDays(startDate, endDate);
@@ -76,7 +79,9 @@ export default function LaporanPage({ outletId, profile }) {
     try {
       const result = await getCommissionStaffReport(startDate, endDate);
       if (token !== reqRef.current) return;
-      setStaffCommissions(result);
+      setStaffCommissions(result.staff);
+      setCommissionTransactions(result.transactions);
+      setShowAllTransactions(false);
     } catch (e) {
       if (token !== reqRef.current) return;
       console.error('gagal memuat komisi staff', e);
@@ -182,17 +187,18 @@ export default function LaporanPage({ outletId, profile }) {
 
   async function handleDownloadKomisi() {
     const headers = [
-      'Staff', 'Jumlah Treatment', 'Total Omzet', 'Total Komisi', 'Komisi Hotel', 'Outlet'
+      'Staff', 'Jumlah Treatment', 'Total Omzet', 'Total Komisi', 'Komisi Hotel',
+      'Jam Transaksi (WITA)', 'Outlet'
     ];
     const rows = staffCommissions.map((s) => [
       s.therapistName, s.treatmentCount, s.revenueTotal, s.commissionTotal,
-      s.hotelCommissionTotal, s.outlets.join(', ')
+      s.hotelCommissionTotal, s.jam, s.outlets.join(', ')
     ]);
     const totalKomisi = staffCommissions.reduce((sum, s) => sum + s.commissionTotal, 0);
     const totalOmzet = staffCommissions.reduce((sum, s) => sum + s.revenueTotal, 0);
     const totalHotel = staffCommissions.reduce((sum, s) => sum + s.hotelCommissionTotal, 0);
     const totalTrx = staffCommissions.reduce((sum, s) => sum + s.treatmentCount, 0);
-    rows.push(['TOTAL', totalTrx, totalOmzet, totalKomisi, totalHotel, '']);
+    rows.push(['TOTAL', totalTrx, totalOmzet, totalKomisi, totalHotel, '', '']);
     try {
       await exportExcelReport({
         filename: `Laporan-Komisi-Staff-${startDate}_${endDate}`,
@@ -233,6 +239,7 @@ export default function LaporanPage({ outletId, profile }) {
         subtitle: `Semua Outlet · ${rangeLabel}`,
         sheets: data.sheets,
         note: 'Charge = harga yang dibayar pelanggan (sudah diskon). Komisi = 10% dari Charge. '
+          + 'Jam = waktu transaksi dicatat dalam WITA (Asia/Makassar). '
           + 'Transaksi batal tidak dihitung. Oncall tidak termasuk di sheet outlet. '
           + 'Kolom TOTAL PENDAPATAN berisi komisi per terapis untuk hari tersebut.'
       });
@@ -247,6 +254,9 @@ export default function LaporanPage({ outletId, profile }) {
   }
 
   const rp = (n) => 'Rp' + (n || 0).toLocaleString('id-ID');
+  const visibleTransactions = showAllTransactions
+    ? commissionTransactions
+    : commissionTransactions.slice(0, 50);
 
   return (
     <div className="kasir-page">
@@ -433,6 +443,7 @@ export default function LaporanPage({ outletId, profile }) {
                       <th>Omzet</th>
                       <th>Komisi</th>
                       <th>Komisi Hotel</th>
+                      <th>Jam Transaksi</th>
                       <th>Outlet</th>
                     </tr>
                   </thead>
@@ -446,6 +457,7 @@ export default function LaporanPage({ outletId, profile }) {
                         <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>
                           {s.hotelCommissionTotal > 0 ? rp(s.hotelCommissionTotal) : '-'}
                         </td>
+                        <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.jam || '-'}</td>
                         <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.outlets.join(', ')}</td>
                       </tr>
                     ))}
@@ -458,10 +470,71 @@ export default function LaporanPage({ outletId, profile }) {
                       <td style={{ textAlign: 'right', fontWeight: 700 }}><strong>{rp(staffCommissions.reduce((s, x) => s + x.commissionTotal, 0))}</strong></td>
                       <td style={{ textAlign: 'right' }}><strong>{rp(staffCommissions.reduce((s, x) => s + x.hotelCommissionTotal, 0))}</strong></td>
                       <td />
+                      <td />
                     </tr>
                   </tfoot>
                 </table>
               </div>
+
+              <details
+                style={{ marginTop: 12 }}
+                onToggle={(e) => setDetailOpen(e.currentTarget.open)}
+              >
+                <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                  Rincian transaksi per jam ({commissionTransactions.length} transaksi)
+                </summary>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0' }}>
+                  Jam memakai WITA (Asia/Makassar), dihitung dari waktu transaksi dicatat
+                  di database — bukan jam treatment dimulai atau selesai.
+                </p>
+                {detailOpen && (
+                  <>
+                    {visibleTransactions.length === 0 ? (
+                      <p>Tidak ada transaksi pada rentang ini.</p>
+                    ) : (
+                      <div className="table-wrap table-wrap--report" style={{ marginTop: 8 }}>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Tanggal</th>
+                              <th>Jam</th>
+                              <th>Staff</th>
+                              <th>Treatment</th>
+                              <th>Outlet</th>
+                              <th>Omzet</th>
+                              <th>Komisi</th>
+                              <th>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {visibleTransactions.map((t, i) => (
+                              <tr key={`${t.id || t.createdAt || 'trx'}-${i}`}>
+                                <td>{t.date}</td>
+                                <td style={{ fontWeight: 600 }}>{t.time || '-'}</td>
+                                <td>{t.therapistName}</td>
+                                <td>{t.treatmentName}</td>
+                                <td>{t.outletName}</td>
+                                <td style={{ textAlign: 'right' }}>{rp(t.treatmentPrice)}</td>
+                                <td style={{ textAlign: 'right' }}>{rp(t.commissionAmount)}</td>
+                                <td>{t.paid ? 'Lunas' : 'Belum bayar'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    {commissionTransactions.length > visibleTransactions.length && (
+                      <button
+                        className="btn btn-outline btn-sm"
+                        style={{ marginTop: 8 }}
+                        onClick={() => setShowAllTransactions(true)}
+                      >
+                        Tampilkan semua {commissionTransactions.length} transaksi
+                      </button>
+                    )}
+                  </>
+                )}
+              </details>
             </>
           )}
         </section>
