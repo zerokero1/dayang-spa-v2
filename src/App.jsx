@@ -311,8 +311,18 @@ export default function App() {
         {moreOpen && (
           <>
             <div className="kasir-more-backdrop" onClick={() => setMoreOpen(false)} />
-            <div className="kasir-more">
-              <h3>Menu lainnya</h3>
+            <div className="kasir-more" role="dialog" aria-modal="true" aria-label="Menu lainnya">
+              <div className="kasir-more-head">
+                <h3>Menu lainnya</h3>
+                <button
+                  className="kasir-more-close"
+                  onClick={() => setMoreOpen(false)}
+                  aria-label="Tutup menu lainnya"
+                  title="Tutup"
+                >
+                  ✕
+                </button>
+              </div>
               <div className="kasir-more-grid">
                 {morePages.map((p) => (
                   <button key={p.key} onClick={() => openPage(p.key)}>

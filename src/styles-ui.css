@@ -1280,65 +1280,95 @@ input[type="radio"] {
   border: none !important;
 }
 
-/* --- 13d. Bottom Sheet Menu Lainnya (.kasir-more) --- */
+/* --- 13d. Popup tengah Menu Lainnya (.kasir-more) --- */
 .kasir-more-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(18, 36, 31, 0.45);
+  background: rgba(18, 36, 31, 0.5);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   z-index: 35;
   animation: fadeIn 0.2s ease-out;
 }
 
+/* Panel tampil sebagai dialog di tengah layar, bukan bottom sheet yang dapat
+   terpotong di tablet. Semua posisi ditulis eksplisit untuk menimpa aturan
+   lama di styles.css (left/right/bottom/transform). */
 .kasir-more {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  width: min(720px, calc(100vw - 32px));
   z-index: 40;
   background: var(--surface);
-  border-top-left-radius: 24px !important;
-  border-top-right-radius: 24px !important;
-  box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.18);
-  padding: 12px 18px max(24px, env(safe-area-inset-bottom)) !important;
-  /* 75vh membuat menu bawah "hilang" di layar HP. Beri hampir seluruh tinggi
-     layar; kalau tetap tidak muat, panel bisa digulir dengan jelas. */
-  max-height: calc(100vh - 12px);
-  max-height: calc(100dvh - 12px);
+  border: 1px solid var(--border);
+  border-radius: 20px !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.24);
+  padding: 18px !important;
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  animation: slideUp 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: modalPopIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.kasir-more::before {
-  content: '';
-  display: block;
-  width: 40px;
-  height: 4px;
-  background: #D1D5DB;
+/* Handle bottom sheet tidak relevan lagi untuk dialog tengah. */
+.kasir-more::before { display: none; }
+
+.kasir-more-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.kasir-more-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.kasir-more-close {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
   border-radius: 999px;
-  margin: 0 auto 12px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 15px;
+  cursor: pointer;
 }
 
-/* Tablet: panel boleh lebih lebar dan menu memakai 3 kolom. Akun kasir yang
-   juga punya akses laporan office bisa punya 24 menu; dengan 2 kolom panel
-   tetap terpotong di tablet landscape. */
+.kasir-more-close:hover { color: var(--text); background: var(--surface-2); }
+
+/* HP: 2 kolom supaya teks tetap mudah dibaca. */
+@media (max-width: 699px) {
+  .kasir-more-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kasir-more-grid button { padding: 10px; font-size: 12.5px; }
+}
+
+/* Tablet: 3 kolom; 4 kolom untuk layar landscape pendek. */
 @media (min-width: 700px) {
-  .kasir-more { width: min(860px, calc(100vw - 32px)); }
   .kasir-more-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-/* Tablet landscape pendek (mis. 1024x600 / 800x480): 4 kolom supaya semua
-   menu muat tanpa menggulir. */
 @media (min-width: 700px) and (max-height: 620px) {
   .kasir-more-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+@keyframes modalPopIn {
+  from { transform: translate(-50%, -46%); opacity: 0; }
+  to { transform: translate(-50%, -50%); opacity: 1; }
 }
 
 @keyframes fadeIn {
