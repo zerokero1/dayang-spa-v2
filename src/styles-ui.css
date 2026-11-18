@@ -701,7 +701,8 @@ input[type="radio"] {
 .kasir-nav button { padding: 11px 4px 13px; font-size: 11.5px; }
 .kasir-nav button .ni { font-size: 21px; }
 
-.kasir-more { padding: 18px 16px 78px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+/* Aturan lama ini sengaja dihapus: padding bawah 78px dan duplikat radius
+   bertabrakan dengan bottom sheet di bagian 13d. Satu sumber aturan saja. */
 .kasir-more-grid { gap: 10px; }
 
 
@@ -1096,7 +1097,11 @@ input[type="radio"] {
   .kasir-tiles { gap: 10px; }
   .kasir-tile { min-height: 92px; padding: 14px 13px; }
   .kasir-tile.primary { min-height: 74px; }
-  .kasir-more-grid { grid-template-columns: 1fr; }
+  /* Jangan jadi 1 kolom di HP: 13 menu akan melebihi tinggi panel dan
+     pengguna mengira hanya setengah menu yang muncul. Tetap 2 kolom supaya
+     semua menu muat; panel sudah bisa digulir jika layar sangat pendek. */
+  .kasir-more-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kasir-more-grid button { padding: 10px; font-size: 12.5px; }
   .outlet-switch .chip { min-height: 36px; padding: 0 13px; font-size: 13px; }
 }
 
@@ -1297,8 +1302,13 @@ input[type="radio"] {
   border-top-right-radius: 24px !important;
   box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.18);
   padding: 12px 18px max(24px, env(safe-area-inset-bottom)) !important;
-  max-height: 75vh;
+  /* 75vh membuat menu bawah "hilang" di layar HP. Beri hampir seluruh tinggi
+     layar; kalau tetap tidak muat, panel bisa digulir dengan jelas. */
+  max-height: calc(100vh - 12px);
+  max-height: calc(100dvh - 12px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   animation: slideUp 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
