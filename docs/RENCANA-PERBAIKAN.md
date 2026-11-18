@@ -20,7 +20,7 @@ bukan reload otomatis, supaya transaksi tidak terputus saat kasir bekerja.
 | Ketahanan UI | `ErrorBoundary` per halaman di shell admin dan shell kasir. |
 | Tampilan & navigasi | `RentangTanggal` jadi pemilih tanggal standar halaman laporan (preset aktif, rentang tak terbalik, muat otomatis). Header kasir, focus ring, safe-area, tab "Lainnya", sticky offline banner, spinner, dan tabel laporan juga dirapikan tanpa mengubah alur transaksi. |
 | Jam transaksi komisi | Komisi Staff menampilkan jam pertama–terakhir per terapis dan panel rincian transaksi per jam (WITA, dari `created_at`). Kolom Jam juga ditambahkan ke Excel revenue/komisi harian. |
-| Menu "Lainnya" | Panel tidak lagi memaksa satu kolom di layar sempit dan tidak dibatasi 75% tinggi layar. Ke-13 menu kasir kini muat tanpa harus digulir (diuji 320×568, 390×844, 768×1024); aturan `.kasir-more` yang duplikat juga dibersihkan. |
+| Menu "Lainnya" | Panel tidak lagi memaksa satu kolom di layar sempit dan tidak dibatasi 75% tinggi layar. Di tablet panel diperlebar dengan 3 kolom (4 kolom untuk layar pendek) supaya 24 menu sekalipun muat; diuji 1599×999, 1280×800, 1024×600, 800×480, 390×844. Aturan `.kasir-more` yang duplikat juga dibersihkan. |
 | Kualitas | 32 tes unit, cek render 35 halaman, lint tanpa warning, dan GitHub Actions (`.github/workflows/ci.yml`). |
 | Android | APK 1.1 (`versionCode 2`) dibangun dari cabang `nothinggoodinheree-droid-android-receipt-printing`, berisi perbaikan di atas plus cetak Bluetooth, toast, dan tautan WhatsApp. |
 

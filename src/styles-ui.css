@@ -1322,6 +1322,20 @@ input[type="radio"] {
   margin: 0 auto 12px;
 }
 
+/* Tablet: panel boleh lebih lebar dan menu memakai 3 kolom. Akun kasir yang
+   juga punya akses laporan office bisa punya 24 menu; dengan 2 kolom panel
+   tetap terpotong di tablet landscape. */
+@media (min-width: 700px) {
+  .kasir-more { width: min(860px, calc(100vw - 32px)); }
+  .kasir-more-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Tablet landscape pendek (mis. 1024x600 / 800x480): 4 kolom supaya semua
+   menu muat tanpa menggulir. */
+@media (min-width: 700px) and (max-height: 620px) {
+  .kasir-more-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
 @keyframes slideUp {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
