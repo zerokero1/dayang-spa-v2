@@ -95,6 +95,19 @@ export const DEFAULT_INVENTORY_CATEGORY = 'Produk';
 // Happy Hour bukan kategori. Lihat blok aturan Happy Hour di bawah.
 export const TREATMENT_CATEGORIES = ['Massage', 'Nail', 'Body Care', 'Waxing', 'Hair Treatment'];
 
+/**
+ * Treatment yang harganya DITENTUKAN KASIR saat transaksi, bukan harga katalog.
+ *
+ * `Hair Breading` (ejaan di database) adalah hair braiding dengan harga
+ * berbeda-beda per tamu, sehingga baris katalognya sengaja Rp0. Kasir wajib
+ * mengisi harga sebelum treatment masuk keranjang.
+ */
+export function isCustomPriceTreatment(t) {
+  if (!t) return false;
+  const nama = String(t.name || '').toLowerCase().replace(/[^a-z]/g, '');
+  return nama.includes('hairbreading') || nama.includes('hairbraiding');
+}
+
 /** Apakah treatment ini Foot Massage (pakai produk Foot Cream / FM)? */
 export function isFootMassage(t) {
   if (!t) return false;
