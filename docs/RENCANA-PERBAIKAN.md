@@ -28,7 +28,7 @@ bukan reload otomatis, supaya transaksi tidak terputus saat kasir bekerja.
 
 ## Menunggu keputusan atau tindakan owner
 
-1. **Jalankan `supabase/add_treatment_is_active.sql`** di Supabase SQL Editor sebelum memakai tombol Nonaktifkan. File ini idempoten dan tidak mengubah data treatment yang ada.
+1. **Jalankan `supabase/add_treatment_is_active.sql`** ke Postgres VPS dengan `node sql-jalankan.mjs supabase/add_treatment_is_active.sql` sebelum memakai tombol Nonaktifkan. File ini idempoten dan tidak mengubah data treatment yang ada.
 2. **Uji APK 1.2 di satu tablet** (login → buat pesanan `Hair Breading` dengan harga manual → bayar → struk → cek komisi → buka Kelola Treatment) sebelum dipasang ke semua perangkat. Tidak ada perangkat/emulator saat build terakhir.
 3. **Aturan lembur shift SP1**: `SHIFT_DEFS.SP1.endMin` bernilai `23:59`, padahal shift berakhir 14:00. Akibatnya lembur baru dihitung lewat tengah malam. Ini keputusan bisnis, bukan bug teknis.
 4. **RLS ketat per peran**: perlu SSH tunnel ke VPS dan salinan database. Sebaiknya dipasang di jendela pemeliharaan.
@@ -46,7 +46,7 @@ bukan reload otomatis, supaya transaksi tidak terputus saat kasir bekerja.
 
 ## Urutan yang disarankan
 
-1. Jalankan migrasi `add_treatment_is_active.sql`, lalu uji APK 1.2 di satu tablet termasuk alur harga `Hair Breading`.
+1. Jalankan migrasi `add_treatment_is_active.sql` lewat `node sql-jalankan.mjs`, lalu uji APK 1.2 di satu tablet termasuk alur harga `Hair Breading`.
 2. RLS per peran: siapkan di salinan database, uji dengan akun kasir dan order taker, pasang di jam sepi.
 3. Baseline migrasi SQL: satu file idempoten yang aman dijalankan ulang.
 4. Antrean offline, lalu port toast ke PWA, lalu pecah bundle Excel.
