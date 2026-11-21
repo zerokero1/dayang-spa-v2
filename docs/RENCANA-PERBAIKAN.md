@@ -23,12 +23,12 @@ bukan reload otomatis, supaya transaksi tidak terputus saat kasir bekerja.
 | Kelola Treatment | Halaman baru untuk menambah, mengedit, dan menonaktifkan treatment (nama, harga, durasi wajib; kategori/komisi/minyak opsional). Katalog global untuk semua outlet dan dapat dibuka semua role, termasuk `order_taker`. “Hapus” menjadi soft delete lewat kolom `is_active`, jadi riwayat booking/struk tetap terbaca. |
 | Menu "Lainnya" | Panel kini berupa dialog di tengah layar (bukan bottom sheet), dengan tombol tutup dan latar belakang yang bisa diketuk. Grid memakai 2 kolom di HP, 3 kolom di tablet, dan 4 kolom di tablet landscape pendek supaya 24 menu sekalipun muat; diuji 1599×999, 1280×800, 1024×600, 800×480, 390×844. Aturan `.kasir-more` yang duplikat juga dibersihkan. |
 | Kualitas | 35 tes unit, cek render 36 halaman, lint tanpa warning, dan GitHub Actions (`.github/workflows/ci.yml`). |
-| Android | APK 1.1 (`versionCode 2`) dibangun dari cabang `nothinggoodinheree-droid-android-receipt-printing`, berisi perbaikan di atas plus cetak Bluetooth, toast, dan tautan WhatsApp. |
+| Android | APK 1.2 (`versionCode 2`) dibangun dari cabang `nothinggoodinheree-droid-android-receipt-printing` setelah merge Kelola Treatment; berisi perbaikan di atas plus halaman treatment, cetak Bluetooth, toast, dan tautan WhatsApp. SHA-256 `78398A85D66D3D6A1B58E2F5101BFA13AB65B39E6FC1A2B2965C4F829A19833C`. |
 
 ## Menunggu keputusan atau tindakan owner
 
 1. **Jalankan `supabase/add_treatment_is_active.sql`** di Supabase SQL Editor sebelum memakai tombol Nonaktifkan. File ini idempoten dan tidak mengubah data treatment yang ada.
-2. **Uji APK 1.1 di satu tablet** (login → transaksi → cetak struk) sebelum dipasang ke semua perangkat. Tidak ada perangkat/emulator saat build terakhir.
+2. **Uji APK 1.2 di satu tablet** (login → transaksi → cetak struk, lalu buka Kelola Treatment) sebelum dipasang ke semua perangkat. Tidak ada perangkat/emulator saat build terakhir.
 3. **Aturan lembur shift SP1**: `SHIFT_DEFS.SP1.endMin` bernilai `23:59`, padahal shift berakhir 14:00. Akibatnya lembur baru dihitung lewat tengah malam. Ini keputusan bisnis, bukan bug teknis.
 4. **RLS ketat per peran**: perlu SSH tunnel ke VPS dan salinan database. Sebaiknya dipasang di jendela pemeliharaan.
 
@@ -45,7 +45,7 @@ bukan reload otomatis, supaya transaksi tidak terputus saat kasir bekerja.
 
 ## Urutan yang disarankan
 
-1. Uji APK 1.1 di satu tablet.
+1. Jalankan migrasi `add_treatment_is_active.sql`, lalu uji APK 1.2 di satu tablet.
 2. RLS per peran: siapkan di salinan database, uji dengan akun kasir dan order taker, pasang di jam sepi.
 3. Baseline migrasi SQL: satu file idempoten yang aman dijalankan ulang.
 4. Antrean offline, lalu port toast ke PWA, lalu pecah bundle Excel.
