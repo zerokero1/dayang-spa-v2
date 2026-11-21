@@ -1,6 +1,6 @@
 # Rencana perbaikan
 
-Diperbarui: 17 November 2026
+Diperbarui: 21 November 2026
 
 Prinsip kerja: perubahan yang menyentuh alur kasir (buat pesanan, bayar, struk)
 diuji di salinan lebih dulu dan dipasang di jam sepi. PWA memakai prompt update,
@@ -20,15 +20,17 @@ bukan reload otomatis, supaya transaksi tidak terputus saat kasir bekerja.
 | Ketahanan UI | `ErrorBoundary` per halaman di shell admin dan shell kasir. |
 | Tampilan & navigasi | `RentangTanggal` jadi pemilih tanggal standar halaman laporan (preset aktif, rentang tak terbalik, muat otomatis). Header kasir, focus ring, safe-area, tab "Lainnya", sticky offline banner, spinner, dan tabel laporan juga dirapikan tanpa mengubah alur transaksi. |
 | Jam transaksi komisi | Komisi Staff menampilkan jam pertama–terakhir per terapis dan panel rincian transaksi per jam (WITA, dari `created_at`). Kolom Jam juga ditambahkan ke Excel revenue/komisi harian. |
+| Kelola Treatment | Halaman baru untuk menambah, mengedit, dan menonaktifkan treatment (nama, harga, durasi wajib; kategori/komisi/minyak opsional). Katalog global untuk semua outlet dan dapat dibuka semua role, termasuk `order_taker`. “Hapus” menjadi soft delete lewat kolom `is_active`, jadi riwayat booking/struk tetap terbaca. |
 | Menu "Lainnya" | Panel kini berupa dialog di tengah layar (bukan bottom sheet), dengan tombol tutup dan latar belakang yang bisa diketuk. Grid memakai 2 kolom di HP, 3 kolom di tablet, dan 4 kolom di tablet landscape pendek supaya 24 menu sekalipun muat; diuji 1599×999, 1280×800, 1024×600, 800×480, 390×844. Aturan `.kasir-more` yang duplikat juga dibersihkan. |
-| Kualitas | 32 tes unit, cek render 35 halaman, lint tanpa warning, dan GitHub Actions (`.github/workflows/ci.yml`). |
+| Kualitas | 35 tes unit, cek render 36 halaman, lint tanpa warning, dan GitHub Actions (`.github/workflows/ci.yml`). |
 | Android | APK 1.1 (`versionCode 2`) dibangun dari cabang `nothinggoodinheree-droid-android-receipt-printing`, berisi perbaikan di atas plus cetak Bluetooth, toast, dan tautan WhatsApp. |
 
 ## Menunggu keputusan atau tindakan owner
 
-1. **Uji APK 1.1 di satu tablet** (login → transaksi → cetak struk) sebelum dipasang ke semua perangkat. Tidak ada perangkat/emulator saat build terakhir.
-2. **Aturan lembur shift SP1**: `SHIFT_DEFS.SP1.endMin` bernilai `23:59`, padahal shift berakhir 14:00. Akibatnya lembur baru dihitung lewat tengah malam. Ini keputusan bisnis, bukan bug teknis.
-3. **RLS ketat per peran**: perlu SSH tunnel ke VPS dan salinan database. Sebaiknya dipasang di jendela pemeliharaan.
+1. **Jalankan `supabase/add_treatment_is_active.sql`** di Supabase SQL Editor sebelum memakai tombol Nonaktifkan. File ini idempoten dan tidak mengubah data treatment yang ada.
+2. **Uji APK 1.1 di satu tablet** (login → transaksi → cetak struk) sebelum dipasang ke semua perangkat. Tidak ada perangkat/emulator saat build terakhir.
+3. **Aturan lembur shift SP1**: `SHIFT_DEFS.SP1.endMin` bernilai `23:59`, padahal shift berakhir 14:00. Akibatnya lembur baru dihitung lewat tengah malam. Ini keputusan bisnis, bukan bug teknis.
+4. **RLS ketat per peran**: perlu SSH tunnel ke VPS dan salinan database. Sebaiknya dipasang di jendela pemeliharaan.
 
 ## Celah yang masih ada
 
