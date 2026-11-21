@@ -48,6 +48,7 @@ const PemeriksaanSistemPage = lazy(() => import('./pages/PemeriksaanSistemPage')
 const SupervisorPage = lazy(() => import('./pages/SupervisorPage'));
 const PeriksaKomisiPage = lazy(() => import('./pages/PeriksaKomisiPage'));
 const LaporanKeseluruhanPage = lazy(() => import('./pages/LaporanKeseluruhanPage'));
+const KelolaTreatmentPage = lazy(() => import('./pages/KelolaTreatmentPage'));
 
 const PAGES = {
   kasir: { label: 'Kasir', icon: '🧾', Component: KasirPage },
@@ -80,6 +81,9 @@ const PAGES = {
   pemeriksaanSistem: { label: 'Pemeriksaan Sistem', icon: '🔎', Component: PemeriksaanSistemPage, global: true, officeOnly: true },
   supervisor: { label: 'Supervisor', icon: '🛡️', Component: SupervisorPage, global: true, officeOnly: true },
   kelolaTerapis: { label: 'Kelola Terapis', icon: '👥', Component: KelolaTerapisPage, global: true, adminOnly: true },
+  // Katalog treatment global. Sengaja tanpa adminOnly/officeOnly/roles supaya
+  // semua role, termasuk order_taker, tetap bisa membukanya.
+  kelolaTreatment: { label: 'Kelola Treatment', icon: '💆', Component: KelolaTreatmentPage, global: true },
   koreksiBooking: { label: 'Koreksi Booking', icon: '✏️', Component: KoreksiBookingPage, global: true, officeOnly: true },
   koreksiOncall: { label: 'Koreksi Oncall', icon: '🏨', Component: EditOncallPage, global: true, officeOnly: true },
   overtime: { label: 'Overtime', icon: '⏱️', Component: OvertimePage, global: true, officeOnly: true },
@@ -98,7 +102,7 @@ const PAGES = {
 const NAV_GROUPS = [
   { label: 'Operasional', keys: ['kasir', 'oncall', 'ambilOrder', 'reservasi', 'status', 'struk', 'dashboard', 'ringkasan'] },
   { label: 'Terapis & Absensi', keys: ['absensi', 'dashboardTerapis', 'kelolaTerapis', 'overtime'] },
-  { label: 'Stok', keys: ['stok', 'orderStock'] },
+  { label: 'Stok', keys: ['stok', 'orderStock', 'kelolaTreatment'] },
   { label: 'Laporan', keys: ['laporan', 'laporanAbsensi', 'laporanInventory', 'laporanOvertime', 'laporanPemakaianStok', 'laporanProduksi', 'laporanDiskon', 'jadwalMingguan', 'laporanKeseluruhan', 'revenueSementara', 'belumDitandai', 'slipGaji', 'periksaKomisi', 'transaksiTerapis', 'logAktivitas'] },
   { label: 'Sistem', keys: ['koreksiBooking', 'koreksiOncall', 'pemeriksaanSistem', 'supervisor'] }
 ];
@@ -107,7 +111,7 @@ const NAV_GROUPS = [
 // Semua role lain (admin_pusat, kasir) tetap melihat semua halaman seperti biasa,
 // KECUALI halaman yang secara eksplisit dibatasi ke role tertentu lewat "roles".
 const RESTRICTED_ROLE_PAGES = {
-  order_taker: ['ambilOrder', 'status', 'ringkasan']
+  order_taker: ['ambilOrder', 'status', 'ringkasan', 'kelolaTreatment']
 };
 
 const ROLE_LABEL = {
