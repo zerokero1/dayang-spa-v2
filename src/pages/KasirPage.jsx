@@ -3,6 +3,7 @@ import {
   TREATMENT_CATEGORIES, PAYMENT_METHOD_LABEL,
   sizesForProduct, isSingleSizeProduct,
   treatmentUsesOil, oilChoicesFor,
+  isCustomPriceTreatment, parseRupiah, sanitizeNominal,
   HAPPY_HOUR_PRICE, HAPPY_HOUR_REASON, HAPPY_HOUR_TIMEZONE,
   isHappyHourTime, isHappyHourTreatment
 } from '../lib/constants';
@@ -62,7 +63,8 @@ export default function KasirPage({ outletId, active }) {
   const [pendingOil, setPendingOil] = useState(null);
   const [pendingSize, setPendingSize] = useState(null);
   const [pendingNoOil, setPendingNoOil] = useState(false);
-  const [step, setStep] = useState(null); // null | 'oil' | 'therapist'
+  const [customPriceInput, setCustomPriceInput] = useState('');
+  const [step, setStep] = useState(null); // null | 'price' | 'oil' | 'therapist'
   const [therapistSearch, setTherapistSearch] = useState('');
   const [freeOnly, setFreeOnly] = useState(true);
 
@@ -165,7 +167,31 @@ export default function KasirPage({ outletId, active }) {
     setPendingOil(null);
     setPendingSize(null);
     setPendingNoOil(false);
+    setCustomPriceInput('');
+    setError('');
+    if (isCustomPriceTreatment(treatment)) {
+      setStep('price');
+      return;
+    }
     setStep(usesOil(treatment) ? 'oil' : 'therapist');
+  }
+
+  /**
+   * Hair Breading memakai harga per transaksi. Harga yang diketik kasir
+   * menggantikan `price` pada SALINAN treatment yang masuk keranjang, sehingga
+   * booking/struk/komisi memakai angka itu apa adanya. Data katalog tidak diubah.
+   */
+  function handleCustomPriceConfirm() {
+    if (!pendingTreatment) return;
+    const harga = parseRupiah(customPriceInput);
+    if (!Number.isFinite(harga) || harga <= 0) {
+      setError('Harga Hair Breading wajib diisi dan lebih dari 0.');
+      return;
+    }
+    setPendingTreatment({ ...pendingTreatment, price: harga });
+    setCustomPriceInput('');
+    setError('');
+    setStep('therapist');
   }
 
   function handlePickOil(oil, size) {
@@ -241,6 +267,7 @@ function addLine(t, tera, opts = {}) {
 
     addLine(pendingTreatment, t, { oil: pendingOil, size: pendingSize, noOilChosen: pendingNoOil });
     setPendingTreatment(null); setPendingOil(null); setPendingSize(null); setPendingNoOil(false);
+    setCustomPriceInput('');
     setStep(null);
     setError('');
   }
@@ -335,6 +362,7 @@ function addLine(t, tera, opts = {}) {
 
   function cancelPicking() {
     setPendingTreatment(null); setPendingOil(null); setPendingSize(null);
+    setCustomPriceInput('');
     setStep(null);
   }
 
@@ -458,8 +486,29 @@ function addLine(t, tera, opts = {}) {
         ))}
       </div>
 
-      {/* Kolom tengah: daftar produk (langkah 1), lalu panel minyak/terapis muncul di atas saat diperlukan */}
+      {/* Kolom tengah: daftar produk (langkah 1), lalu panel harga/minyak/terapis muncul di atas saat diperlukan */}
       <div className="pos-main">
+        {step === 'price' && pendingTreatment && (
+          <div className="pos-picker-panel">
+            <p className="pos-picker-title">{pendingTreatment.name} — masukkan harga</p>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: -6 }}>
+              Harga ditentukan kasir per transaksi. Komisi terapis tetap {pendingTreatment.commissionPercent}%.
+            </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="Contoh: 350000"
+              value={customPriceInput}
+              onChange={(e) => setCustomPriceInput(sanitizeNominal(e.target.value))}
+              autoFocus
+            />
+            <button className="btn btn-primary" onClick={handleCustomPriceConfirm}>
+              Lanjut pilih terapis
+            </button>
+            <button className="pos-cancel" onClick={cancelPicking}>Batal</button>
+          </div>
+        )}
+
         {step === 'oil' && (
           <div className="pos-picker-panel">
             <p className="pos-picker-title">
@@ -557,7 +606,9 @@ function addLine(t, tera, opts = {}) {
               <div key={t.id} className="pos-product-row" onClick={() => handlePickTreatment(t)}>
                 <span>{t.name}</span>
                 <span className="pos-product-muted">{t.durationMinutes ? `${t.durationMinutes} mnt` : '-'}</span>
-                <span className="pos-product-price">{rp(t.price)}</span>
+                <span className="pos-product-price">
+                  {isCustomPriceTreatment(t) ? 'Harga diinput' : rp(t.price)}
+                </span>
               </div>
             ))}
             {productList.length === 0 && (
@@ -585,6 +636,7 @@ function addLine(t, tera, opts = {}) {
           {cartWithTimes.map((line, i) => {
             const modePct = line.discountMode !== 'amount';
             const modeAmount = line.discountMode === 'amount';
+            const customPrice = isCustomPriceTreatment(line.treatment);
             return (
             <div key={i} className="pos-cart-item">
               <div>
@@ -595,9 +647,11 @@ function addLine(t, tera, opts = {}) {
                 <div style={{ fontSize: 12, color: 'var(--primary)', marginTop: 2 }}>
                   {fmtTime(line.start)} – {fmtTime(line.end)} WITA ({line.treatment.durationMinutes || 0} mnt)
                 </div>
-                {line.happyHour ? (
+                {line.happyHour || customPrice ? (
                   <div style={{ fontSize: 11, color: 'var(--primary)', marginTop: 6 }}>
-                    Happy Hour — harga tetap Rp250.000 (chip diskon tidak dipakai)
+                    {customPrice
+                      ? `Harga diinput kasir ${rp(line.treatment.price)} — chip diskon tidak dipakai`
+                      : 'Happy Hour — harga tetap Rp250.000 (chip diskon tidak dipakai)'}
                   </div>
                 ) : (
                   <>
