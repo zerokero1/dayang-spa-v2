@@ -3,7 +3,9 @@ import { supabase } from './supabase.js';
 /**
  * Treatment adalah katalog GLOBAL: tidak ada filter outlet di sini.
  *
- * Kolom `is_active` ditambahkan lewat `supabase/add_treatment_is_active.sql`.
+ * Kolom `is_active` ditambahkan lewat file `add_treatment_is_active.sql`
+ * (di folder `supabase/`), dijalankan ke Postgres VPS dengan
+ * `node sql-jalankan.mjs supabase/add_treatment_is_active.sql`.
  * Sebelum migrasi itu dijalankan, kolom belum ada; mapTreatment sengaja
  * menganggap semua treatment aktif supaya halaman kasir lama tetap normal.
  */
@@ -87,7 +89,7 @@ export async function setTreatmentActive(id, active) {
     .eq('id', id);
   if (error) {
     if (error.code === '42703' || /is_active/i.test(error.message || '')) {
-      throw new Error('Kolom is_active belum ada. Jalankan supabase/add_treatment_is_active.sql dulu.');
+      throw new Error('Kolom is_active belum ada di database. Jalankan migrasi add_treatment_is_active.sql lewat node sql-jalankan.mjs dulu.');
     }
     throw error;
   }
